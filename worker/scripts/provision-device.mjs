@@ -1,6 +1,8 @@
 /**
  * Helper script to generate a secure random device token and its database record.
- * Run with: npx tsx scripts/provision-device.ts <device-name> [pepper]
+ * Run directly with Node (no build step or tsx required):
+ *   node scripts/provision-device.mjs [device-name] [pepper]
+ *   or: npm run provision -- [device-name]
  */
 import { randomBytes, createHash } from 'node:crypto';
 

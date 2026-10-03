@@ -118,7 +118,9 @@ npx wrangler d1 migrations apply work-hours-prod --remote
 Generate a cryptographically secure device bearer token and corresponding database record:
 
 ```bash
-npx tsx scripts/provision-device.ts "primary-phone"
+npm run provision -- "primary-phone"
+# or directly with Node:
+# node scripts/provision-device.mjs "primary-phone"
 ```
 
 Copy the generated bearer token into your device's secure storage.
