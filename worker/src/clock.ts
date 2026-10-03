@@ -8,7 +8,7 @@ import type {
   ProcessedRequestRow,
 } from './types';
 import { AppError } from './errors';
-import { calculateDurations } from './status';
+import { calculateDurations, getWarsawDateComponents } from './status';
 
 export const DEFAULT_USER_ID = 'default-user';
 
@@ -230,6 +230,12 @@ export async function handleClockOut(
     Math.floor((now.getTime() - new Date(activeSince).getTime()) / 1000)
   );
 
+  const activeStartDate = new Date(activeSince);
+  const { dateString: shiftDateString, monthString: shiftMonthString } =
+    getWarsawDateComponents(activeStartDate);
+  const { dateString: todayString, monthString: currentMonthString } =
+    getWarsawDateComponents(now);
+
   const prevDurations = await calculateDurations(
     db,
     DEFAULT_USER_ID,
@@ -243,8 +249,12 @@ export async function handleClockOut(
     changed: true,
     activeSince: null,
     serverTime: nowIso,
-    todaySeconds: prevDurations.todaySeconds + completedShiftSeconds,
-    monthSeconds: prevDurations.monthSeconds + completedShiftSeconds,
+    todaySeconds:
+      prevDurations.todaySeconds +
+      (shiftDateString === todayString ? completedShiftSeconds : 0),
+    monthSeconds:
+      prevDurations.monthSeconds +
+      (shiftMonthString === currentMonthString ? completedShiftSeconds : 0),
   };
 
   const responseJson = JSON.stringify(response);

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { validateClockRequest } from '../src/clock';
-import { pairShifts, getWarsawDateComponents } from '../src/status';
+import { pairShifts, getWarsawDateComponents, formatDuration } from '../src/status';
 import type { EventRow } from '../src/types';
 
 describe('State Transitions & Duration Rules', () => {
@@ -112,5 +112,12 @@ describe('State Transitions & Duration Rules', () => {
     const dateWinter = new Date('2026-10-26T00:30:00.000Z');
     const compWinter = getWarsawDateComponents(dateWinter);
     expect(compWinter.dateString).toBe('2026-10-26');
+  });
+
+  it('formats duration integers to Xh Ym representation', () => {
+    expect(formatDuration(0)).toBe('0h 0m');
+    expect(formatDuration(3600)).toBe('1h 0m');
+    expect(formatDuration(86400)).toBe('24h 0m');
+    expect(formatDuration(90000)).toBe('25h 0m');
   });
 });

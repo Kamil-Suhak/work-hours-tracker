@@ -3,7 +3,14 @@ enum WorkState {
   clockedOut;
 
   static WorkState fromString(String value) {
-    return value == 'clocked_in' ? WorkState.clockedIn : WorkState.clockedOut;
+    switch (value) {
+      case 'clocked_in':
+        return WorkState.clockedIn;
+      case 'clocked_out':
+        return WorkState.clockedOut;
+      default:
+        throw FormatException('Unrecognized WorkState: "$value"');
+    }
   }
 
   String toApiString() {

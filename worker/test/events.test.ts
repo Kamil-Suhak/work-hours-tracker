@@ -41,7 +41,7 @@ describe("Admin Manual Events Validation", () => {
         reason: "Extra long shift",
         requestId: "req-backfill-4",
       }),
-    ).toThrow(/exceeds the maximum allowed 24 hours/);
+    ).toThrow(/exceeds the maximum allowed 24h 0m/);
   });
 
   it("accepts valid historical shift backfills", () => {

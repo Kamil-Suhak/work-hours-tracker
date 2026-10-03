@@ -7,7 +7,7 @@ import type {
 } from './types';
 import { AppError } from './errors';
 import { DEFAULT_USER_ID } from './clock';
-import { pairShifts } from './status';
+import { pairShifts, formatDuration } from './status';
 
 const MAX_QUERY_RANGE_DAYS = 93;
 const MAX_SHIFT_DURATION_SECONDS = 24 * 60 * 60; // 24 hours
@@ -113,7 +113,7 @@ export function validateManualEventRequest(body: unknown): ManualEventRequestBod
   if (durationSeconds > MAX_SHIFT_DURATION_SECONDS) {
     throw new AppError(
       'INVALID_DURATION',
-      `Shift duration (${durationSeconds}s) exceeds the maximum allowed 24 hours.`,
+      `Shift duration (${formatDuration(durationSeconds)}) exceeds the maximum allowed ${formatDuration(MAX_SHIFT_DURATION_SECONDS)}.`,
       400,
       requestId
     );

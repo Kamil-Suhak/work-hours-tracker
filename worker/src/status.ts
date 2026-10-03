@@ -18,6 +18,13 @@ export function getWarsawDateComponents(date: Date): {
   return { dateString, monthString };
 }
 
+export function formatDuration(totalSeconds: number): string {
+  if (totalSeconds <= 0) return '0h 0m';
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  return `${hours}h ${minutes}m`;
+}
+
 export function pairShifts(events: EventRow[]): {
   clockIn: EventRow;
   clockOut: EventRow;
@@ -60,9 +67,10 @@ export async function calculateDurations(
   const { dateString: todayString, monthString: currentMonthString } =
     getWarsawDateComponents(now);
 
-  // Fetch all events for the current month window
-  // Query starting slightly before current month boundary to catch UTC/local time offsets
-  const startOfMonthUtc = `${currentMonthString}-01T00:00:00.000Z`;
+  // Fetch events for the current month window
+  // Query starts 48 hours prior to UTC 1st to include shifts starting 00:00-02:00 Warsaw time (UTC+1/UTC+2)
+  const firstOfMonthUtc = new Date(Date.parse(`${currentMonthString}-01T00:00:00.000Z`));
+  const queryStartUtc = new Date(firstOfMonthUtc.getTime() - 48 * 60 * 60 * 1000).toISOString();
 
   const { results: rawEvents } = await db
     .prepare(
@@ -70,7 +78,7 @@ export async function calculateDurations(
        WHERE user_id = ? AND occurred_at_utc >= ? 
        ORDER BY occurred_at_utc ASC, id ASC`
     )
-    .bind(userId, startOfMonthUtc)
+    .bind(userId, queryStartUtc)
     .all<EventRow>();
 
   const events = rawEvents ?? [];
