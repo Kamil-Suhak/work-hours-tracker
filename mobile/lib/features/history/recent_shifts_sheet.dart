@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'manual_shift_dialog.dart';
 import 'shift_model.dart';
 import 'shifts_notifier.dart';
 
@@ -65,10 +66,21 @@ class RecentShiftsSheet extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.refresh),
-                      tooltip: 'Refresh History',
-                      onPressed: () => ref.read(shiftsProvider.notifier).refresh(),
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.add_circle_outline),
+                          tooltip: 'Record Past Shift',
+                          color: const Color(0xFF0F766E),
+                          onPressed: () => ManualShiftDialog.show(context),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.refresh),
+                          tooltip: 'Refresh History',
+                          onPressed: () =>
+                              ref.read(shiftsProvider.notifier).refresh(),
+                        ),
+                      ],
                     ),
                   ],
                 ),

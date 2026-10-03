@@ -23,7 +23,9 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _urlController;
   late final TextEditingController _tokenController;
+  late final TextEditingController _adminTokenController;
   bool _obscureToken = true;
+  bool _obscureAdminToken = true;
   bool _isSaving = false;
   bool _vibrationsEnabled = true;
 
@@ -39,6 +41,9 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
     _tokenController = TextEditingController(
       text: settings?.deviceToken ?? '',
     );
+    _adminTokenController = TextEditingController(
+      text: settings?.adminToken ?? '',
+    );
     _vibrationsEnabled = settings?.vibrationsEnabled ?? true;
   }
 
@@ -46,6 +51,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
   void dispose() {
     _urlController.dispose();
     _tokenController.dispose();
+    _adminTokenController.dispose();
     super.dispose();
   }
 
@@ -65,10 +71,12 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
     try {
       final url = _urlController.text.trim();
       final token = _tokenController.text.trim();
+      final adminToken = _adminTokenController.text.trim();
 
       await ref.read(settingsProvider.notifier).saveSettings(
             baseUrl: url,
             deviceToken: token,
+            adminToken: adminToken.isNotEmpty ? adminToken : null,
             vibrationsEnabled: _vibrationsEnabled,
           );
 
@@ -181,6 +189,36 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                     }
                     return null;
                   },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _adminTokenController,
+                  obscureText: _obscureAdminToken,
+                  decoration: InputDecoration(
+                    labelText: 'Admin API Token (Optional)',
+                    hintText: 'Used for manual shift backfills',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            _obscureAdminToken
+                                ? Icons.visibility
+                                : Icons.visibility_off,
+                          ),
+                          onPressed: () => setState(
+                            () => _obscureAdminToken = !_obscureAdminToken,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.content_paste),
+                          tooltip: 'Paste from clipboard',
+                          onPressed: () => _pasteTo(_adminTokenController),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 SwitchListTile.adaptive(
