@@ -153,9 +153,9 @@ export async function handleClockIn(
     db
       .prepare(
         `INSERT INTO processed_requests (request_id, user_id, operation, response_json, created_at_utc)
-         VALUES (?, ?, 'clock_in', ?, ?)`
+         VALUES (?, ?, ?, ?, ?)`
       )
-      .bind(requestId, DEFAULT_USER_ID, responseJson, nowIso),
+      .bind(requestId, DEFAULT_USER_ID, 'clock_in', responseJson, nowIso),
   ]);
 
   return response;
@@ -281,9 +281,9 @@ export async function handleClockOut(
     db
       .prepare(
         `INSERT INTO processed_requests (request_id, user_id, operation, response_json, created_at_utc)
-         VALUES (?, ?, 'clock_out', ?, ?)`
+         VALUES (?, ?, ?, ?, ?)`
       )
-      .bind(requestId, DEFAULT_USER_ID, responseJson, nowIso),
+      .bind(requestId, DEFAULT_USER_ID, 'clock_out', responseJson, nowIso),
   ]);
 
   return response;

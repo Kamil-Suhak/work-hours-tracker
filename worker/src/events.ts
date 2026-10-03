@@ -208,9 +208,9 @@ export async function handleAdminManualEvent(
     db
       .prepare(
         `INSERT INTO processed_requests (request_id, user_id, operation, response_json, created_at_utc)
-         VALUES (?, ?, 'admin_manual', ?, ?)`
+         VALUES (?, ?, ?, ?, ?)`
       )
-      .bind(requestId, DEFAULT_USER_ID, responseJson, nowIso),
+      .bind(requestId, DEFAULT_USER_ID, 'admin_manual', responseJson, nowIso),
   ]);
 
   return response;
