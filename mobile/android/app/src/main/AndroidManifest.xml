@@ -1,5 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.VIBRATE"/>
 
     <application
         android:label="Work Hours"
@@ -32,6 +33,7 @@
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="com.workhours.tracker.ACTION_CLOCK_IN" />
                 <action android:name="com.workhours.tracker.ACTION_CLOCK_OUT" />
+                <action android:name="com.workhours.tracker.ACTION_SYNC" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"

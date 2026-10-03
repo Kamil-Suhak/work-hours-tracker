@@ -20,6 +20,7 @@ class MainActivity: FlutterActivity() {
                 "syncWidgetCredentials" -> {
                     val baseUrl = call.argument<String>("baseUrl") ?: ""
                     val deviceToken = call.argument<String>("deviceToken") ?: ""
+                    val vibrationsEnabled = call.argument<Boolean>("vibrationsEnabled") ?: true
 
                     val prefs = applicationContext.getSharedPreferences(
                         WorkHoursWidgetReceiver.PREFS_NAME,
@@ -28,6 +29,7 @@ class MainActivity: FlutterActivity() {
                     prefs.edit()
                         .putString(WorkHoursWidgetReceiver.KEY_API_URL, baseUrl)
                         .putString(WorkHoursWidgetReceiver.KEY_TOKEN, deviceToken)
+                        .putBoolean(WorkHoursWidgetReceiver.KEY_HAPTICS, vibrationsEnabled)
                         .apply()
 
                     // Trigger widget update broadcast so widget re-renders with new credentials
@@ -50,7 +52,8 @@ class MainActivity: FlutterActivity() {
                     )
                     val baseUrl = prefs.getString(WorkHoursWidgetReceiver.KEY_API_URL, "") ?: ""
                     val token = prefs.getString(WorkHoursWidgetReceiver.KEY_TOKEN, "") ?: ""
-                    result.success(mapOf("baseUrl" to baseUrl, "deviceToken" to token))
+                    val vibrationsEnabled = prefs.getBoolean(WorkHoursWidgetReceiver.KEY_HAPTICS, true)
+                    result.success(mapOf("baseUrl" to baseUrl, "deviceToken" to token, "vibrationsEnabled" to vibrationsEnabled))
                 }
                 else -> result.notImplemented()
             }
