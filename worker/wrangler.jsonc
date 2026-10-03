@@ -3,15 +3,13 @@
   "name": "work-hours-api",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-03",
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
+  "compatibility_flags": ["nodejs_compat"],
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "work-hours-prod",
-      "database_id": "REPLACE_WITH_REAL_DATABASE_ID",
-      "migrations_dir": "migrations"
-    }
-  ]
+      "database_id": "fc1dd550-2886-4eb2-a616-616adf616d14",
+      "migrations_dir": "migrations",
+    },
+  ],
 }
