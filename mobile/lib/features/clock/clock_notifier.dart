@@ -56,6 +56,15 @@ class CurrentStatusNotifier extends AsyncNotifier<WorkStatus> {
       return await repository.clockOut();
     });
   }
+
+  Future<void> undo(String eventId) async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      final repository = ref.read(timeTrackingRepositoryProvider);
+      final result = await repository.undo(eventId);
+      return result.status;
+    });
+  }
 }
 
 final currentStatusProvider =

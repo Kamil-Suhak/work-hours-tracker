@@ -130,6 +130,11 @@ export async function handleClockIn(
     serverTime: nowIso,
     todaySeconds,
     monthSeconds,
+    latestEvent: {
+      id: eventId,
+      eventType: 'clock_in',
+      occurredAtUtc: nowIso,
+    },
   };
 
   const responseJson = JSON.stringify(response);
@@ -258,6 +263,11 @@ export async function handleClockOut(
     monthSeconds:
       prevDurations.monthSeconds +
       (shiftMonthString === currentMonthString ? completedShiftSeconds : 0),
+    latestEvent: {
+      id: eventId,
+      eventType: 'clock_out',
+      occurredAtUtc: nowIso,
+    },
   };
 
   const responseJson = JSON.stringify(response);
@@ -408,6 +418,13 @@ export async function handleUndo(
     serverTime: nowIso,
     todaySeconds,
     monthSeconds,
+    latestEvent: prevEvent
+      ? {
+          id: prevEvent.id,
+          eventType: prevEvent.event_type,
+          occurredAtUtc: prevEvent.occurred_at_utc,
+        }
+      : null,
   };
 
   const responseJson = JSON.stringify(response);

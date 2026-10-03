@@ -1,5 +1,5 @@
 import type { D1Database } from '@cloudflare/workers-types';
-import type { EventRow, StatusResponse, WorkState } from './types';
+import type { EventRow, EventType, StatusResponse, WorkState } from './types';
 
 const WARSAW_TZ = 'Europe/Warsaw';
 
@@ -148,11 +148,27 @@ export async function getStatus(
     now
   );
 
+  const latestEventRow = await db
+    .prepare(
+      'SELECT id, event_type, occurred_at_utc FROM events WHERE user_id = ? ORDER BY occurred_at_utc DESC, id DESC LIMIT 1'
+    )
+    .bind(userId)
+    .first<{ id: string; event_type: EventType; occurred_at_utc: string }>();
+
+  const latestEvent = latestEventRow
+    ? {
+        id: latestEventRow.id,
+        eventType: latestEventRow.event_type,
+        occurredAtUtc: latestEventRow.occurred_at_utc,
+      }
+    : null;
+
   return {
     state: currentState,
     activeSince,
     serverTime: now.toISOString(),
     todaySeconds,
     monthSeconds,
+    latestEvent,
   };
 }

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../api/models.dart';
 import '../settings/settings_dialog.dart';
+import '../settings/settings_notifier.dart';
 import 'clock_notifier.dart';
 
 class ClockScreen extends ConsumerStatefulWidget {
@@ -181,6 +183,7 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
                 onPressed: isLoading || isClockedIn
                     ? null
                     : () async {
+                        _triggerHapticIfEnabled();
                         await ref
                             .read(currentStatusProvider.notifier)
                             .clockIn();
@@ -204,6 +207,7 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
                 onPressed: isLoading || !isClockedIn
                     ? null
                     : () async {
+                        _triggerHapticIfEnabled();
                         await ref
                             .read(currentStatusProvider.notifier)
                             .clockOut();
@@ -212,6 +216,37 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
             ),
           ],
         ),
+
+        // Undo recent event button (shown only within 5-min grace window)
+        if (status.latestEvent != null &&
+            status.latestEvent!.isWithinGracePeriod(now: DateTime.now())) ...[
+          const SizedBox(height: 16),
+          Center(
+            child: OutlinedButton.icon(
+              key: const Key('undo_button'),
+              icon: const Icon(Icons.undo, size: 18),
+              label: Text(
+                'Undo ${status.latestEvent!.eventType == 'clock_in' ? 'Clock In' : 'Clock Out'}',
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.amber[800],
+                side: BorderSide(color: Colors.amber[800]!),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+              onPressed: isLoading
+                  ? null
+                  : () => _showUndoConfirmationDialog(
+                        context,
+                        status.latestEvent!,
+                      ),
+            ),
+          ),
+        ],
+
         const SizedBox(height: 24),
 
         // Last synced info
@@ -225,6 +260,114 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
         ),
       ],
     );
+  }
+
+  void _triggerHapticIfEnabled() {
+    final haptics =
+        ref.read(settingsProvider).value?.vibrationsEnabled ?? true;
+    if (haptics) {
+      HapticFeedback.mediumImpact();
+    }
+  }
+
+  Future<void> _showUndoConfirmationDialog(
+    BuildContext context,
+    LatestEventSummary event,
+  ) async {
+    final eventTypeLabel =
+        event.eventType == 'clock_in' ? 'Clock In' : 'Clock Out';
+    final timeStr =
+        DateFormat('HH:mm:ss').format(event.occurredAtUtc.toLocal());
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.undo, color: Colors.amber),
+            SizedBox(width: 8),
+            Text('Revert Action'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Are you sure you want to revert your last action?'),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.grey.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Event: $eventTypeLabel',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text('Recorded at: $timeStr'),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Event ID: ${event.id.length > 8 ? event.id.substring(0, 8) : event.id}...',
+                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'This action is only available within the 5-minute grace period.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.amber[800],
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Confirm Undo'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      _triggerHapticIfEnabled();
+      try {
+        await ref.read(currentStatusProvider.notifier).undo(event.id);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Successfully reverted $eventTypeLabel!'),
+              backgroundColor: const Color(0xFF0F766E),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Undo failed: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
   }
 
   Widget _buildErrorContent(

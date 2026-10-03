@@ -55,6 +55,12 @@ export interface ClockRequestBody {
   source: EventSource;
 }
 
+export interface LatestEventInfo {
+  id: string;
+  eventType: EventType;
+  occurredAtUtc: string;
+}
+
 export interface CommandResponse {
   state: WorkState;
   changed: boolean;
@@ -62,6 +68,7 @@ export interface CommandResponse {
   serverTime: string;
   todaySeconds: number;
   monthSeconds: number;
+  latestEvent?: LatestEventInfo | null;
 }
 
 export interface StatusResponse {
@@ -70,6 +77,7 @@ export interface StatusResponse {
   serverTime: string;
   todaySeconds: number;
   monthSeconds: number;
+  latestEvent?: LatestEventInfo | null;
 }
 
 export interface ManualEventRequestBody {
@@ -101,6 +109,7 @@ export interface UndoResponse {
   serverTime: string;
   todaySeconds: number;
   monthSeconds: number;
+  latestEvent?: LatestEventInfo | null;
 }
 
 export interface ApiErrorResponse {

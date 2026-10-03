@@ -103,6 +103,47 @@ void main() {
       expect(find.text('Connection or Server Error'), findsOneWidget);
       expect(find.text('Retry'), findsOneWidget);
     });
+
+    testWidgets(
+        'displays undo button and opens confirmation dialog when within grace period',
+        (WidgetTester tester) async {
+      final now = DateTime.now().toUtc();
+      final mockStatus = WorkStatus(
+        state: WorkState.clockedIn,
+        activeSince: now,
+        serverTime: now,
+        todaySeconds: 0,
+        monthSeconds: 0,
+        latestEvent: LatestEventSummary(
+          id: 'evt-12345678-abcd',
+          eventType: 'clock_in',
+          occurredAtUtc: now.subtract(const Duration(minutes: 1)),
+        ),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            currentStatusProvider.overrideWith(
+              () => _MockStatusNotifier(AsyncValue.data(mockStatus)),
+            ),
+          ],
+          child: const MaterialApp(home: ClockScreen()),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('undo_button')), findsOneWidget);
+      expect(find.text('Undo Clock In'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('undo_button')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Revert Action'), findsOneWidget);
+      expect(find.text('Confirm Undo'), findsOneWidget);
+      expect(find.text('Cancel'), findsOneWidget);
+    });
   });
 }
 

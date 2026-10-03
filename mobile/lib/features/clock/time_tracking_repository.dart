@@ -25,4 +25,25 @@ class TimeTrackingRepository {
   Future<List<TrackingEvent>> fetchEvents(DateTime from, DateTime to) async {
     return await _apiClient.getEvents(from: from, to: to);
   }
+
+  Future<UndoResult> undo(String eventId) async {
+    final requestId = _uuid.v4();
+    return await _apiClient.undo(eventId: eventId, requestId: requestId);
+  }
+
+  Future<Map<String, dynamic>> submitManualShift({
+    required DateTime clockInAt,
+    required DateTime clockOutAt,
+    required String reason,
+    String? adminToken,
+  }) async {
+    final requestId = _uuid.v4();
+    return await _apiClient.submitManualShift(
+      clockInAt: clockInAt,
+      clockOutAt: clockOutAt,
+      reason: reason,
+      requestId: requestId,
+      adminToken: adminToken,
+    );
+  }
 }

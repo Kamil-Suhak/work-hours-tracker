@@ -125,4 +125,50 @@ class ApiClient {
     }
     _handleError(response);
   }
+
+  Future<UndoResult> undo({
+    required String eventId,
+    required String requestId,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/v1/undo');
+    final headers = await _buildHeaders();
+    final body = jsonEncode({
+      'eventId': eventId,
+      'requestId': requestId,
+    });
+
+    final response = await _httpClient.post(uri, headers: headers, body: body);
+    if (response.statusCode == 200) {
+      return UndoResult.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
+    }
+    _handleError(response);
+  }
+
+  Future<Map<String, dynamic>> submitManualShift({
+    required DateTime clockInAt,
+    required DateTime clockOutAt,
+    required String reason,
+    required String requestId,
+    String? adminToken,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/v1/admin/events/manual');
+    final headers = await _buildHeaders();
+    if (adminToken != null && adminToken.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $adminToken';
+    }
+    final body = jsonEncode({
+      'clockInAt': clockInAt.toUtc().toIso8601String(),
+      'clockOutAt': clockOutAt.toUtc().toIso8601String(),
+      'reason': reason,
+      'requestId': requestId,
+    });
+
+    final response = await _httpClient.post(uri, headers: headers, body: body);
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    _handleError(response);
+  }
 }
