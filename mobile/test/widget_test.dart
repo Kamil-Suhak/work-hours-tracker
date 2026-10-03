@@ -143,6 +143,8 @@ void main() {
       expect(find.byKey(const Key('undo_button')), findsOneWidget);
       expect(find.text('Undo Clock In'), findsOneWidget);
 
+      await tester.ensureVisible(find.byKey(const Key('undo_button')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('undo_button')));
       await tester.pumpAndSettle();
 

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../api/models.dart';
+import '../history/recent_shifts_sheet.dart';
 import '../settings/settings_dialog.dart';
 import '../settings/settings_notifier.dart';
 import 'clock_notifier.dart';
@@ -32,6 +33,11 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
         title: const Text('Work Hours Tracker'),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: 'Shift History',
+            onPressed: () => RecentShiftsSheet.show(context),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh Status',
@@ -133,6 +139,42 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: Colors.grey[500],
                       ),
+                ),
+                const SizedBox(height: 14),
+                InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => RecentShiftsSheet.show(context),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.history,
+                          size: 16,
+                          color: Color(0xFF0F766E),
+                        ),
+                        const SizedBox(width: 6),
+                        const Text(
+                          'View Shift History',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF0F766E),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(
+                          Icons.chevron_right,
+                          size: 16,
+                          color: Color(0xFF0F766E),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
