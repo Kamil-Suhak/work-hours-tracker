@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../api/models.dart';
 import '../settings/settings_dialog.dart';
-import '../settings/settings_notifier.dart';
 import 'clock_notifier.dart';
 
 class ClockScreen extends ConsumerStatefulWidget {
@@ -29,7 +28,8 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
             tooltip: 'Refresh Status',
             onPressed: isLoading
                 ? null
-                : () => ref.read(currentStatusProvider.notifier).refreshStatus(),
+                : () =>
+                    ref.read(currentStatusProvider.notifier).refreshStatus(),
           ),
           IconButton(
             icon: const Icon(Icons.settings),
@@ -39,7 +39,8 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () => ref.read(currentStatusProvider.notifier).refreshStatus(),
+        onRefresh: () =>
+            ref.read(currentStatusProvider.notifier).refreshStatus(),
         child: LayoutBuilder(
           builder: (context, constraints) {
             return SingleChildScrollView(
@@ -47,13 +48,16 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
               child: ConstrainedBox(
                 constraints: BoxConstraints(minHeight: constraints.maxHeight),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 24.0, vertical: 32.0),
                   child: statusAsync.when(
-                    data: (status) => _buildStatusContent(context, status, isLoading),
+                    data: (status) =>
+                        _buildStatusContent(context, status, isLoading),
                     loading: () => const Center(
                       child: CircularProgressIndicator(),
                     ),
-                    error: (err, stack) => _buildErrorContent(context, err, isLoading),
+                    error: (err, stack) =>
+                        _buildErrorContent(context, err, isLoading),
                   ),
                 ),
               ),
@@ -64,7 +68,8 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
     );
   }
 
-  Widget _buildStatusContent(BuildContext context, WorkStatus status, bool isLoading) {
+  Widget _buildStatusContent(
+      BuildContext context, WorkStatus status, bool isLoading) {
     final isClockedIn = status.state == WorkState.clockedIn;
     final timeFormat = DateFormat('HH:mm');
 
@@ -125,7 +130,8 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
         // Today's total card
         Card(
           elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Padding(
             padding: const EdgeInsets.all(24.0),
             child: Column(
@@ -175,7 +181,9 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
                 onPressed: isLoading || isClockedIn
                     ? null
                     : () async {
-                        await ref.read(currentStatusProvider.notifier).clockIn();
+                        await ref
+                            .read(currentStatusProvider.notifier)
+                            .clockIn();
                       },
               ),
             ),
@@ -196,7 +204,9 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
                 onPressed: isLoading || !isClockedIn
                     ? null
                     : () async {
-                        await ref.read(currentStatusProvider.notifier).clockOut();
+                        await ref
+                            .read(currentStatusProvider.notifier)
+                            .clockOut();
                       },
               ),
             ),
@@ -217,7 +227,8 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
     );
   }
 
-  Widget _buildErrorContent(BuildContext context, Object error, bool isLoading) {
+  Widget _buildErrorContent(
+      BuildContext context, Object error, bool isLoading) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -231,7 +242,10 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
         Text(
           error.toString(),
           textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey[700]),
+          style: Theme.of(context)
+              .textTheme
+              .bodyMedium
+              ?.copyWith(color: Colors.grey[700]),
         ),
         const SizedBox(height: 24),
         Wrap(
@@ -242,7 +256,8 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
             ElevatedButton.icon(
               onPressed: isLoading
                   ? null
-                  : () => ref.read(currentStatusProvider.notifier).refreshStatus(),
+                  : () =>
+                      ref.read(currentStatusProvider.notifier).refreshStatus(),
               icon: const Icon(Icons.refresh),
               label: const Text('Retry'),
             ),

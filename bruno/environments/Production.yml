@@ -1,0 +1,10 @@
+name: Production
+variables:
+  - name: baseUrl
+    value: https://work-hours-api.workers.dev
+  - secret: true
+    name: deviceToken
+    description: ""
+  - secret: true
+    name: adminToken
+    description: ""

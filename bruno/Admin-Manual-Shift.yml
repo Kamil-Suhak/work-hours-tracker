@@ -1,0 +1,27 @@
+info:
+  name: Admin - Manual Shift Backfill
+  type: http
+  seq: 5
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/v1/admin/events/manual"
+  body:
+    type: json
+    data: |-
+      {
+        "requestId": "manual-{{$guid}}",
+        "clockInAt": "2026-10-01T08:00:00.000Z",
+        "clockOutAt": "2026-10-01T16:00:00.000Z",
+        "reason": "Initial manual backfill test"
+      }
+  auth:
+    type: bearer
+    token: "{{adminToken}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true

@@ -1,0 +1,7 @@
+variables:
+  - name: baseUrl
+    value: http://localhost:8787
+  - secret: true
+    name: deviceToken
+  - secret: true
+    name: adminToken
