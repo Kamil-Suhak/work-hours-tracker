@@ -1,0 +1,22 @@
+meta {
+  name: Undo Last Clock Action
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/v1/undo
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{deviceToken}}
+}
+
+body:json {
+  {
+    "requestId": "undo-{{$guid}}",
+    "eventId": "REPLACE_WITH_LATEST_EVENT_ID"
+  }
+}

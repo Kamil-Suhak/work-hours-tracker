@@ -88,6 +88,21 @@ export interface ManualEventResponse {
   durationSeconds: number;
 }
 
+export interface UndoRequestBody {
+  requestId: string;
+  eventId: string;
+}
+
+export interface UndoResponse {
+  success: boolean;
+  undoneEventId: string;
+  restoredState: WorkState;
+  activeSince: string | null;
+  serverTime: string;
+  todaySeconds: number;
+  monthSeconds: number;
+}
+
 export interface ApiErrorResponse {
   error: {
     code: string;

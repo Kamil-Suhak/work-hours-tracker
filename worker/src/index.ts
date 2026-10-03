@@ -4,7 +4,9 @@ import { authenticateDevice, authenticateAdmin } from './auth';
 import {
   handleClockIn,
   handleClockOut,
+  handleUndo,
   validateClockRequest,
+  validateUndoRequest,
   DEFAULT_USER_ID,
 } from './clock';
 import { getStatus } from './status';
@@ -118,6 +120,27 @@ export default {
             changed: result.changed,
             latencyMs: Date.now() - startTime,
             result: result.changed ? 'changed' : 'no_change',
+          })
+        );
+
+        return jsonResponse(result, 200, standardHeaders);
+      }
+
+      if (pathname === '/api/v1/undo' && method === 'POST') {
+        const { deviceId } = await authenticateDevice(request, env);
+        const rawBody = await parseJsonBody(request, correlationId);
+        const undoReq = validateUndoRequest(rawBody);
+        const result = await handleUndo(env.DB, undoReq);
+
+        console.log(
+          JSON.stringify({
+            correlationId,
+            operation: 'undo',
+            deviceId,
+            undoneEventId: result.undoneEventId,
+            restoredState: result.restoredState,
+            latencyMs: Date.now() - startTime,
+            result: 'ok',
           })
         );
 

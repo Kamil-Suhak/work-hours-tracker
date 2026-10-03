@@ -56,6 +56,21 @@ export class MockPreparedStatement {
       return (found as unknown as T) ?? null;
     }
 
+    if (q.includes('FROM events WHERE user_id = ? AND id != ?')) {
+      const userId = this.boundArgs[0] as string;
+      const excludeId = this.boundArgs[1] as string;
+      const matching = this.db.events.filter((e) => e.user_id === userId && e.id !== excludeId);
+      const sorted = [...matching].reverse().sort((a, b) => b.occurred_at_utc.localeCompare(a.occurred_at_utc));
+      return (sorted[0] as unknown as T) ?? null;
+    }
+
+    if (q.includes('FROM events WHERE user_id = ? ORDER BY occurred_at_utc DESC')) {
+      const userId = this.boundArgs[0] as string;
+      const matching = this.db.events.filter((e) => e.user_id === userId);
+      const sorted = [...matching].reverse().sort((a, b) => b.occurred_at_utc.localeCompare(a.occurred_at_utc));
+      return (sorted[0] as unknown as T) ?? null;
+    }
+
     return null;
   }
 
@@ -102,6 +117,14 @@ export class MockPreparedStatement {
 
   async run(): Promise<D1Response> {
     const q = this.query.trim();
+
+    if (q.includes('DELETE FROM events WHERE id = ?')) {
+      const id = this.boundArgs[0] as string;
+      const idx = this.db.events.findIndex((e) => e.id === id);
+      if (idx !== -1) {
+        this.db.events.splice(idx, 1);
+      }
+    }
 
     if (q.includes('INSERT INTO events')) {
       const eventType = q.includes("'clock_in'") ? 'clock_in' : 'clock_out';

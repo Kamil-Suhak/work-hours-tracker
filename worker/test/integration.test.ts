@@ -331,4 +331,166 @@ describe('Worker End-to-End Integration Suite', () => {
       expect(data.error.code).toBe('OVERLAPPING_SHIFT');
     });
   });
+
+  describe('Undo Operation Pipeline', () => {
+    it('rejects undo request with invalid body', async () => {
+      const res = await worker.fetch(
+        createRequest('/api/v1/undo', {
+          method: 'POST',
+          body: { requestId: 'req-undo-invalid' },
+        }),
+        env
+      );
+      expect(res.status).toBe(400);
+      const data = await res.json() as { error: { code: string } };
+      expect(data.error.code).toBe('INVALID_EVENT_ID');
+    });
+
+    it('rejects undo when no events exist', async () => {
+      const res = await worker.fetch(
+        createRequest('/api/v1/undo', {
+          method: 'POST',
+          body: { requestId: 'req-undo-none', eventId: 'non-existent' },
+        }),
+        env
+      );
+      expect(res.status).toBe(404);
+      const data = await res.json() as { error: { code: string } };
+      expect(data.error.code).toBe('NO_EVENTS_FOUND');
+    });
+
+    it('reverts clock-in to clocked-out and removes event', async () => {
+      // 1. Clock in
+      const inRes = await worker.fetch(
+        createRequest('/api/v1/clock-in', {
+          method: 'POST',
+          body: { requestId: 'req-in-undo', source: 'flutter_app' },
+        }),
+        env
+      );
+      expect(inRes.status).toBe(200);
+      const inData = await inRes.json() as { state: string; eventId?: string };
+      expect(mockDb.events).toHaveLength(1);
+      const eventId = mockDb.events[0].id;
+
+      // 2. Undo
+      const undoRes = await worker.fetch(
+        createRequest('/api/v1/undo', {
+          method: 'POST',
+          body: { requestId: 'req-undo-1', eventId },
+        }),
+        env
+      );
+      expect(undoRes.status).toBe(200);
+      const undoData = await undoRes.json() as { success: boolean; restoredState: string; activeSince: string | null };
+      expect(undoData.success).toBe(true);
+      expect(undoData.restoredState).toBe('clocked_out');
+      expect(undoData.activeSince).toBeNull();
+
+      // Event should be deleted
+      expect(mockDb.events).toHaveLength(0);
+
+      // State should be clocked-out
+      const state = mockDb.workState.get('default-user');
+      expect(state?.state).toBe('clocked_out');
+    });
+
+    it('reverts clock-out back to clocked-in and restores activeSince', async () => {
+      // 1. Clock in
+      await worker.fetch(
+        createRequest('/api/v1/clock-in', {
+          method: 'POST',
+          body: { requestId: 'req-in-1', source: 'flutter_app' },
+        }),
+        env
+      );
+      const inEvent = mockDb.events[0];
+
+      // 2. Clock out
+      await worker.fetch(
+        createRequest('/api/v1/clock-out', {
+          method: 'POST',
+          body: { requestId: 'req-out-1', source: 'android_widget' },
+        }),
+        env
+      );
+      expect(mockDb.events).toHaveLength(2);
+      const outEvent = mockDb.events[1];
+
+      // 3. Undo the clock-out
+      const undoRes = await worker.fetch(
+        createRequest('/api/v1/undo', {
+          method: 'POST',
+          body: { requestId: 'req-undo-out', eventId: outEvent.id },
+        }),
+        env
+      );
+      expect(undoRes.status).toBe(200);
+      const undoData = await undoRes.json() as { success: boolean; restoredState: string; activeSince: string | null };
+      expect(undoData.success).toBe(true);
+      expect(undoData.restoredState).toBe('clocked_in');
+      expect(undoData.activeSince).toBe(inEvent.occurred_at_utc);
+
+      // Only clock-in remains
+      expect(mockDb.events).toHaveLength(1);
+      expect(mockDb.events[0].id).toBe(inEvent.id);
+    });
+
+    it('rejects undo if event is not the latest event', async () => {
+      await worker.fetch(
+        createRequest('/api/v1/clock-in', {
+          method: 'POST',
+          body: { requestId: 'req-in-first', source: 'flutter_app' },
+        }),
+        env
+      );
+      const firstEventId = mockDb.events[0].id;
+
+      await worker.fetch(
+        createRequest('/api/v1/clock-out', {
+          method: 'POST',
+          body: { requestId: 'req-out-second', source: 'flutter_app' },
+        }),
+        env
+      );
+
+      // Attempt to undo the FIRST event instead of the latest
+      const res = await worker.fetch(
+        createRequest('/api/v1/undo', {
+          method: 'POST',
+          body: { requestId: 'req-undo-old', eventId: firstEventId },
+        }),
+        env
+      );
+      expect(res.status).toBe(409);
+      const data = await res.json() as { error: { code: string } };
+      expect(data.error.code).toBe('EVENT_MISMATCH');
+    });
+
+    it('replays cached response when repeating identical requestId (idempotency)', async () => {
+      await worker.fetch(
+        createRequest('/api/v1/clock-in', {
+          method: 'POST',
+          body: { requestId: 'req-in-idem', source: 'flutter_app' },
+        }),
+        env
+      );
+      const eventId = mockDb.events[0].id;
+
+      const undoBody = { requestId: 'req-undo-idem', eventId };
+      const res1 = await worker.fetch(
+        createRequest('/api/v1/undo', { method: 'POST', body: undoBody }),
+        env
+      );
+      const data1 = await res1.json();
+
+      const res2 = await worker.fetch(
+        createRequest('/api/v1/undo', { method: 'POST', body: undoBody }),
+        env
+      );
+      const data2 = await res2.json();
+
+      expect(data2).toEqual(data1);
+    });
+  });
 });

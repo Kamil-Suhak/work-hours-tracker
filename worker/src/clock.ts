@@ -2,7 +2,10 @@ import type { D1Database } from '@cloudflare/workers-types';
 import type {
   ClockRequestBody,
   CommandResponse,
+  EventRow,
   EventSource,
+  UndoRequestBody,
+  UndoResponse,
   WorkState,
   WorkStateRow,
   ProcessedRequestRow,
@@ -284,6 +287,150 @@ export async function handleClockOut(
          VALUES (?, ?, ?, ?, ?)`
       )
       .bind(requestId, DEFAULT_USER_ID, 'clock_out', responseJson, nowIso),
+  ]);
+
+  return response;
+}
+
+export function validateUndoRequest(body: unknown): UndoRequestBody {
+  if (!body || typeof body !== 'object') {
+    throw new AppError('VALIDATION_ERROR', 'Request body must be a JSON object.', 400);
+  }
+
+  const { requestId, eventId } = body as Record<string, unknown>;
+
+  if (typeof requestId !== 'string' || requestId.trim().length === 0) {
+    throw new AppError('INVALID_REQUEST_ID', 'requestId must be a non-empty string.', 400);
+  }
+
+  if (requestId.length > 128) {
+    throw new AppError('INVALID_REQUEST_ID', 'requestId exceeds maximum length of 128.', 400);
+  }
+
+  if (typeof eventId !== 'string' || eventId.trim().length === 0) {
+    throw new AppError(
+      'INVALID_EVENT_ID',
+      'eventId must be a non-empty string specifying the event to undo.',
+      400,
+      requestId
+    );
+  }
+
+  return {
+    requestId: requestId.trim(),
+    eventId: eventId.trim(),
+  };
+}
+
+export async function handleUndo(
+  db: D1Database,
+  req: UndoRequestBody,
+  now: Date = new Date()
+): Promise<UndoResponse> {
+  const { requestId, eventId } = req;
+  const nowIso = now.toISOString();
+
+  // 1. Idempotency check
+  const cached = await db
+    .prepare('SELECT response_json FROM processed_requests WHERE request_id = ?')
+    .bind(requestId)
+    .first<Pick<ProcessedRequestRow, 'response_json'>>();
+
+  if (cached) {
+    return JSON.parse(cached.response_json) as UndoResponse;
+  }
+
+  // 2. Query latest event
+  const latestEvent = await db
+    .prepare(
+      'SELECT id, event_type, occurred_at_utc FROM events WHERE user_id = ? ORDER BY occurred_at_utc DESC, id DESC LIMIT 1'
+    )
+    .bind(DEFAULT_USER_ID)
+    .first<Pick<EventRow, 'id' | 'event_type' | 'occurred_at_utc'>>();
+
+  if (!latestEvent) {
+    throw new AppError('NO_EVENTS_FOUND', 'No clock events exist to undo.', 404, requestId);
+  }
+
+  if (latestEvent.id !== eventId) {
+    throw new AppError(
+      'EVENT_MISMATCH',
+      'The specified event is not the latest event and cannot be undone.',
+      409,
+      requestId
+    );
+  }
+
+  // 3. Grace period check: 5 minutes (300,000 ms)
+  const eventTimeMs = new Date(latestEvent.occurred_at_utc).getTime();
+  const nowMs = now.getTime();
+  const UNDO_WINDOW_MS = 5 * 60 * 1000;
+  if (nowMs - eventTimeMs > UNDO_WINDOW_MS) {
+    throw new AppError('UNDO_WINDOW_EXPIRED', 'The 5-minute undo window has expired.', 400, requestId);
+  }
+
+  // 4. Query preceding event to determine restored state
+  const prevEvent = await db
+    .prepare(
+      'SELECT id, event_type, occurred_at_utc FROM events WHERE user_id = ? AND id != ? ORDER BY occurred_at_utc DESC, id DESC LIMIT 1'
+    )
+    .bind(DEFAULT_USER_ID, eventId)
+    .first<Pick<EventRow, 'id' | 'event_type' | 'occurred_at_utc'>>();
+
+  const restoredState: WorkState = prevEvent?.event_type === 'clock_in' ? 'clocked_in' : 'clocked_out';
+  const restoredActiveSince: string | null = restoredState === 'clocked_in' ? prevEvent!.occurred_at_utc : null;
+
+  // 5. Query current work_state version
+  const stateRow = await db
+    .prepare('SELECT version FROM work_state WHERE user_id = ?')
+    .bind(DEFAULT_USER_ID)
+    .first<Pick<WorkStateRow, 'version'>>();
+
+  const nextVersion = (stateRow?.version ?? 0) + 1;
+
+  // 6. Delete event from DB
+  await db.prepare('DELETE FROM events WHERE id = ?').bind(eventId).run();
+
+  // 7. Calculate restored durations
+  const { todaySeconds, monthSeconds } = await calculateDurations(
+    db,
+    DEFAULT_USER_ID,
+    restoredState,
+    restoredActiveSince,
+    now
+  );
+
+  const response: UndoResponse = {
+    success: true,
+    undoneEventId: eventId,
+    restoredState,
+    activeSince: restoredActiveSince,
+    serverTime: nowIso,
+    todaySeconds,
+    monthSeconds,
+  };
+
+  const responseJson = JSON.stringify(response);
+
+  // 8. Update work_state and record processed request
+  await db.batch([
+    db
+      .prepare(
+        `INSERT INTO work_state (user_id, state, active_since_utc, version, updated_at_utc)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(user_id) DO UPDATE SET
+           state = excluded.state,
+           active_since_utc = excluded.active_since_utc,
+           version = excluded.version,
+           updated_at_utc = excluded.updated_at_utc`
+      )
+      .bind(DEFAULT_USER_ID, restoredState, restoredActiveSince, nextVersion, nowIso),
+    db
+      .prepare(
+        `INSERT INTO processed_requests (request_id, user_id, operation, response_json, created_at_utc)
+         VALUES (?, ?, ?, ?, ?)`
+      )
+      .bind(requestId, DEFAULT_USER_ID, 'undo', responseJson, nowIso),
   ]);
 
   return response;
