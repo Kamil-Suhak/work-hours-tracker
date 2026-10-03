@@ -1,0 +1,22 @@
+meta {
+  name: Clock Out
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/clock-out
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{deviceToken}}
+}
+
+body:json {
+  {
+    "requestId": "req-{{$guid}}",
+    "source": "flutter_app"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "Work Hours Tracker API",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}
