@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "work-hours-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-03",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "work-hours-prod",
+      "database_id": "REPLACE_WITH_REAL_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ]
+}
