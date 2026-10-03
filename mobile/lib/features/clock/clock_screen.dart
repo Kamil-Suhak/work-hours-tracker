@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../api/models.dart';
+import '../settings/settings_dialog.dart';
+import '../settings/settings_notifier.dart';
 import 'clock_notifier.dart';
 
 class ClockScreen extends ConsumerStatefulWidget {
@@ -28,6 +30,11 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
             onPressed: isLoading
                 ? null
                 : () => ref.read(currentStatusProvider.notifier).refreshStatus(),
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: 'Server Settings',
+            onPressed: () => SettingsDialog.show(context),
           ),
         ],
       ),
@@ -227,12 +234,24 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey[700]),
         ),
         const SizedBox(height: 24),
-        ElevatedButton.icon(
-          onPressed: isLoading
-              ? null
-              : () => ref.read(currentStatusProvider.notifier).refreshStatus(),
-          icon: const Icon(Icons.refresh),
-          label: const Text('Retry'),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          alignment: WrapAlignment.center,
+          children: [
+            ElevatedButton.icon(
+              onPressed: isLoading
+                  ? null
+                  : () => ref.read(currentStatusProvider.notifier).refreshStatus(),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+            ),
+            OutlinedButton.icon(
+              onPressed: () => SettingsDialog.show(context),
+              icon: const Icon(Icons.settings),
+              label: const Text('Configure Server'),
+            ),
+          ],
         ),
       ],
     );

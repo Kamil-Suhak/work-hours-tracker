@@ -4,13 +4,16 @@ import '../../api/api_client.dart';
 import '../../api/models.dart';
 import 'time_tracking_repository.dart';
 
-// Configurable base URL provider
+import '../settings/settings_notifier.dart';
+
+// Configurable base URL provider wired to user settings
 final apiBaseUrlProvider = Provider<String>((ref) {
-  // In dev / production, override this provider with the real Worker URL
-  return const String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'https://work-hours-api.workers.dev',
-  );
+  final settingsAsync = ref.watch(settingsProvider);
+  return settingsAsync.value?.baseUrl ??
+      const String.fromEnvironment(
+        'API_BASE_URL',
+        defaultValue: defaultApiBaseUrl,
+      );
 });
 
 final apiClientProvider = Provider<ApiClient>((ref) {

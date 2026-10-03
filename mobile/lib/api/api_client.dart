@@ -9,6 +9,7 @@ class ApiClient {
   final FlutterSecureStorage _storage;
 
   static const String _tokenStorageKey = 'device_auth_token';
+  static const String _baseUrlStorageKey = 'api_base_url';
 
   ApiClient({
     required this.baseUrl,
@@ -23,6 +24,14 @@ class ApiClient {
 
   Future<String?> getToken() async {
     return await _storage.read(key: _tokenStorageKey);
+  }
+
+  Future<void> saveBaseUrl(String url) async {
+    await _storage.write(key: _baseUrlStorageKey, value: url);
+  }
+
+  Future<String?> getStoredBaseUrl() async {
+    return await _storage.read(key: _baseUrlStorageKey);
   }
 
   Future<Map<String, String>> _buildHeaders() async {

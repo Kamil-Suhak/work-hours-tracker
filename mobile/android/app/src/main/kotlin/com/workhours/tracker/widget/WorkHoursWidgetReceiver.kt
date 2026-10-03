@@ -27,10 +27,10 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
     companion object {
         const val ACTION_CLOCK_IN = "com.workhours.tracker.ACTION_CLOCK_IN"
         const val ACTION_CLOCK_OUT = "com.workhours.tracker.ACTION_CLOCK_OUT"
-        private const val PREFS_NAME = "work_hours_widget_prefs"
-        private const val KEY_API_URL = "api_base_url"
-        private const val KEY_TOKEN = "device_token"
-        private const val DEFAULT_API_URL = "https://work-hours-api.workers.dev"
+        const val PREFS_NAME = "work_hours_widget_prefs"
+        const val KEY_API_URL = "api_base_url"
+        const val KEY_TOKEN = "device_token"
+        const val DEFAULT_API_URL = "https://work-hours-api.workers.dev"
 
         private val client = OkHttpClient()
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
