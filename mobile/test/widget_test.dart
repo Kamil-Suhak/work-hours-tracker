@@ -63,7 +63,9 @@ void main() {
               () => _MockStatusNotifier(AsyncValue.data(mockStatus)),
             ),
           ],
-          child: const MaterialApp(home: ClockScreen()),
+          child: const MaterialApp(
+            home: ClockScreen(enableAnimations: false),
+          ),
         ),
       );
 
@@ -93,7 +95,9 @@ void main() {
               ),
             ),
           ],
-          child: const MaterialApp(home: ClockScreen()),
+          child: const MaterialApp(
+            home: ClockScreen(enableAnimations: false),
+          ),
         ),
       );
 
@@ -128,7 +132,9 @@ void main() {
               () => _MockStatusNotifier(AsyncValue.data(mockStatus)),
             ),
           ],
-          child: const MaterialApp(home: ClockScreen()),
+          child: const MaterialApp(
+            home: ClockScreen(enableAnimations: false),
+          ),
         ),
       );
 

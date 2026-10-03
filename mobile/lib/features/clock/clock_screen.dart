@@ -6,9 +6,16 @@ import '../../api/models.dart';
 import '../settings/settings_dialog.dart';
 import '../settings/settings_notifier.dart';
 import 'clock_notifier.dart';
+import 'widgets/live_shift_timer.dart';
+import 'widgets/pulse_status_badge.dart';
 
 class ClockScreen extends ConsumerStatefulWidget {
-  const ClockScreen({super.key});
+  final bool enableAnimations;
+
+  const ClockScreen({
+    super.key,
+    this.enableAnimations = true,
+  });
 
   @override
   ConsumerState<ClockScreen> createState() => _ClockScreenState();
@@ -79,54 +86,23 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Status Badge
+        // Status Badge with Breathing Pulse Glow
         Center(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            decoration: BoxDecoration(
-              color: isClockedIn
-                  ? Colors.green.withValues(alpha: 0.15)
-                  : Colors.grey.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: isClockedIn ? Colors.green : Colors.grey,
-                width: 1.5,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  isClockedIn ? Icons.check_circle : Icons.pause_circle_outline,
-                  color: isClockedIn ? Colors.green : Colors.grey,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  isClockedIn ? 'CLOCKED IN' : 'CLOCKED OUT',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.2,
-                    color: isClockedIn ? Colors.green : Colors.grey,
-                  ),
-                ),
-              ],
-            ),
+          child: PulseStatusBadge(
+            isClockedIn: isClockedIn,
+            enablePulseAnimation: widget.enableAnimations,
           ),
         ),
-        const SizedBox(height: 36),
+        const SizedBox(height: 28),
 
-        // Active since text
+        // Live Running Stopwatch for Active Shift
         if (isClockedIn && status.activeSince != null) ...[
           Center(
-            child: Text(
-              'Active since ${timeFormat.format(status.activeSince!.toLocal())}',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Colors.grey[700],
-                  ),
+            child: LiveShiftTimer(
+              activeSince: status.activeSince!,
+              enablePeriodicTimer: widget.enableAnimations,
             ),
           ),
-          const SizedBox(height: 16),
         ],
 
         // Today's total card
