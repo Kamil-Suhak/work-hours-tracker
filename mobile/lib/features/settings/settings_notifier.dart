@@ -8,22 +8,26 @@ class AppSettings {
   final String baseUrl;
   final String deviceToken;
   final bool isConfigured;
+  final bool vibrationsEnabled;
 
   const AppSettings({
     required this.baseUrl,
     required this.deviceToken,
     required this.isConfigured,
+    this.vibrationsEnabled = true,
   });
 
   AppSettings copyWith({
     String? baseUrl,
     String? deviceToken,
     bool? isConfigured,
+    bool? vibrationsEnabled,
   }) {
     return AppSettings(
       baseUrl: baseUrl ?? this.baseUrl,
       deviceToken: deviceToken ?? this.deviceToken,
       isConfigured: isConfigured ?? this.isConfigured,
+      vibrationsEnabled: vibrationsEnabled ?? this.vibrationsEnabled,
     );
   }
 }
@@ -31,12 +35,14 @@ class AppSettings {
 class SettingsNotifier extends AsyncNotifier<AppSettings> {
   static const String _tokenStorageKey = 'device_auth_token';
   static const String _baseUrlStorageKey = 'api_base_url';
+  static const String _hapticsStorageKey = 'vibrations_enabled';
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   @override
   Future<AppSettings> build() async {
     final storedUrl = await _storage.read(key: _baseUrlStorageKey);
     final storedToken = await _storage.read(key: _tokenStorageKey);
+    final storedHaptics = await _storage.read(key: _hapticsStorageKey);
 
     final baseUrl = (storedUrl != null && storedUrl.trim().isNotEmpty)
         ? storedUrl.trim()
@@ -44,11 +50,13 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
 
     final deviceToken = storedToken?.trim() ?? '';
     final isConfigured = deviceToken.isNotEmpty && baseUrl != defaultApiBaseUrl;
+    final vibrationsEnabled = storedHaptics != 'false';
 
     if (isConfigured) {
       await WidgetSyncService.syncCredentials(
         baseUrl: baseUrl,
         deviceToken: deviceToken,
+        vibrationsEnabled: vibrationsEnabled,
       );
     }
 
@@ -56,12 +64,14 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
       baseUrl: baseUrl,
       deviceToken: deviceToken,
       isConfigured: isConfigured,
+      vibrationsEnabled: vibrationsEnabled,
     );
   }
 
   Future<void> saveSettings({
     required String baseUrl,
     required String deviceToken,
+    bool vibrationsEnabled = true,
   }) async {
     var cleanedUrl = baseUrl.trim();
     if (cleanedUrl.endsWith('/')) {
@@ -71,10 +81,12 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
 
     await _storage.write(key: _baseUrlStorageKey, value: cleanedUrl);
     await _storage.write(key: _tokenStorageKey, value: cleanedToken);
+    await _storage.write(key: _hapticsStorageKey, value: vibrationsEnabled.toString());
 
     await WidgetSyncService.syncCredentials(
       baseUrl: cleanedUrl,
       deviceToken: cleanedToken,
+      vibrationsEnabled: vibrationsEnabled,
     );
 
     state = AsyncValue.data(
@@ -82,6 +94,7 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
         baseUrl: cleanedUrl,
         deviceToken: cleanedToken,
         isConfigured: cleanedToken.isNotEmpty && cleanedUrl != defaultApiBaseUrl,
+        vibrationsEnabled: vibrationsEnabled,
       ),
     );
   }

@@ -25,6 +25,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
   late final TextEditingController _tokenController;
   bool _obscureToken = true;
   bool _isSaving = false;
+  bool _vibrationsEnabled = true;
 
   @override
   void initState() {
@@ -38,6 +39,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
     _tokenController = TextEditingController(
       text: settings?.deviceToken ?? '',
     );
+    _vibrationsEnabled = settings?.vibrationsEnabled ?? true;
   }
 
   @override
@@ -67,6 +69,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
       await ref.read(settingsProvider.notifier).saveSettings(
             baseUrl: url,
             deviceToken: token,
+            vibrationsEnabled: _vibrationsEnabled,
           );
 
       if (mounted) {
@@ -178,6 +181,21 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                     }
                     return null;
                   },
+                ),
+                const SizedBox(height: 12),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text(
+                    'Haptic feedback',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: const Text(
+                    'Vibrate on clock actions in app and home widget',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  value: _vibrationsEnabled,
+                  onChanged: (val) => setState(() => _vibrationsEnabled = val),
+                  activeColor: const Color(0xFF0F766E),
                 ),
               ],
             ),

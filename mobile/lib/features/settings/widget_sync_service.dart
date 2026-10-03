@@ -7,11 +7,13 @@ class WidgetSyncService {
   static Future<bool> syncCredentials({
     required String baseUrl,
     required String deviceToken,
+    bool vibrationsEnabled = true,
   }) async {
     try {
       final result = await _channel.invokeMethod<bool>('syncWidgetCredentials', {
         'baseUrl': baseUrl,
         'deviceToken': deviceToken,
+        'vibrationsEnabled': vibrationsEnabled,
       });
       return result ?? false;
     } catch (_) {
