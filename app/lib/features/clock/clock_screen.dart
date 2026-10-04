@@ -16,6 +16,7 @@ import '../history/recent_shifts_view.dart';
 import 'widgets/current_tracker_quadrant.dart';
 import 'widgets/note_editor_quadrant.dart';
 import 'widgets/note_preview_quadrant.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ClockScreen extends ConsumerStatefulWidget {
   final bool enableAnimations;
@@ -92,6 +93,23 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
                 ? null
                 : () =>
                     ref.read(currentStatusProvider.notifier).refreshStatus(),
+          ),
+          IconButton(
+            icon: const Icon(Icons.download_for_offline_outlined),
+            tooltip: 'Download Android APK',
+            onPressed: () => launchUrl(
+              Uri.parse(
+                  'https://github.com/Kamil-Suhak/work-hours-tracker/releases/latest'),
+              mode: LaunchMode.externalApplication,
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.code),
+            tooltip: 'View on GitHub',
+            onPressed: () => launchUrl(
+              Uri.parse('https://github.com/Kamil-Suhak/work-hours-tracker'),
+              mode: LaunchMode.externalApplication,
+            ),
           ),
           IconButton(
             icon: const Icon(Icons.settings),

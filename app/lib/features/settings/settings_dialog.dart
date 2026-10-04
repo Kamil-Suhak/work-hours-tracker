@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../clock/clock_notifier.dart';
 import 'settings_notifier.dart';
 
@@ -234,6 +235,33 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                   value: _vibrationsEnabled,
                   onChanged: (val) => setState(() => _vibrationsEnabled = val),
                   activeTrackColor: const Color(0xFF0F766E),
+                ),
+                const Divider(height: 24, color: Color(0xFF334155)),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextButton.icon(
+                      icon: const Icon(Icons.code, size: 16),
+                      label:
+                          const Text('GitHub', style: TextStyle(fontSize: 12)),
+                      onPressed: () => launchUrl(
+                        Uri.parse(
+                            'https://github.com/Kamil-Suhak/work-hours-tracker'),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                    ),
+                    TextButton.icon(
+                      icon: const Icon(Icons.download_for_offline_outlined,
+                          size: 16),
+                      label: const Text('Download APK',
+                          style: TextStyle(fontSize: 12)),
+                      onPressed: () => launchUrl(
+                        Uri.parse(
+                            'https://github.com/Kamil-Suhak/work-hours-tracker/releases/latest'),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
