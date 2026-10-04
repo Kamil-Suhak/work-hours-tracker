@@ -158,7 +158,19 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
 
   Future<void> _openLastReport() async {
     if (_lastGeneratedPath != null) {
-      await ref.read(reportFileServiceProvider).openReportFile(_lastGeneratedPath!);
+      final opened =
+          await ref.read(reportFileServiceProvider).openReportFile(_lastGeneratedPath!);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(opened
+                ? 'Opening report...'
+                : 'Could not open report file.'),
+            backgroundColor: opened ? const Color(0xFF0F766E) : Colors.amber[800],
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     }
   }
 

@@ -48,6 +48,9 @@ class AndroidReportFileService implements ReportFileService {
 }
 
 class WebReportFileService implements ReportFileService {
+  static Uint8List? _lastBytes;
+  static String? _lastFilename;
+
   const WebReportFileService();
 
   @override
@@ -55,12 +58,19 @@ class WebReportFileService implements ReportFileService {
     required Uint8List bytes,
     required String filename,
   }) async {
+    _lastBytes = bytes;
+    _lastFilename = filename;
     triggerBrowserDownload(bytes, filename);
     return filename;
   }
 
   @override
-  Future<bool> openReportFile(String filePath) async => false;
+  Future<bool> openReportFile(String filePath) async {
+    if (_lastBytes != null) {
+      return openReportInBrowser(_lastBytes!, _lastFilename ?? filePath);
+    }
+    return false;
+  }
 }
 
 class NoOpReportFileService implements ReportFileService {

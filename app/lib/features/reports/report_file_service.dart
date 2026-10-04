@@ -17,6 +17,10 @@ class ReportFileService {
     return _android.saveAndOpenReport(bytes: bytes, filename: filename);
   }
 
-  static Future<bool> openReportFile(String filePath) =>
-      _android.openReportFile(filePath);
+  static Future<bool> openReportFile(String filePath) {
+    if (kIsWeb) {
+      return _web.openReportFile(filePath);
+    }
+    return _android.openReportFile(filePath);
+  }
 }

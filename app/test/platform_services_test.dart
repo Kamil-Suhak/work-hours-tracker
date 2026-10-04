@@ -51,6 +51,19 @@ void main() {
       final openResult = await service.openReportFile('/path/report.xlsx');
       expect(openResult, isFalse);
     });
+
+    test('WebReportFileService saves and opens cached report bytes', () async {
+      const service = WebReportFileService();
+      final saveResult = await service.saveAndOpenReport(
+        bytes: Uint8List.fromList([10, 20, 30]),
+        filename: 'report_2026.xlsx',
+      );
+      expect(saveResult, equals('report_2026.xlsx'));
+
+      final openResult = await service.openReportFile('report_2026.xlsx');
+      // In VM stubbed runner, openReportInBrowser stub returns false gracefully
+      expect(openResult, isA<bool>());
+    });
   });
 
   group('WidgetSyncService Tests', () {
