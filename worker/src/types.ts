@@ -14,6 +14,7 @@ export interface Env {
   DEVICE_TOKEN_PEPPER?: string;
   REPORTS_BUCKET?: R2Bucket;
   ASSETS?: Fetcher;
+  ALLOWED_ORIGINS?: string;
 }
 
 export interface DeviceRow {

@@ -17,7 +17,6 @@ export function jsonResponse<T>(data: T, status = 200, headers: HeadersInit = {}
     status,
     headers: {
       'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
       ...headers,
     },
   });

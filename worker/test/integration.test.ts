@@ -38,10 +38,11 @@ describe('Worker End-to-End Integration Suite', () => {
       method?: string;
       token?: string;
       body?: unknown;
+      headers?: Record<string, string>;
     } = {}
   ): Request {
-    const { method = 'GET', token = validToken, body } = options;
-    const headers: Record<string, string> = {};
+    const { method = 'GET', token = validToken, body, headers: customHeaders } = options;
+    const headers: Record<string, string> = { ...customHeaders };
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
@@ -612,4 +613,56 @@ describe('Worker End-to-End Integration Suite', () => {
       expect(waited).toBe(true);
     });
   });
+
+  describe('CORS and Security Headers', () => {
+    it('allows same-origin or localhost origins and adds security headers', async () => {
+      const res = await worker.fetch(
+        createRequest('/api/v1/status', {
+          headers: {
+            Origin: 'http://localhost:3000',
+          },
+        }),
+        env
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:3000');
+      expect(res.headers.get('Vary')).toContain('Origin');
+      expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
+      expect(res.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin');
+      expect(res.headers.get('Cache-Control')).toContain('no-store');
+    });
+
+    it('does not reflect disallowed third-party origin in Access-Control-Allow-Origin', async () => {
+      const res = await worker.fetch(
+        createRequest('/api/v1/status', {
+          headers: {
+            Origin: 'https://malicious-external-site.com',
+          },
+        }),
+        env
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get('Access-Control-Allow-Origin')).toBeNull();
+      expect(res.headers.get('Vary')).toContain('Origin');
+    });
+
+    it('responds with 204 to OPTIONS preflight requests', async () => {
+      const res = await worker.fetch(
+        createRequest('/api/v1/clock-in', {
+          method: 'OPTIONS',
+          headers: {
+            Origin: 'http://localhost:8080',
+          },
+        }),
+        env
+      );
+
+      expect(res.status).toBe(204);
+      expect(res.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:8080');
+      expect(res.headers.get('Access-Control-Allow-Methods')).toContain('POST');
+    });
+  });
 });
+

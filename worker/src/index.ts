@@ -50,6 +50,42 @@ async function parseJsonBody(request: Request, correlationId: string): Promise<u
   }
 }
 
+function getAllowedOrigin(request: Request, env: Env): string | null {
+  const origin = request.headers.get('Origin');
+  if (!origin) return null;
+
+  try {
+    const originUrl = new URL(origin);
+    const requestUrl = new URL(request.url);
+
+    // 1. Same-origin (e.g. Flutter Web hosted on the same worker via ASSETS)
+    if (originUrl.origin === requestUrl.origin) {
+      return origin;
+    }
+
+    // 2. Local development origins
+    if (
+      originUrl.hostname === 'localhost' ||
+      originUrl.hostname === '127.0.0.1' ||
+      originUrl.hostname === '[::1]'
+    ) {
+      return origin;
+    }
+
+    // 3. Configured allowed origins (comma-separated list in env)
+    if (env.ALLOWED_ORIGINS) {
+      const allowed = env.ALLOWED_ORIGINS.split(',').map((o) => o.trim());
+      if (allowed.includes(origin)) {
+        return origin;
+      }
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const startTime = Date.now();
@@ -63,18 +99,23 @@ export default {
       return env.ASSETS.fetch(request);
     }
 
-    // Standard CORS and tracing headers for API clients.
-    // TODO: When attaching a custom domain, consider scoping Access-Control-Allow-Origin
-    // to your specific domain (and localhost for dev) instead of wildcard '*'.
-    // Note: Android and native clients ignore CORS headers and will not be affected.
+    const allowedOrigin = getAllowedOrigin(request, env);
+
     const standardHeaders: Record<string, string> = {
       'X-Correlation-ID': correlationId,
-      'Access-Control-Allow-Origin': '*',
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'Vary': 'Origin',
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Correlation-ID',
       'Access-Control-Expose-Headers':
         'Content-Disposition, X-Total-Hours, X-Total-Shifts, X-Correlation-ID',
     };
+
+    if (allowedOrigin) {
+      standardHeaders['Access-Control-Allow-Origin'] = allowedOrigin;
+    }
 
     if (method === 'OPTIONS') {
       return new Response(null, {
@@ -275,7 +316,7 @@ export default {
         const object = await env.REPORTS_BUCKET.get(key);
 
         if (!object) {
-          throw new AppError('REPORT_NOT_FOUND', 'Requested report file was not found.', 404, correlationId);
+          throw new AppError('REPORT_NOT_FOUND', `Report "${filename}" was not found.`, 404, correlationId);
         }
 
         console.log(
@@ -299,7 +340,7 @@ export default {
         });
       }
 
-      return errorResponse('NOT_FOUND', 'The requested resource was not found.', 404, correlationId);
+      return errorResponse('NOT_FOUND', 'The requested resource was not found.', 404, correlationId, standardHeaders);
     } catch (err: unknown) {
       const latencyMs = Date.now() - startTime;
       if (err instanceof AppError) {
@@ -313,7 +354,7 @@ export default {
             latencyMs,
           })
         );
-        return errorResponse(err.code, err.message, err.status, err.requestId ?? correlationId);
+        return errorResponse(err.code, err.message, err.status, err.requestId ?? correlationId, standardHeaders);
       }
 
       console.error(
@@ -325,7 +366,7 @@ export default {
           error: 'Unhandled server error',
         })
       );
-      return errorResponse('INTERNAL_ERROR', 'An unexpected error occurred.', 500, correlationId);
+      return errorResponse('INTERNAL_ERROR', 'An unexpected error occurred.', 500, correlationId, standardHeaders);
     }
   },
 
