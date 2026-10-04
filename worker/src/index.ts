@@ -63,7 +63,10 @@ export default {
       return env.ASSETS.fetch(request);
     }
 
-    // Standard CORS and tracing headers for API clients
+    // Standard CORS and tracing headers for API clients.
+    // TODO: When attaching a custom domain, consider scoping Access-Control-Allow-Origin
+    // to your specific domain (and localhost for dev) instead of wildcard '*'.
+    // Note: Android and native clients ignore CORS headers and will not be affected.
     const standardHeaders: Record<string, string> = {
       'X-Correlation-ID': correlationId,
       'Access-Control-Allow-Origin': '*',
