@@ -21,10 +21,10 @@
 - [x] **Production CORS Rules**: Scoped allowed origins dynamically with `Vary: Origin`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and `Cache-Control: no-store`.
 
 ### Phase 2: Multi-Platform Service Layer (Flutter App & iOS Readiness)
-- [ ] **Platform Service Abstractions**: Define abstract interfaces in `app/lib/services/platform/` (`HapticFeedbackService`, `ReportFileService`, `WidgetSyncService`, `CredentialStore`).
-- [ ] **Concrete Platform Implementations**: Implement Android, Web, and NoOp providers.
-- [ ] **Presentation Refactoring**: Refactor UI widgets and notifiers to eliminate inline platform checks (`if (!isAndroid)`, `kIsWeb`).
-- [ ] **Admin Token Web Security**: In-memory credential session for `ManualShiftDialog` on Web.
+- [x] **Platform Service Abstractions**: Define abstract interfaces in `app/lib/services/platform/` (`HapticFeedbackService`, `ReportFileService`, `WidgetSyncService`, `CredentialStore`).
+- [x] **Concrete Platform Implementations**: Implement Android, Web, and NoOp providers.
+- [x] **Presentation Refactoring**: Refactor UI widgets and notifiers to eliminate inline platform checks (`if (!isAndroid)`, `kIsWeb`).
+- [x] **Admin Token Web Security**: In-memory credential session for `ManualShiftDialog` on Web.
 
 ### Phase 3: Documentation & Design Specification Realignment
 - [x] **`ROADMAP.md` Created**: Consolidated roadmap superseding `POLISH.md` (and `POLISH.md` deleted).
@@ -35,14 +35,13 @@
 - [x] **`DESIGN.md` Synchronization**: Updated ground-truth design to match unified Worker Static Assets, R2, and pure TS OpenXML generator.
 
 ### Phase 4: Test Coverage & Verification
-- [x] **Backend Unit & Integration Tests**: Warsaw DST transitions (March & October), formula injection escaping, undo atomicity, R2 download traversal rejection, dynamic CORS headers (57 Vitest tests passing).
-- [x] **Flutter App Validation**: `flutter analyze` (0 issues) and `flutter test` (42 tests passing).
+- [x] **Backend Unit & Integration Tests**: Warsaw DST transitions (March & October), formula injection escaping, undo atomicity, R2 download traversal rejection, dynamic CORS headers, 4000 char note validation (59 Vitest tests passing).
+- [x] **Flutter App Validation**: `flutter analyze` (0 issues) and `flutter test` (48 tests passing).
 
 ---
 
-## Immediate Next Steps
-1. Commit Phase 1 backend hardening and documentation synchronization changes.
-2. Proceed to Phase 2: Multi-Platform Service Layer in Flutter (`HapticFeedbackService`, `ReportFileService`, `WidgetSyncService`, `CredentialStore`) and admin token web security.
+## Status Summary
+All phases from `ROADMAP.md` are 100% implemented, tested, and validated. Ready for temporary full audit report generation.
 
 
 

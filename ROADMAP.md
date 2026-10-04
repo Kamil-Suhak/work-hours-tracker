@@ -76,10 +76,10 @@
   - However, in web browsers, WebCrypto keys in IndexedDB are accessible to any script executing in that origin. For daily operations, the web client only requires a scoped `personal-web` device token.
   - Persisting the master `ADMIN_API_TOKEN` indefinitely in browser storage creates an unnecessary exposure surface.
 - **Action Items:**
-  - [ ] Provision distinct device records in D1: `primary-phone` for Android/Widget and `personal-web` for Flutter Web.
-  - [ ] In `app/lib/features/settings/settings_notifier.dart`, avoid saving `adminToken` to browser storage on Web.
-  - [ ] Keep the admin token in-memory only during the active session, or prompt for it on-demand inside `ManualShiftDialog`.
-  - [ ] Ensure build artifacts do not contain any hardcoded tokens (`--dart-define` secrets forbidden).
+  - [x] Provision distinct device records in D1: `primary-phone` for Android/Widget and `personal-web` for Flutter Web.
+  - [x] In `app/lib/features/settings/settings_notifier.dart`, avoid saving `adminToken` to browser storage on Web.
+  - [x] Keep the admin token in-memory only during the active session, or prompt for it on-demand inside `ManualShiftDialog`.
+  - [x] Ensure build artifacts do not contain any hardcoded tokens (`--dart-define` secrets forbidden).
 
 ---
 
@@ -88,10 +88,10 @@
 ### 3.1 Notes Lifecycle & Rendering
 
 - **Action Items:**
-  - [ ] **Storage:** Store shift notes as raw Markdown in D1 `events.note`. Impose a reasonable size limit (e.g. 4,000 characters) on both client and server.
-  - [ ] **Flutter Rendering:** Maintain `MarkdownText` as a lightweight, safe Flutter widget renderer (supports headers, bold, italics, code, bullet lists). Never evaluate raw HTML or pass unsanitized strings to webviews.
-  - [ ] **Excel Export:** `cleanMarkdownForExcel` flattens markdown to readable plain text, strips bullet syntax, and neutralizes formula prefixes before Excel cell generation.
-  - [ ] **Draft Persistence:** Retain ongoing shift notes in local device storage so unsaved notes survive app closure while clocked in.
+  - [x] **Storage:** Store shift notes as raw Markdown in D1 `events.note`. Impose a reasonable size limit (e.g. 4,000 characters) on both client and server.
+  - [x] **Flutter Rendering:** Maintain `MarkdownText` as a lightweight, safe Flutter widget renderer (supports headers, bold, italics, code, bullet lists). Never evaluate raw HTML or pass unsanitized strings to webviews.
+  - [x] **Excel Export:** `cleanMarkdownForExcel` flattens markdown to readable plain text, strips bullet syntax, and neutralizes formula prefixes before Excel cell generation.
+  - [x] **Draft Persistence:** Retain ongoing shift notes in local device storage so unsaved notes survive app closure while clocked in.
 
 ---
 
@@ -100,10 +100,10 @@
 ### 4.1 Consistency & Synchronization
 
 - **Action Items:**
-  - [ ] **Independent Clients:** The Android widget communicates directly with the Worker API via OkHttp. The Flutter app is not required to be running.
-  - [ ] **Signaling vs Authority:** Flutter-to-Widget `MethodChannel` calls are optional refresh triggers, not the source of truth. Both clients independently reconcile state with `GET /api/v1/status`.
-  - [ ] **Display Accuracy:** Widget displays the server-authoritative state (`Clocked In` / `Clocked Out`), `active-since` time, derived duration, and last sync timestamp. Avoid battery-draining continuous background timers on home screen widgets.
-  - [ ] **Foreground Refresh:** The Flutter app automatically calls `GET /api/v1/status` on app resume.
+  - [x] **Independent Clients:** The Android widget communicates directly with the Worker API via OkHttp. The Flutter app is not required to be running.
+  - [x] **Signaling vs Authority:** Flutter-to-Widget `MethodChannel` calls are optional refresh triggers, not the source of truth. Both clients independently reconcile state with `GET /api/v1/status`.
+  - [x] **Display Accuracy:** Widget displays the server-authoritative state (`Clocked In` / `Clocked Out`), `active-since` time, derived duration, and last sync timestamp. Avoid battery-draining continuous background timers on home screen widgets.
+  - [x] **Foreground Refresh:** The Flutter app automatically calls `GET /api/v1/status` on app resume.
 
 ---
 
@@ -146,12 +146,11 @@ Decouple the presentation layer completely from the underlying operating system 
      - `MobileCredentialStore` (Android + iOS): Uses hardware-backed secure storage (Keystore on Android, Keychain on iOS).
      - `WebCredentialStore`: Uses `flutter_secure_storage` WebCrypto for device token, but keeps `adminToken` in-memory only during the active administrative session.
 
-### 5.3 Action Items
-
-- [ ] Define abstract service contracts in `app/lib/services/platform/`.
-- [ ] Implement concrete Android, Web, and no-op service classes.
-- [ ] Provide factory/conditional Riverpod providers that resolve the appropriate implementation at startup.
-- [ ] Refactor UI widgets and notifiers to depend strictly on the Riverpod service interfaces with zero inline platform checks.
+- **Action Items:**
+  - [x] Define abstract service contracts in `app/lib/services/platform/`.
+  - [x] Implement concrete Android, Web, and no-op service classes.
+  - [x] Provide factory/conditional Riverpod providers that resolve the appropriate implementation at startup.
+  - [x] Refactor UI widgets and notifiers to depend strictly on the Riverpod service interfaces with zero inline platform checks.
 
 ---
 
@@ -220,10 +219,10 @@ To prevent over-engineering a single-user system, the following suggestions from
 
 ### Phase 2: Client Web Security & Multi-Platform Service Layer
 
-- [ ] Update `settings_notifier.dart` to keep `adminToken` in-memory on Web rather than persisting to storage.
-- [ ] Implement Riverpod service abstractions (`HapticFeedbackService`, `ReportFileService`, `WidgetSyncService`, `CredentialStore`) with platform-specific and no-op providers.
-- [ ] Refactor UI widgets and notifiers to eliminate inline platform checks (`if (!isAndroid)`, `kIsWeb`).
-- [ ] Verify Web report download flow and object URL cleanup.
+- [x] Update `settings_notifier.dart` to keep `adminToken` in-memory on Web rather than persisting to storage.
+- [x] Implement Riverpod service abstractions (`HapticFeedbackService`, `ReportFileService`, `WidgetSyncService`, `CredentialStore`) with platform-specific and no-op providers.
+- [x] Refactor UI widgets and notifiers to eliminate inline platform checks (`if (!isAndroid)`, `kIsWeb`).
+- [x] Verify Web report download flow and object URL cleanup.
 
 ### Phase 3: Documentation Restructure & Spec Synchronization
 
