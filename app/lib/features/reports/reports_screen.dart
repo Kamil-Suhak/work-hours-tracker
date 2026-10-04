@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../clock/clock_notifier.dart';
-import 'report_file_service.dart';
+import '../../services/platform/platform_services.dart';
 
 class ReportsScreen extends ConsumerStatefulWidget {
   const ReportsScreen({super.key});
@@ -118,7 +118,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         includeSource: _preset == 'full' ? true : _includeSource,
       );
 
-      final path = await ReportFileService.saveAndOpenReport(
+      final path = await ref.read(reportFileServiceProvider).saveAndOpenReport(
         bytes: result.bytes,
         filename: result.filename,
       );
@@ -158,7 +158,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
 
   Future<void> _openLastReport() async {
     if (_lastGeneratedPath != null) {
-      await ReportFileService.openReportFile(_lastGeneratedPath!);
+      await ref.read(reportFileServiceProvider).openReportFile(_lastGeneratedPath!);
     }
   }
 
@@ -188,7 +188,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       final bytes = await apiClient.downloadReport(filename);
 
       final cleanName = filename.split('/').last;
-      final path = await ReportFileService.saveAndOpenReport(
+      final path = await ref.read(reportFileServiceProvider).saveAndOpenReport(
         bytes: bytes,
         filename: cleanName,
       );

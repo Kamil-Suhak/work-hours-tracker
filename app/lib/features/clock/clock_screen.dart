@@ -7,7 +7,7 @@ import '../history/recent_shifts_sheet.dart';
 import '../reports/reports_screen.dart';
 import '../settings/settings_dialog.dart';
 import '../settings/settings_notifier.dart';
-import '../settings/widget_sync_service.dart';
+import '../../services/platform/platform_services.dart';
 import 'clock_notifier.dart';
 import 'widgets/current_shift_timer_card.dart';
 import 'widgets/cyber_orbit_badge.dart';
@@ -361,7 +361,7 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
                             .clockOut(note: note.isNotEmpty ? note : null);
                         _notesController.clear();
                         await ShiftNotesCard.clearDraft();
-                        unawaited(WidgetSyncService.syncActiveNote(''));
+                        unawaited(ref.read(widgetSyncServiceProvider).syncActiveNote(''));
                       },
               ),
             ),
@@ -425,7 +425,7 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
     final haptics =
         ref.read(settingsProvider).value?.vibrationsEnabled ?? true;
     if (haptics) {
-      WidgetSyncService.vibrate();
+      ref.read(hapticServiceProvider).vibrate();
     }
   }
 

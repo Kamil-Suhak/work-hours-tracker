@@ -1,8 +1,8 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../services/platform/platform_services.dart';
 import '../clock/clock_notifier.dart';
 import 'settings_notifier.dart';
 
@@ -37,7 +37,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
     final settingsAsync = ref.read(settingsProvider);
     final settings = settingsAsync.value;
 
-    final defaultUrl = kIsWeb ? Uri.base.origin : defaultApiBaseUrl;
+    final defaultUrl = ref.read(credentialStoreProvider).defaultBaseUrl;
     final initialUrl = (settings?.baseUrl != null &&
             settings!.baseUrl.isNotEmpty &&
             settings.baseUrl != defaultApiBaseUrl)
@@ -231,7 +231,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                     ),
                   ),
                 ),
-                if (!kIsWeb) ...[
+                if (ref.watch(hapticServiceProvider).isSupported) ...[
                   const SizedBox(height: 12),
                   SwitchListTile.adaptive(
                     contentPadding: EdgeInsets.zero,

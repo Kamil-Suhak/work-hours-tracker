@@ -1,7 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'widget_sync_service.dart';
+import '../../services/platform/platform_services.dart';
 
 const String defaultApiBaseUrl = 'https://work-hours-api.workers.dev';
 
@@ -42,32 +40,33 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
   static const String _baseUrlStorageKey = 'api_base_url';
   static const String _adminTokenStorageKey = 'admin_auth_token';
   static const String _hapticsStorageKey = 'vibrations_enabled';
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   @override
   Future<AppSettings> build() async {
-    final storedUrl = await _storage.read(key: _baseUrlStorageKey);
-    final storedToken = await _storage.read(key: _tokenStorageKey);
-    final storedAdminToken = await _storage.read(key: _adminTokenStorageKey);
-    final storedHaptics = await _storage.read(key: _hapticsStorageKey);
+    final store = ref.read(credentialStoreProvider);
+    final widgetSync = ref.read(widgetSyncServiceProvider);
 
-    final defaultUrl = kIsWeb
-        ? Uri.base.origin
-        : const String.fromEnvironment('API_BASE_URL', defaultValue: defaultApiBaseUrl);
+    final storedUrl = await store.read(_baseUrlStorageKey);
+    final storedToken = await store.read(_tokenStorageKey);
+    final storedAdminToken = await store.read(_adminTokenStorageKey);
+    final storedHaptics = await store.read(_hapticsStorageKey);
+
+    final defaultUrl = store.defaultBaseUrl;
 
     final isDefaultPlaceholder = storedUrl?.trim() == defaultApiBaseUrl;
     final baseUrl = (storedUrl != null &&
             storedUrl.trim().isNotEmpty &&
-            (!kIsWeb || !isDefaultPlaceholder))
+            (!store.isWeb || !isDefaultPlaceholder))
         ? storedUrl.trim()
         : defaultUrl;
 
     final deviceToken = storedToken?.trim() ?? '';
-    final isConfigured = deviceToken.isNotEmpty && (kIsWeb || baseUrl != defaultApiBaseUrl);
+    final isConfigured =
+        deviceToken.isNotEmpty && (store.isWeb || baseUrl != defaultApiBaseUrl);
     final vibrationsEnabled = storedHaptics != 'false';
 
     if (isConfigured) {
-      await WidgetSyncService.syncCredentials(
+      await widgetSync.syncCredentials(
         baseUrl: baseUrl,
         deviceToken: deviceToken,
         vibrationsEnabled: vibrationsEnabled,
@@ -89,22 +88,25 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
     String? adminToken,
     bool vibrationsEnabled = true,
   }) async {
+    final store = ref.read(credentialStoreProvider);
+    final widgetSync = ref.read(widgetSyncServiceProvider);
+
     var cleanedUrl = baseUrl.trim();
     if (cleanedUrl.endsWith('/')) {
       cleanedUrl = cleanedUrl.substring(0, cleanedUrl.length - 1);
     }
     final cleanedToken = deviceToken.trim();
 
-    await _storage.write(key: _baseUrlStorageKey, value: cleanedUrl);
-    await _storage.write(key: _tokenStorageKey, value: cleanedToken);
+    await store.write(_baseUrlStorageKey, cleanedUrl);
+    await store.write(_tokenStorageKey, cleanedToken);
     if (adminToken != null && adminToken.trim().isNotEmpty) {
-      await _storage.write(key: _adminTokenStorageKey, value: adminToken.trim());
+      await store.write(_adminTokenStorageKey, adminToken.trim());
     } else {
-      await _storage.delete(key: _adminTokenStorageKey);
+      await store.delete(_adminTokenStorageKey);
     }
-    await _storage.write(key: _hapticsStorageKey, value: vibrationsEnabled.toString());
+    await store.write(_hapticsStorageKey, vibrationsEnabled.toString());
 
-    await WidgetSyncService.syncCredentials(
+    await widgetSync.syncCredentials(
       baseUrl: cleanedUrl,
       deviceToken: cleanedToken,
       vibrationsEnabled: vibrationsEnabled,
@@ -115,10 +117,26 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
         baseUrl: cleanedUrl,
         deviceToken: cleanedToken,
         adminToken: adminToken?.trim(),
-        isConfigured: cleanedToken.isNotEmpty && (kIsWeb || cleanedUrl != defaultApiBaseUrl),
+        isConfigured:
+            cleanedToken.isNotEmpty && (store.isWeb || cleanedUrl != defaultApiBaseUrl),
         vibrationsEnabled: vibrationsEnabled,
       ),
     );
+  }
+
+  Future<void> setSessionAdminToken(String token) async {
+    final store = ref.read(credentialStoreProvider);
+    final cleaned = token.trim();
+    if (cleaned.isNotEmpty) {
+      await store.write(_adminTokenStorageKey, cleaned);
+    } else {
+      await store.delete(_adminTokenStorageKey);
+    }
+    if (state.hasValue) {
+      state = AsyncValue.data(
+        state.value!.copyWith(adminToken: cleaned.isNotEmpty ? cleaned : null),
+      );
+    }
   }
 }
 
