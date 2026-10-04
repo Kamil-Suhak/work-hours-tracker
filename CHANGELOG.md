@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased] - (Target v0.4.0 / v1.0.0)
+## [1.0.0-experimental] - 2026-10-05
+
+> **Experimental Release:** Automated tests (backend and client) pass at 100%. Pending manual end-to-end device testing.
 
 ### Added
 - Consolidated `ROADMAP.md` superseding `POLISH.md`.
@@ -15,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `docs/API.md` providing complete API schema, error codes, and contract documentation.
 - `docs/DEPLOYMENT.md` providing end-to-end setup, migrations, and D1 backup procedures.
 - Multi-platform Riverpod service abstraction architecture (geared towards future iOS support).
+- Upgraded Gradle wrapper to 8.14 to satisfy Flutter toolchain requirements.
 
 ### Changed
 - Refactored platform handling from scattered negative guards (`!isAndroid`) to Riverpod provider-injected service abstractions (`HapticFeedbackService`, `ReportFileService`, `WidgetSyncService`, `CredentialStore`).

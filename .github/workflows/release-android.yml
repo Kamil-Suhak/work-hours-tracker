@@ -62,6 +62,6 @@ jobs:
           files: app/build/app/outputs/flutter-apk/app-release.apk
           generate_release_notes: true
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(steps.release_tag.outputs.tag, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
