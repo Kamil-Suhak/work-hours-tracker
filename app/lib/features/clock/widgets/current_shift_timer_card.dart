@@ -91,8 +91,8 @@ class _CurrentShiftTimerCardState extends State<CurrentShiftTimerCard> {
 
   @override
   Widget build(BuildContext context) {
-    final activeColor = const Color(0xFF10B981); // Emerald
-    final inactiveColor = const Color(0xFF64748B); // Slate
+    const activeColor = Color(0xFF10B981); // Emerald
+    const inactiveColor = Color(0xFF64748B); // Slate
     final timeFormat = DateFormat('HH:mm');
 
     final timerDisplay = widget.isClockedIn ? _formatDuration(_elapsed) : '--:--:--';
@@ -208,8 +208,8 @@ class _CurrentShiftTimerCardState extends State<CurrentShiftTimerCard> {
               InkWell(
                 borderRadius: BorderRadius.circular(8),
                 onTap: widget.onViewHistory,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -221,7 +221,7 @@ class _CurrentShiftTimerCardState extends State<CurrentShiftTimerCard> {
                           color: activeColor,
                         ),
                       ),
-                      const SizedBox(width: 2),
+                      SizedBox(width: 2),
                       Icon(
                         Icons.chevron_right,
                         size: 16,

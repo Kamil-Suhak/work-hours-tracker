@@ -233,7 +233,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                   ),
                   value: _vibrationsEnabled,
                   onChanged: (val) => setState(() => _vibrationsEnabled = val),
-                  activeColor: const Color(0xFF0F766E),
+                  activeTrackColor: const Color(0xFF0F766E),
                 ),
               ],
             ),

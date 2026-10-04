@@ -103,17 +103,17 @@ class RecentShiftsSheet extends ConsumerWidget {
                   child: shiftsAsync.when(
                     data: (shifts) {
                       if (shifts.isEmpty) {
-                        return Center(
+                        return const Center(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.calendar_today_outlined,
                                 size: 48,
                                 color: Color(0xFF475569),
                               ),
-                              const SizedBox(height: 12),
-                              const Text(
+                              SizedBox(height: 12),
+                              Text(
                                 'No completed shifts found',
                                 style: TextStyle(
                                   fontSize: 16,
@@ -121,8 +121,8 @@ class RecentShiftsSheet extends ConsumerWidget {
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
-                              const SizedBox(height: 4),
-                              const Text(
+                              SizedBox(height: 4),
+                              Text(
                                 'Clock in and out to record your working hours',
                                 style: TextStyle(
                                   fontSize: 13,

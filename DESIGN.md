@@ -179,7 +179,7 @@ work-hours/
 │   ├── package.json
 │   ├── tsconfig.json
 │   └── wrangler.jsonc
-├── mobile/
+├── app/
 │   ├── lib/
 │   │   ├── api/
 │   │   ├── features/clock/
@@ -739,11 +739,11 @@ jobs:
         with:
           channel: stable
           cache: true
-      - working-directory: mobile
+      - working-directory: app
         run: flutter pub get
-      - working-directory: mobile
+      - working-directory: app
         run: flutter analyze
-      - working-directory: mobile
+      - working-directory: app
         run: flutter test
 ```
 

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../api/models.dart';
@@ -302,6 +301,7 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
     final timeStr =
         DateFormat('HH:mm:ss').format(event.occurredAtUtc.toLocal());
 
+    final messenger = ScaffoldMessenger.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -373,7 +373,7 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
       try {
         await ref.read(currentStatusProvider.notifier).undo(event.id);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger.showSnackBar(
             SnackBar(
               content: Text('Successfully reverted $eventTypeLabel!'),
               backgroundColor: const Color(0xFF0F766E),
@@ -382,7 +382,7 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger.showSnackBar(
             SnackBar(
               content: Text('Undo failed: $e'),
               backgroundColor: Colors.red,

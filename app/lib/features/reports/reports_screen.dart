@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import '../../api/api_client.dart';
 import '../clock/clock_notifier.dart';
 import 'report_file_service.dart';
 
@@ -25,10 +24,8 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   bool _isGenerating = false;
   bool _isDownloadingLatest = false;
   String? _lastGeneratedPath;
-  String? _lastGeneratedFilename;
   String? _statusMessage;
 
-  final DateFormat _dateFormat = DateFormat('yyyy-MM-dd');
   final DateFormat _displayFormat = DateFormat('MMM d, yyyy');
 
   @override
@@ -132,7 +129,6 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
 
       setState(() {
         _lastGeneratedPath = path;
-        _lastGeneratedFilename = result.filename;
         _statusMessage = 'Generated ${h}h ${m}m (${result.totalShifts} shifts)';
       });
 
@@ -199,7 +195,6 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
 
       setState(() {
         _lastGeneratedPath = path;
-        _lastGeneratedFilename = cleanName;
         _statusMessage = 'Downloaded automated archive: ${latest['month'] ?? cleanName}';
       });
 

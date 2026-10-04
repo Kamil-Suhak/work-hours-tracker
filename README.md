@@ -99,7 +99,7 @@ work-hours-tracker/
 │   ├── package.json
 │   ├── tsconfig.json
 │   └── wrangler.jsonc             # Cloudflare Worker config, D1, R2, and Cron triggers
-├── mobile/
+├── app/
 │   ├── lib/
 │   │   ├── api/                   # HTTP client and models
 │   │   ├── features/
@@ -206,7 +206,7 @@ npx wrangler deploy
 
 #### Install Dependencies
 ```powershell
-cd mobile
+cd app
 flutter pub get
 flutter test
 ```
