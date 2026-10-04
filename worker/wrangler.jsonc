@@ -12,4 +12,17 @@
       "migrations_dir": "migrations",
     },
   ],
+  "r2_buckets": [
+    {
+      "binding": "REPORTS_BUCKET",
+      "bucket_name": "work-hours-reports",
+    },
+  ],
+  "triggers": {
+    // Standard 5-field cron syntax: [minute] [hour] [day-of-month] [month] [day-of-week]
+    // Example: "0 0 1 * *"  -> Fires at 00:00 (midnight UTC) on the 1st day of every month
+    // Example: "0 0 15 * *" -> Fires at 00:00 on the 15th day of every month
+    // Example: "0 0 * * 1"  -> Fires at 00:00 every Monday
+    "crons": ["0 0 1 * *"],
+  },
 }

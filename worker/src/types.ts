@@ -12,6 +12,7 @@ export interface Env {
   DB: D1Database;
   ADMIN_API_TOKEN?: string;
   DEVICE_TOKEN_PEPPER?: string;
+  REPORTS_BUCKET?: R2Bucket;
 }
 
 export interface DeviceRow {
@@ -121,4 +122,51 @@ export interface ApiErrorResponse {
     message: string;
     requestId?: string;
   };
+}
+
+export type ReportPreset = 'formal' | 'full';
+
+export interface ReportOptions {
+  includeNotes?: boolean;
+  includeStats?: boolean;
+  includeSource?: boolean;
+}
+
+export interface GenerateReportRequestBody {
+  startDate: string;
+  endDate: string;
+  preset: ReportPreset;
+  options?: ReportOptions;
+}
+
+export interface ShiftSummaryItem {
+  date: string;
+  clockInUtc: string;
+  clockOutUtc: string;
+  startTimeLocal: string;
+  endTimeLocal: string;
+  durationMinutes: number;
+  durationHoursDecimal: number;
+  durationFormatted: string;
+  note?: string;
+  source: EventSource;
+}
+
+export interface ReportStats {
+  totalHours: number;
+  totalShifts: number;
+  totalDays: number;
+  averageShiftMinutes: number;
+  averageShiftFormatted: string;
+  longestShiftMinutes: number;
+  longestShiftFormatted: string;
+}
+
+export interface ReportMetadata {
+  filename: string;
+  sizeBytes: number;
+  uploadedAtUtc: string;
+  preset: ReportPreset;
+  month: string;
+  downloadUrl?: string;
 }
