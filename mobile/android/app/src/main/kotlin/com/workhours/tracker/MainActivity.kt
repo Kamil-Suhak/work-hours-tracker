@@ -11,10 +11,12 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import androidx.annotation.NonNull
+import androidx.core.content.FileProvider
 import com.workhours.tracker.widget.WorkHoursWidgetReceiver
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
 
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.workhours.tracker/widget_sync"
@@ -108,6 +110,65 @@ class MainActivity: FlutterActivity() {
                     }
                     applicationContext.sendBroadcast(intent)
                     result.success(true)
+                }
+                "saveAndOpenReport" -> {
+                    val bytes = call.argument<ByteArray>("bytes")
+                    val filename = call.argument<String>("filename") ?: "work-hours-report.xlsx"
+                    if (bytes == null) {
+                        result.error("INVALID_ARGS", "Missing file bytes", null)
+                        return@setMethodCallHandler
+                    }
+                    try {
+                        val dir = File(applicationContext.cacheDir, "reports")
+                        if (!dir.exists()) dir.mkdirs()
+                        val file = File(dir, filename)
+                        file.writeBytes(bytes)
+
+                        val uri = FileProvider.getUriForFile(
+                            applicationContext,
+                            "${applicationContext.packageName}.fileprovider",
+                            file
+                        )
+
+                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(uri, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+
+                        applicationContext.startActivity(intent)
+                        result.success(file.absolutePath)
+                    } catch (e: Exception) {
+                        result.error("OPEN_FAILED", e.localizedMessage, null)
+                    }
+                }
+                "openReportFile" -> {
+                    val filePath = call.argument<String>("filePath")
+                    if (filePath == null) {
+                        result.error("INVALID_ARGS", "Missing file path", null)
+                        return@setMethodCallHandler
+                    }
+                    try {
+                        val file = File(filePath)
+                        if (!file.exists()) {
+                            result.error("NOT_FOUND", "File does not exist", null)
+                            return@setMethodCallHandler
+                        }
+                        val uri = FileProvider.getUriForFile(
+                            applicationContext,
+                            "${applicationContext.packageName}.fileprovider",
+                            file
+                        )
+                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(uri, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        applicationContext.startActivity(intent)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("OPEN_FAILED", e.localizedMessage, null)
+                    }
                 }
                 else -> result.notImplemented()
             }
