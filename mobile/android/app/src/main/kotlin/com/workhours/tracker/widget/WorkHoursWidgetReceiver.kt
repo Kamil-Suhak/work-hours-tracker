@@ -24,6 +24,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import android.os.Bundle
+import android.view.View
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -39,6 +41,8 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
         const val KEY_API_URL = "api_base_url"
         const val KEY_TOKEN = "device_token"
         const val KEY_HAPTICS = "vibrations_enabled"
+        const val KEY_ACTIVE_NOTE = "active_shift_note"
+        const val KEY_IS_CLOCKED_IN = "is_clocked_in"
         const val DEFAULT_API_URL = "https://work-hours-api.workers.dev"
 
         private val client = OkHttpClient()
@@ -82,6 +86,18 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
         refreshStatusAsync(context)
     }
 
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle
+    ) {
+        super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val isClockedIn = if (prefs.contains(KEY_IS_CLOCKED_IN)) prefs.getBoolean(KEY_IS_CLOCKED_IN, false) else null
+        updateWidgetView(context, appWidgetManager, appWidgetId, isClockedIn, syncText = "")
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         when (intent.action) {
@@ -108,6 +124,7 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
         syncText: String = ""
     ) {
         val views = RemoteViews(context.packageName, R.layout.work_hours_widget)
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
         // Status badge configuration
         when (isClockedIn) {
@@ -130,6 +147,31 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
 
         if (syncText.isNotEmpty()) {
             views.setTextViewText(R.id.widget_sync_time, "Synced $syncText")
+        }
+
+        // Responsive Notes container: show if clocked in, vertically expanded, and note exists
+        val effectiveClockedIn = isClockedIn ?: prefs.getBoolean(KEY_IS_CLOCKED_IN, false)
+        val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
+        val minHeight = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT) ?: 0
+        val isExpanded = minHeight >= 100
+        val activeNote = prefs.getString(KEY_ACTIVE_NOTE, "")?.trim() ?: ""
+
+        if (effectiveClockedIn && isExpanded && activeNote.isNotEmpty()) {
+            views.setViewVisibility(R.id.widget_notes_container, View.VISIBLE)
+            val cleanNote = activeNote
+                .lines()
+                .map { line ->
+                    line.trim()
+                        .replace(Regex("^#+\\s*"), "")
+                        .replace(Regex("^-\\s*"), "• ")
+                        .replace(Regex("\\*\\*(.*?)\\*\\*"), "$1")
+                        .replace(Regex("\\*(.*?)\\*"), "$1")
+                }
+                .filter { it.isNotEmpty() }
+                .joinToString("\n")
+            views.setTextViewText(R.id.widget_notes_text, cleanNote)
+        } else {
+            views.setViewVisibility(R.id.widget_notes_container, View.GONE)
         }
 
         // PendingIntent for Clock In
@@ -188,6 +230,10 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
                 val json = JSONObject(responseBody)
                 val state = json.optString("state", "unknown")
                 val isClockedIn = state == "clocked_in"
+                prefs.edit().putBoolean(KEY_IS_CLOCKED_IN, isClockedIn).apply()
+                if (!isClockedIn) {
+                    prefs.edit().putString(KEY_ACTIVE_NOTE, "").apply()
+                }
                 val syncTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
 
                 withContext(Dispatchers.Main) {
@@ -221,6 +267,10 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
                 val json = JSONObject(responseBody)
                 val state = json.optString("state", "clocked_out")
                 val isClockedIn = state == "clocked_in"
+                prefs.edit().putBoolean(KEY_IS_CLOCKED_IN, isClockedIn).apply()
+                if (!isClockedIn) {
+                    prefs.edit().putString(KEY_ACTIVE_NOTE, "").apply()
+                }
                 val syncTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
 
                 withContext(Dispatchers.Main) {

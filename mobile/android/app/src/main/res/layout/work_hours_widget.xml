@@ -99,4 +99,38 @@
             android:textSize="12sp" />
     </LinearLayout>
 
+    <!-- Active Shift Notes Container (Visible when vertically expanded & clocked in) -->
+    <LinearLayout
+        android:id="@+id/widget_notes_container"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/widget_notes_background"
+        android:padding="8dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/widget_notes_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="ACTIVE NOTES"
+            android:textStyle="bold"
+            android:textSize="9sp"
+            android:letterSpacing="0.08"
+            android:textColor="#10B981" />
+
+        <TextView
+            android:id="@+id/widget_notes_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:textSize="11sp"
+            android:textColor="#CBD5E1"
+            android:lineSpacingExtra="2dp"
+            android:maxLines="4"
+            android:ellipsize="end" />
+    </LinearLayout>
+
 </LinearLayout>
