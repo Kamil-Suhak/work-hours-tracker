@@ -6,6 +6,7 @@ import '../../api/models.dart';
 import '../history/recent_shifts_sheet.dart';
 import '../settings/settings_dialog.dart';
 import '../settings/settings_notifier.dart';
+import '../settings/widget_sync_service.dart';
 import 'clock_notifier.dart';
 import 'widgets/live_shift_timer.dart';
 import 'widgets/pulse_status_badge.dart';
@@ -284,7 +285,7 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
     final haptics =
         ref.read(settingsProvider).value?.vibrationsEnabled ?? true;
     if (haptics) {
-      HapticFeedback.mediumImpact();
+      WidgetSyncService.vibrate();
     }
   }
 

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../clock/clock_notifier.dart';
 import '../settings/settings_notifier.dart';
+import '../settings/widget_sync_service.dart';
 import 'shifts_notifier.dart';
 
 class ManualShiftDialog extends ConsumerStatefulWidget {
@@ -134,7 +135,7 @@ class _ManualShiftDialogState extends ConsumerState<ManualShiftDialog> {
       final haptics =
           ref.read(settingsProvider).value?.vibrationsEnabled ?? true;
       if (haptics) {
-        HapticFeedback.mediumImpact();
+        WidgetSyncService.vibrate();
       }
 
       if (mounted) {

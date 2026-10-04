@@ -30,4 +30,13 @@ class WidgetSyncService {
       return null;
     }
   }
+
+  static Future<void> vibrate() async {
+    try {
+      await _channel.invokeMethod('vibrate');
+    } catch (_) {}
+    try {
+      await HapticFeedback.vibrate();
+    } catch (_) {}
+  }
 }
