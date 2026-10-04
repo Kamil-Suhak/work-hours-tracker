@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../../settings/widget_sync_service.dart';
 import 'markdown_renderer.dart';
 
 class ShiftNotesCard extends StatefulWidget {
@@ -30,6 +32,7 @@ class ShiftNotesCard extends StatefulWidget {
 
   static Future<void> clearDraft() async {
     await _storage.delete(key: storageKey);
+    await WidgetSyncService.syncActiveNote('');
   }
 
   @override
@@ -39,6 +42,7 @@ class ShiftNotesCard extends StatefulWidget {
 class _ShiftNotesCardState extends State<ShiftNotesCard> {
   late bool _isExpanded;
   bool _isPreviewMode = false;
+  Timer? _syncDebounce;
 
   @override
   void initState() {
@@ -56,16 +60,27 @@ class _ShiftNotesCardState extends State<ShiftNotesCard> {
         // If there's an existing draft, expand automatically
         _isExpanded = true;
       });
+      unawaited(WidgetSyncService.syncActiveNote(saved));
+    } else if (widget.controller.text.isNotEmpty) {
+      unawaited(WidgetSyncService.syncActiveNote(widget.controller.text));
     }
   }
 
   void _handleTextChange() {
     ShiftNotesCard.saveDraft(widget.controller.text);
+    _syncDebounce?.cancel();
+    _syncDebounce = Timer(const Duration(milliseconds: 500), () {
+      WidgetSyncService.syncActiveNote(widget.controller.text);
+    });
     if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    if (_syncDebounce?.isActive ?? false) {
+      _syncDebounce?.cancel();
+      WidgetSyncService.syncActiveNote(widget.controller.text);
+    }
     widget.controller.removeListener(_handleTextChange);
     super.dispose();
   }

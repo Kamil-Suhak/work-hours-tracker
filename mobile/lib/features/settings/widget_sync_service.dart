@@ -31,6 +31,17 @@ class WidgetSyncService {
     }
   }
 
+  static Future<bool> syncActiveNote(String note) async {
+    try {
+      final result = await _channel.invokeMethod<bool>('syncActiveNote', {
+        'note': note,
+      });
+      return result ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static Future<void> vibrate() async {
     try {
       await _channel.invokeMethod('vibrate');

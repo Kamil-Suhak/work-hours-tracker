@@ -217,6 +217,7 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
                             .clockOut(note: note.isNotEmpty ? note : null);
                         _notesController.clear();
                         await ShiftNotesCard.clearDraft();
+                        unawaited(WidgetSyncService.syncActiveNote(''));
                       },
               ),
             ),

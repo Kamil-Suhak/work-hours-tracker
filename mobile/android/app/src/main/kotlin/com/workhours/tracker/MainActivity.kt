@@ -90,6 +90,25 @@ class MainActivity: FlutterActivity() {
                     val vibrationsEnabled = prefs.getBoolean(WorkHoursWidgetReceiver.KEY_HAPTICS, true)
                     result.success(mapOf("baseUrl" to baseUrl, "deviceToken" to token, "vibrationsEnabled" to vibrationsEnabled))
                 }
+                "syncActiveNote" -> {
+                    val note = call.argument<String>("note") ?: ""
+                    val prefs = applicationContext.getSharedPreferences(
+                        WorkHoursWidgetReceiver.PREFS_NAME,
+                        Context.MODE_PRIVATE
+                    )
+                    prefs.edit().putString(WorkHoursWidgetReceiver.KEY_ACTIVE_NOTE, note).apply()
+
+                    val intent = Intent(applicationContext, WorkHoursWidgetReceiver::class.java).apply {
+                        action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                        val appWidgetManager = AppWidgetManager.getInstance(applicationContext)
+                        val ids = appWidgetManager.getAppWidgetIds(
+                            ComponentName(applicationContext, WorkHoursWidgetReceiver::class.java)
+                        )
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+                    }
+                    applicationContext.sendBroadcast(intent)
+                    result.success(true)
+                }
                 else -> result.notImplemented()
             }
         }
