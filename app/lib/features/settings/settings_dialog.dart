@@ -37,8 +37,15 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
     final settingsAsync = ref.read(settingsProvider);
     final settings = settingsAsync.value;
 
+    final defaultUrl = kIsWeb ? Uri.base.origin : defaultApiBaseUrl;
+    final initialUrl = (settings?.baseUrl != null &&
+            settings!.baseUrl.isNotEmpty &&
+            settings.baseUrl != defaultApiBaseUrl)
+        ? settings.baseUrl
+        : defaultUrl;
+
     _urlController = TextEditingController(
-      text: settings?.baseUrl ?? defaultApiBaseUrl,
+      text: initialUrl,
     );
     _tokenController = TextEditingController(
       text: settings?.deviceToken ?? '',
@@ -163,7 +170,9 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                   obscureText: _obscureToken,
                   decoration: InputDecoration(
                     labelText: 'Device Bearer Token',
-                    hintText: 'Paste hex token from provision script',
+                    hintText: '64-character hex token from provision script',
+                    helperText: 'Paste the raw Bearer Token (do NOT paste the token_hash)',
+                    helperMaxLines: 2,
                     border: const OutlineInputBorder(),
                     suffixIcon: Row(
                       mainAxisSize: MainAxisSize.min,

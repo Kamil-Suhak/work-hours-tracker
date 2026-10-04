@@ -22,7 +22,8 @@ final apiBaseUrlProvider = Provider<String>((ref) {
 
 final apiClientProvider = Provider<ApiClient>((ref) {
   final baseUrl = ref.watch(apiBaseUrlProvider);
-  return ApiClient(baseUrl: baseUrl);
+  final settings = ref.watch(settingsProvider).value;
+  return ApiClient(baseUrl: baseUrl, token: settings?.deviceToken);
 });
 
 final timeTrackingRepositoryProvider = Provider<TimeTrackingRepository>((ref) {

@@ -6,6 +6,7 @@ import 'models.dart';
 
 class ApiClient {
   final String baseUrl;
+  final String? token;
   final http.Client _httpClient;
   final FlutterSecureStorage _storage;
 
@@ -14,6 +15,7 @@ class ApiClient {
 
   ApiClient({
     required this.baseUrl,
+    this.token,
     http.Client? httpClient,
     FlutterSecureStorage? storage,
   })  : _httpClient = httpClient ?? http.Client(),
@@ -36,10 +38,13 @@ class ApiClient {
   }
 
   Future<Map<String, String>> _buildHeaders() async {
-    final token = await getToken();
+    final effectiveToken = (token != null && token!.trim().isNotEmpty)
+        ? token!.trim()
+        : await getToken();
     return {
       'Content-Type': 'application/json',
-      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+      if (effectiveToken != null && effectiveToken.isNotEmpty)
+        'Authorization': 'Bearer $effectiveToken',
     };
   }
 

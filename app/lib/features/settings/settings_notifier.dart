@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'widget_sync_service.dart';
@@ -50,12 +51,19 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
     final storedAdminToken = await _storage.read(key: _adminTokenStorageKey);
     final storedHaptics = await _storage.read(key: _hapticsStorageKey);
 
-    final baseUrl = (storedUrl != null && storedUrl.trim().isNotEmpty)
-        ? storedUrl.trim()
+    final defaultUrl = kIsWeb
+        ? Uri.base.origin
         : const String.fromEnvironment('API_BASE_URL', defaultValue: defaultApiBaseUrl);
 
+    final isDefaultPlaceholder = storedUrl?.trim() == defaultApiBaseUrl;
+    final baseUrl = (storedUrl != null &&
+            storedUrl.trim().isNotEmpty &&
+            (!kIsWeb || !isDefaultPlaceholder))
+        ? storedUrl.trim()
+        : defaultUrl;
+
     final deviceToken = storedToken?.trim() ?? '';
-    final isConfigured = deviceToken.isNotEmpty && baseUrl != defaultApiBaseUrl;
+    final isConfigured = deviceToken.isNotEmpty && (kIsWeb || baseUrl != defaultApiBaseUrl);
     final vibrationsEnabled = storedHaptics != 'false';
 
     if (isConfigured) {
@@ -107,7 +115,7 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
         baseUrl: cleanedUrl,
         deviceToken: cleanedToken,
         adminToken: adminToken?.trim(),
-        isConfigured: cleanedToken.isNotEmpty && cleanedUrl != defaultApiBaseUrl,
+        isConfigured: cleanedToken.isNotEmpty && (kIsWeb || cleanedUrl != defaultApiBaseUrl),
         vibrationsEnabled: vibrationsEnabled,
       ),
     );
