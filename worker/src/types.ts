@@ -13,6 +13,7 @@ export interface Env {
   ADMIN_API_TOKEN?: string;
   DEVICE_TOKEN_PEPPER?: string;
   REPORTS_BUCKET?: R2Bucket;
+  ASSETS?: Fetcher;
 }
 
 export interface DeviceRow {

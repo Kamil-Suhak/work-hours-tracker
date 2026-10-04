@@ -12,6 +12,10 @@ import 'clock_notifier.dart';
 import 'widgets/current_shift_timer_card.dart';
 import 'widgets/cyber_orbit_badge.dart';
 import 'widgets/shift_notes_card.dart';
+import '../history/recent_shifts_view.dart';
+import 'widgets/current_tracker_quadrant.dart';
+import 'widgets/note_editor_quadrant.dart';
+import 'widgets/note_preview_quadrant.dart';
 
 class ClockScreen extends ConsumerStatefulWidget {
   final bool enableAnimations;
@@ -101,6 +105,22 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
             ref.read(currentStatusProvider.notifier).refreshStatus(),
         child: LayoutBuilder(
           builder: (context, constraints) {
+            final isDesktop = constraints.maxWidth >= 900;
+            if (isDesktop) {
+              return statusAsync.hasValue
+                  ? _buildDesktopQuadrants(
+                      context, statusAsync.value!, isLoading)
+                  : statusAsync.when(
+                      data: (status) => _buildDesktopQuadrants(
+                          context, status, isLoading),
+                      loading: () => const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                      error: (err, stack) =>
+                          _buildErrorContent(context, err, isLoading),
+                    );
+            }
+
             return SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               child: ConstrainedBox(
@@ -125,6 +145,100 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
             );
           },
         ),
+      ),
+    );
+  }
+
+  Widget _buildDesktopQuadrants(
+      BuildContext context, WorkStatus status, bool isLoading) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Left Half (Flex 1):
+          // Top Left: Editor of current note
+          // Bottom Left: Preview of current note
+          Expanded(
+            flex: 1,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  flex: 1,
+                  child: NoteEditorQuadrant(controller: _notesController),
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  flex: 1,
+                  child: NotePreviewQuadrant(controller: _notesController),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+
+          // Right Half (Flex 1):
+          // Top Right: Current shift tracker + buttons
+          // Bottom Right: Recent shifts (clickable to show past notes)
+          Expanded(
+            flex: 1,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  flex: 1,
+                  child: CurrentTrackerQuadrant(
+                    status: status,
+                    isLoading: isLoading,
+                    enableAnimations: widget.enableAnimations,
+                    onClockIn: () async {
+                      _triggerHapticIfEnabled();
+                      await ref
+                          .read(currentStatusProvider.notifier)
+                          .clockIn();
+                    },
+                    onClockOut: () async {
+                      _triggerHapticIfEnabled();
+                      final note = _notesController.text.trim();
+                      await ref
+                          .read(currentStatusProvider.notifier)
+                          .clockOut(note: note.isNotEmpty ? note : null);
+                      _notesController.clear();
+                      await ShiftNotesCard.clearDraft();
+                    },
+                    onUndo: (event) =>
+                        _showUndoConfirmationDialog(context, event),
+                    onViewHistory: () => RecentShiftsSheet.show(context),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  flex: 1,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E293B),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: const Color(0xFF334155),
+                        width: 1.2,
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: const RecentShiftsView(
+                        showHeader: true,
+                        showDragHandle: false,
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

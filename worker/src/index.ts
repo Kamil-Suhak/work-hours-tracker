@@ -58,6 +58,11 @@ export default {
     const pathname = url.pathname;
     const method = request.method.toUpperCase();
 
+    // Serve static frontend assets for non-API routes when ASSETS binding is available
+    if (!pathname.startsWith('/api/') && env.ASSETS) {
+      return env.ASSETS.fetch(request);
+    }
+
     // Standard CORS and tracing headers for API clients
     const standardHeaders: Record<string, string> = {
       'X-Correlation-ID': correlationId,
