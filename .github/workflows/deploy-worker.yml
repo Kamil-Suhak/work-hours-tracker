@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "worker/**"
+      - "app/**"
       - ".github/workflows/deploy-worker.yml"
   workflow_dispatch:
 
@@ -24,6 +25,18 @@ jobs:
         working-directory: worker
     steps:
       - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build Flutter Web
+        working-directory: app
+        run: |
+          flutter pub get
+          flutter build web --release
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
