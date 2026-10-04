@@ -91,13 +91,21 @@ class ApiClient {
     _handleError(response);
   }
 
-  Future<WorkStatus> clockOut({required String requestId, String source = 'flutter_app'}) async {
+  Future<WorkStatus> clockOut({
+    required String requestId,
+    String source = 'flutter_app',
+    String? note,
+  }) async {
     final uri = Uri.parse('$baseUrl/api/v1/clock-out');
     final headers = await _buildHeaders();
-    final body = jsonEncode({
+    final payload = <String, dynamic>{
       'requestId': requestId,
       'source': source,
-    });
+    };
+    if (note != null && note.trim().isNotEmpty) {
+      payload['note'] = note.trim();
+    }
+    final body = jsonEncode(payload);
 
     final response = await _httpClient.post(uri, headers: headers, body: body);
     if (response.statusCode == 200) {

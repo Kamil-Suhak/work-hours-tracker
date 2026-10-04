@@ -19,6 +19,12 @@ class ShiftRecord {
     final minutes = duration.inMinutes % 60;
     return '${hours}h ${minutes}m';
   }
+
+  String? get note => (clockOut.note?.trim().isNotEmpty == true)
+      ? clockOut.note
+      : ((clockIn.note?.trim().isNotEmpty == true) ? clockIn.note : null);
+
+  bool get hasNote => note != null && note!.trim().isNotEmpty;
 }
 
 List<ShiftRecord> pairEventsIntoShifts(List<TrackingEvent> events) {

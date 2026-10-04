@@ -10,6 +10,7 @@ import '../settings/widget_sync_service.dart';
 import 'clock_notifier.dart';
 import 'widgets/current_shift_timer_card.dart';
 import 'widgets/cyber_orbit_badge.dart';
+import 'widgets/shift_notes_card.dart';
 
 class ClockScreen extends ConsumerStatefulWidget {
   final bool enableAnimations;
@@ -24,6 +25,14 @@ class ClockScreen extends ConsumerStatefulWidget {
 }
 
 class _ClockScreenState extends ConsumerState<ClockScreen> {
+  final _notesController = TextEditingController();
+
+  @override
+  void dispose() {
+    _notesController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final statusAsync = ref.watch(currentStatusProvider);
@@ -178,14 +187,23 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
                     ? null
                     : () async {
                         _triggerHapticIfEnabled();
+                        final note = _notesController.text.trim();
                         await ref
                             .read(currentStatusProvider.notifier)
-                            .clockOut();
+                            .clockOut(note: note.isNotEmpty ? note : null);
+                        _notesController.clear();
+                        await ShiftNotesCard.clearDraft();
                       },
               ),
             ),
           ],
         ),
+
+        // Optional Shift Notes Box when Clocked In
+        if (isClockedIn) ...[
+          const SizedBox(height: 24),
+          ShiftNotesCard(controller: _notesController),
+        ],
 
         // Undo recent event button (shown only within 5-min grace window)
         if (status.latestEvent != null &&

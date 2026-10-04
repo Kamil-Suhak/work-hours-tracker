@@ -118,5 +118,33 @@ void main() {
       // Second item should be the Oct 1 shift (4h)
       expect(shifts[1].duration, equals(const Duration(hours: 4)));
     });
+
+    test('extracts note from clockOut or clockIn event', () {
+      final events = [
+        TrackingEvent(
+          id: 'evt-1',
+          requestId: 'req-1',
+          userId: 'user-1',
+          eventType: 'clock_in',
+          source: 'flutter_app',
+          occurredAtUtc: DateTime.parse('2026-10-01T08:00:00Z'),
+          createdAtUtc: DateTime.parse('2026-10-01T08:00:00Z'),
+        ),
+        TrackingEvent(
+          id: 'evt-2',
+          requestId: 'req-2',
+          userId: 'user-1',
+          eventType: 'clock_out',
+          source: 'flutter_app',
+          occurredAtUtc: DateTime.parse('2026-10-01T16:00:00Z'),
+          createdAtUtc: DateTime.parse('2026-10-01T16:00:00Z'),
+          note: '# Shift Note\n- Done task A',
+        ),
+      ];
+
+      final shifts = pairEventsIntoShifts(events);
+      expect(shifts[0].hasNote, isTrue);
+      expect(shifts[0].note, equals('# Shift Note\n- Done task A'));
+    });
   });
 }

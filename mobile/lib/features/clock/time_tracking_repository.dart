@@ -17,9 +17,9 @@ class TimeTrackingRepository {
     return await _apiClient.clockIn(requestId: requestId);
   }
 
-  Future<WorkStatus> clockOut() async {
+  Future<WorkStatus> clockOut({String? note}) async {
     final requestId = _uuid.v4();
-    return await _apiClient.clockOut(requestId: requestId);
+    return await _apiClient.clockOut(requestId: requestId, note: note);
   }
 
   Future<List<TrackingEvent>> fetchEvents(DateTime from, DateTime to) async {

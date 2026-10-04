@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../clock/widgets/markdown_renderer.dart';
 import 'manual_shift_dialog.dart';
 import 'shift_model.dart';
 import 'shifts_notifier.dart';
@@ -20,6 +21,7 @@ class RecentShiftsSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final shiftsAsync = ref.watch(shiftsProvider);
+    const activeEmerald = Color(0xFF10B981);
 
     return DraggableScrollableSheet(
       initialChildSize: 0.75,
@@ -28,7 +30,7 @@ class RecentShiftsSheet extends ConsumerWidget {
       builder: (context, scrollController) {
         return Container(
           decoration: const BoxDecoration(
-            color: Colors.white,
+            color: Color(0xFF0F172A), // Dark Slate 900
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
@@ -40,7 +42,7 @@ class RecentShiftsSheet extends ConsumerWidget {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey[300],
+                    color: const Color(0xFF334155),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -53,16 +55,17 @@ class RecentShiftsSheet extends ConsumerWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
+                    const Row(
                       children: [
-                        const Icon(Icons.history, color: Color(0xFF0F766E)),
-                        const SizedBox(width: 8),
+                        Icon(Icons.history, color: activeEmerald),
+                        SizedBox(width: 8),
                         Text(
                           'Recent Shifts',
-                          style:
-                              Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFF8FAFC),
+                          ),
                         ),
                       ],
                     ),
@@ -71,12 +74,13 @@ class RecentShiftsSheet extends ConsumerWidget {
                         IconButton(
                           icon: const Icon(Icons.add_circle_outline),
                           tooltip: 'Record Past Shift',
-                          color: const Color(0xFF0F766E),
+                          color: activeEmerald,
                           onPressed: () => ManualShiftDialog.show(context),
                         ),
                         IconButton(
                           icon: const Icon(Icons.refresh),
                           tooltip: 'Refresh History',
+                          color: const Color(0xFF94A3B8),
                           onPressed: () =>
                               ref.read(shiftsProvider.notifier).refresh(),
                         ),
@@ -85,11 +89,13 @@ class RecentShiftsSheet extends ConsumerWidget {
                   ],
                 ),
               ),
-              const Divider(height: 1),
+              const Divider(color: Color(0xFF1E293B), height: 1),
 
               // Shift List
               Expanded(
                 child: RefreshIndicator(
+                  color: activeEmerald,
+                  backgroundColor: const Color(0xFF1E293B),
                   onRefresh: () => ref.read(shiftsProvider.notifier).refresh(),
                   child: shiftsAsync.when(
                     data: (shifts) {
@@ -98,26 +104,26 @@ class RecentShiftsSheet extends ConsumerWidget {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(
+                              const Icon(
                                 Icons.calendar_today_outlined,
                                 size: 48,
-                                color: Colors.grey[400],
+                                color: Color(0xFF475569),
                               ),
                               const SizedBox(height: 12),
-                              Text(
+                              const Text(
                                 'No completed shifts found',
                                 style: TextStyle(
                                   fontSize: 16,
-                                  color: Colors.grey[600],
+                                  color: Color(0xFF94A3B8),
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
                               const SizedBox(height: 4),
-                              Text(
+                              const Text(
                                 'Clock in and out to record your working hours',
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: Colors.grey[400],
+                                  color: Color(0xFF64748B),
                                 ),
                               ),
                             ],
@@ -140,7 +146,7 @@ class RecentShiftsSheet extends ConsumerWidget {
                       );
                     },
                     loading: () => const Center(
-                      child: CircularProgressIndicator(),
+                      child: CircularProgressIndicator(color: activeEmerald),
                     ),
                     error: (err, _) => Center(
                       child: Padding(
@@ -151,20 +157,20 @@ class RecentShiftsSheet extends ConsumerWidget {
                             const Icon(Icons.error_outline,
                                 color: Colors.amber, size: 40),
                             const SizedBox(height: 8),
-                            Text(
+                            const Text(
                               'Failed to load shifts',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
-                                color: Colors.grey[800],
+                                color: Color(0xFFF8FAFC),
                               ),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               err.toString(),
                               textAlign: TextAlign.center,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 12,
-                                color: Colors.grey[600],
+                                color: Color(0xFF94A3B8),
                               ),
                             ),
                             const SizedBox(height: 12),
@@ -173,6 +179,10 @@ class RecentShiftsSheet extends ConsumerWidget {
                                   ref.read(shiftsProvider.notifier).refresh(),
                               icon: const Icon(Icons.refresh, size: 16),
                               label: const Text('Try Again'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: activeEmerald,
+                                side: const BorderSide(color: activeEmerald),
+                              ),
                             ),
                           ],
                         ),
@@ -197,98 +207,210 @@ class RecentShiftsSheet extends ConsumerWidget {
     final outTime = timeFormat.format(shift.endTime);
     final isManual = shift.clockIn.source == 'admin_manual' ||
         shift.clockIn.reason != null;
+    final hasNote = shift.hasNote;
+    const activeEmerald = Color(0xFF10B981);
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                dateLabel,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                  color: Color(0xFF1E293B),
-                ),
+        onTap: () {
+          if (hasNote) {
+            _showShiftNoteDialog(context, shift);
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('No notes from this day'),
+                duration: Duration(seconds: 2),
+                behavior: SnackBarBehavior.floating,
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0F766E).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  shift.durationFormatted,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                    color: Color(0xFF0F766E),
-                  ),
-                ),
-              ),
-            ],
+            );
+          }
+        },
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E293B), // Slate 800
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: hasNote
+                  ? activeEmerald.withValues(alpha: 0.35)
+                  : const Color(0xFF334155),
+            ),
           ),
-          const SizedBox(height: 8),
-          Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.schedule, size: 16, color: Colors.grey[600]),
-              const SizedBox(width: 6),
-              Text(
-                '$inTime - $outTime',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.grey[700],
-                ),
-              ),
-              const Spacer(),
-              if (isManual)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Text(
-                    'Manual backfill',
-                    style: TextStyle(
-                      fontSize: 10,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    dateLabel,
+                    style: const TextStyle(
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFFB45309),
+                      fontSize: 14,
+                      color: Color(0xFFF8FAFC),
                     ),
                   ),
-                )
-              else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: activeEmerald.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      shift.durationFormatted,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                        color: Color(0xFF34D399),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.schedule, size: 15, color: Color(0xFF64748B)),
+                  const SizedBox(width: 6),
+                  Text(
+                    '$inTime - $outTime',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF94A3B8),
+                    ),
+                  ),
+                  const Spacer(),
+                  if (hasNote) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: activeEmerald.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.notes, size: 13, color: activeEmerald),
+                          SizedBox(width: 4),
+                          Text(
+                            'Notes',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: activeEmerald,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  if (isManual)
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'Manual backfill',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFFBBF24),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              if (shift.clockIn.reason != null &&
+                  shift.clockIn.reason!.trim().isNotEmpty) ...[
+                const SizedBox(height: 6),
                 Text(
-                  shift.clockIn.source,
-                  style: TextStyle(
+                  'Reason: ${shift.clockIn.reason}',
+                  style: const TextStyle(
                     fontSize: 11,
-                    color: Colors.grey[500],
+                    fontStyle: FontStyle.italic,
+                    color: Color(0xFF94A3B8),
                   ),
                 ),
+              ],
             ],
           ),
-          if (shift.clockIn.reason != null &&
-              shift.clockIn.reason!.trim().isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              'Reason: ${shift.clockIn.reason}',
-              style: TextStyle(
-                fontSize: 11,
-                fontStyle: FontStyle.italic,
-                color: Colors.grey[600],
+        ),
+      ),
+    );
+  }
+
+  void _showShiftNoteDialog(BuildContext context, ShiftRecord shift) {
+    final dateFormat = DateFormat('EEEE, MMMM d, yyyy');
+    final timeFormat = DateFormat('HH:mm');
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Color(0xFF334155)),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.description, color: Color(0xFF10B981), size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Shift Notes',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFFF8FAFC),
+                    ),
+                  ),
+                  Text(
+                    '${dateFormat.format(shift.startTime)} (${timeFormat.format(shift.startTime)} - ${timeFormat.format(shift.endTime)})',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF94A3B8),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
+        ),
+        content: Container(
+          constraints: const BoxConstraints(maxHeight: 320),
+          child: SingleChildScrollView(
+            child: MarkdownText(
+              markdown: shift.note ?? '',
+              baseStyle: const TextStyle(
+                fontSize: 13,
+                height: 1.5,
+                color: Color(0xFFE2E8F0),
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close', style: TextStyle(color: Color(0xFF10B981))),
+          ),
         ],
       ),
     );

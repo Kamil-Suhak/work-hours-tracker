@@ -49,11 +49,11 @@ class CurrentStatusNotifier extends AsyncNotifier<WorkStatus> {
     });
   }
 
-  Future<void> clockOut() async {
+  Future<void> clockOut({String? note}) async {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
       final repository = ref.read(timeTrackingRepositoryProvider);
-      return await repository.clockOut();
+      return await repository.clockOut(note: note);
     });
   }
 
