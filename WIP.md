@@ -14,11 +14,11 @@
 ## Progress Tracker
 
 ### Phase 1: Core Worker Correctness & Security Hardening
-- [ ] **Warsaw Timezone in Reports**: Fix month start/end boundaries and local time formatting in `report_service.ts` and `excel_generator.ts` (currently slicing UTC `toISOString()`).
-- [ ] **Spreadsheet Formula Injection Defense**: Neutralize `=`, `+`, `-`, `@` formula triggers in note/source text before inserting into Excel cells.
-- [ ] **Report Download Path Traversal**: Sanitize filename route and restrict access strictly to safe `reports/*.xlsx` keys.
-- [ ] **Atomic Undo Execution**: Execute undo event deletion, state rollback, and idempotency record within a single atomic `db.batch` transaction.
-- [ ] **Production CORS Rules**: Scope allowed origins dynamically with `Vary: Origin` (worker origin + localhost for dev) instead of wildcard `*`.
+- [x] **Warsaw Timezone in Reports**: Fixed month start/end boundaries and local time formatting in `report_service.ts` and `excel_generator.ts`.
+- [x] **Spreadsheet Formula Injection Defense**: Neutralized `=`, `+`, `-`, `@`, `\t`, `\r` formula triggers in note/source/summary text cells before inserting into Excel XML.
+- [x] **Report Download Path Traversal**: Sanitized filename route with strict regex and rejection of traversal sequences (`..`, `/`, `\`).
+- [x] **Atomic Undo Execution**: Execute undo event deletion, state rollback, and idempotency record within a single atomic `db.batch` transaction.
+- [x] **Production CORS Rules**: Scoped allowed origins dynamically with `Vary: Origin`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and `Cache-Control: no-store`.
 
 ### Phase 2: Multi-Platform Service Layer (Flutter App & iOS Readiness)
 - [ ] **Platform Service Abstractions**: Define abstract interfaces in `app/lib/services/platform/` (`HapticFeedbackService`, `ReportFileService`, `WidgetSyncService`, `CredentialStore`).
@@ -27,22 +27,22 @@
 - [ ] **Admin Token Web Security**: In-memory credential session for `ManualShiftDialog` on Web.
 
 ### Phase 3: Documentation & Design Specification Realignment
-- [x] **`ROADMAP.md` Created**: Consolidated roadmap superseding `POLISH.md`.
+- [x] **`ROADMAP.md` Created**: Consolidated roadmap superseding `POLISH.md` (and `POLISH.md` deleted).
 - [x] **`CHANGELOG.md` Created**: Backfilled commit history through `v0.1.0`, `v0.2.0`, `v0.3.0`, `v0.3.1`, and `Unreleased`.
 - [x] **`docs/API.md` Created**: Complete endpoint contracts, schemas, and error codes.
 - [x] **`docs/DEPLOYMENT.md` Created**: Operations runbook for D1, R2, secrets, migrations, and backups.
 - [x] **`README.md` Streamlining**: Clean entry point referencing modular docs and technical guarantees.
-- [ ] **`DESIGN.md` Synchronization**: Update ground-truth design to match the unified Cloudflare Worker + Workers Static Assets + pure TS OpenXML architecture (removing stale Python references).
+- [x] **`DESIGN.md` Synchronization**: Updated ground-truth design to match unified Worker Static Assets, R2, and pure TS OpenXML generator.
 
 ### Phase 4: Test Coverage & Verification
-- [ ] **Backend Unit & Integration Tests**: Warsaw DST transitions, formula injection escaping, undo atomicity, R2 download traversal rejection.
-- [ ] **Flutter App Validation**: `flutter analyze` and `flutter test`.
+- [x] **Backend Unit & Integration Tests**: Warsaw DST transitions (March & October), formula injection escaping, undo atomicity, R2 download traversal rejection, dynamic CORS headers (57 Vitest tests passing).
+- [x] **Flutter App Validation**: `flutter analyze` (0 issues) and `flutter test` (42 tests passing).
 
 ---
 
 ## Immediate Next Steps
-1. Synchronize `DESIGN.md` to remove stale Python/openpyxl/email references.
-2. User confirmation to proceed with Phase 1 backend implementation (Warsaw Timezone & Excel fixes).
+1. Commit Phase 1 backend hardening and documentation synchronization changes.
+2. Proceed to Phase 2: Multi-Platform Service Layer in Flutter (`HapticFeedbackService`, `ReportFileService`, `WidgetSyncService`, `CredentialStore`) and admin token web security.
 
 
 

@@ -19,51 +19,51 @@
   - `worker/src/reports/report_service.ts` calculates scheduled previous-month boundaries in UTC (`Date.UTC(year, month - 1, 1)`), which misaligns with Warsaw calendar month boundaries by 1–2 hours.
   - `worker/src/reports/excel_generator.ts` formats `startTimeLocal` and `endTimeLocal` by slicing `inDate.toISOString()`, writing **UTC hours** into Excel cells instead of Warsaw local time.
 - **Action Items:**
-  - [ ] Use `Intl.DateTimeFormat` with `timeZone: 'Europe/Warsaw'` to derive the previous calendar month's exact UTC start (`YYYY-MM-01T00:00:00 Warsaw`) and end (`YYYY-MM-01T00:00:00 Warsaw of next month`).
-  - [ ] Use half-open intervals `[startUtc, endUtc)` for shift event queries.
-  - [ ] In `excel_generator.ts`, format shift dates, start times, and end times in `Europe/Warsaw`.
-  - [ ] Add automated tests covering March (winter -> summer, UTC+1 to UTC+2) and October (summer -> winter, UTC+2 to UTC+1) DST transitions.
+  - [x] Use `Intl.DateTimeFormat` with `timeZone: 'Europe/Warsaw'` to derive the previous calendar month's exact UTC start (`YYYY-MM-01T00:00:00 Warsaw`) and end (`YYYY-MM-01T00:00:00 Warsaw of next month`).
+  - [x] Use half-open intervals `[startUtc, endUtc)` for shift event queries.
+  - [x] In `excel_generator.ts`, format shift dates, start times, and end times in `Europe/Warsaw`.
+  - [x] Add automated tests covering March (winter -> summer, UTC+1 to UTC+2) and October (summer -> winter, UTC+2 to UTC+1) DST transitions.
 
 ### 1.2 Spreadsheet Formula Injection Defense (CWE-1236)
 
 - **Problem:**
   - User notes, sources, or custom text starting with `=`, `+`, `-`, or `@` can be interpreted as formulas by spreadsheet applications (Microsoft Excel, Google Sheets, LibreOffice Calc).
 - **Action Items:**
-  - [ ] In `worker/src/reports/excel_generator.ts`, sanitize all user-controllable text cells: if a value begins with `=`, `+`, `-`, `@`, `\t`, or `\r`, prepend a neutralizing single quote (`'`).
-  - [ ] Preserve XML escaping (`&amp;`, `&lt;`, `&gt;`, `&quot;`, `&apos;`).
-  - [ ] Add automated unit tests with malicious/formula-like test strings.
+  - [x] In `worker/src/reports/excel_generator.ts`, sanitize all user-controllable text cells: if a value begins with `=`, `+`, `-`, `@`, `\t`, or `\r`, prepend a neutralizing single quote (`'`).
+  - [x] Preserve XML escaping (`&amp;`, `&lt;`, `&gt;`, `&quot;`, `&apos;`).
+  - [x] Add automated unit tests with malicious/formula-like test strings.
 
 ### 1.3 Path Traversal & Filename Sanitization on Report Download
 
 - **Problem:**
   - `GET /api/v1/reports/download/:filename` accepts arbitrary client-decoded strings and passes them directly to `env.REPORTS_BUCKET.get(key)`.
 - **Action Items:**
-  - [ ] Enforce strict regex validation on requested filenames: `^work-hours-\d{4}-\d{2}-(formal|full)\.xlsx$`.
-  - [ ] Reject any filename containing path separators (`/`, `\`) or traversal sequences (`..`).
-  - [ ] Set `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` and sanitized `Content-Disposition`.
-  - [ ] Add test cases verifying rejection of traversal and malformed filenames.
+  - [x] Enforce strict regex validation on requested filenames: `^work-hours-\d{4}-\d{2}-(formal|full)\.xlsx$`.
+  - [x] Reject any filename containing path separators (`/`, `\`) or traversal sequences (`..`).
+  - [x] Set `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` and sanitized `Content-Disposition`.
+  - [x] Add test cases verifying rejection of traversal and malformed filenames.
 
 ### 1.4 Atomic Undo Transaction in State Machine
 
 - **Problem:**
   - `handleUndo` currently executes `DELETE FROM events WHERE id = ?` first as a standalone query, then computes durations, and only then executes `db.batch([work_state update, processed_requests insert])`. A failure between these steps leaves database state corrupted.
 - **Action Items:**
-  - [ ] Reorganize `handleUndo` so duration recalculations are computed first.
-  - [ ] Bundle the `DELETE FROM events`, `work_state` update with optimistic version check (`WHERE version = ?`), and `processed_requests` recording into a single atomic `db.batch` call.
-  - [ ] Ensure repeated undo requests replay the cached response via idempotency.
-  - [ ] Add integration test verifying atomicity and graceful handling of race conditions.
+  - [x] Reorganize `handleUndo` so duration recalculations are computed first.
+  - [x] Bundle the `DELETE FROM events`, `work_state` update with optimistic version check (`WHERE version = ?`), and `processed_requests` recording into a single atomic `db.batch` call.
+  - [x] Ensure repeated undo requests replay the cached response via idempotency.
+  - [x] Add integration test verifying atomicity and graceful handling of race conditions.
 
 ### 1.5 CORS & Security Headers
 
 - **Problem:**
   - The API currently responds with `Access-Control-Allow-Origin: *` on credential-bearing endpoints.
 - **Action Items:**
-  - [ ] Dynamically validate `Origin` header against:
+  - [x] Dynamically validate `Origin` header against:
     - Same-origin (when Flutter Web is served via Worker Static Assets).
     - Configured production custom domains.
     - Local development origins (`http://localhost:*`, `http://127.0.0.1:*`).
-  - [ ] Add `Vary: Origin` header to all CORS responses.
-  - [ ] Set security headers: `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and `Cache-Control: no-store` on authenticated API responses.
+  - [x] Add `Vary: Origin` header to all CORS responses.
+  - [x] Set security headers: `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and `Cache-Control: no-store` on authenticated API responses.
 
 ---
 
@@ -211,34 +211,35 @@ To prevent over-engineering a single-user system, the following suggestions from
 
 ### Phase 1: Core Worker Correctness & Security
 
-- [ ] Fix Warsaw calendar month calculations in `worker/src/reports/report_service.ts`.
-- [ ] Fix Warsaw local time formatting (`startTimeLocal`, `endTimeLocal`) in `worker/src/reports/excel_generator.ts`.
-- [ ] Implement formula injection sanitization in `excel_generator.ts`.
-- [ ] Secure `GET /api/v1/reports/download/:filename` with strict regex and path traversal rejection.
-- [ ] Make `handleUndo` in `worker/src/clock.ts` fully atomic inside a single `db.batch`.
-- [ ] Scope CORS dynamically with `Vary: Origin` and localhost support.
+- [x] Fix Warsaw calendar month calculations in `worker/src/reports/report_service.ts`.
+- [x] Fix Warsaw local time formatting (`startTimeLocal`, `endTimeLocal`) in `worker/src/reports/excel_generator.ts`.
+- [x] Implement formula injection sanitization in `excel_generator.ts`.
+- [x] Secure `GET /api/v1/reports/download/:filename` with strict regex and path traversal rejection.
+- [x] Make `handleUndo` in `worker/src/clock.ts` fully atomic inside a single `db.batch`.
+- [x] Scope CORS dynamically with `Vary: Origin` and localhost support.
 
-### Phase 2: Client Web Security & Platform Cleanliness
+### Phase 2: Client Web Security & Multi-Platform Service Layer
 
 - [ ] Update `settings_notifier.dart` to keep `adminToken` in-memory on Web rather than persisting to storage.
-- [ ] Standardize platform guards to `if (!isAndroid) return;` across Flutter services.
+- [ ] Implement Riverpod service abstractions (`HapticFeedbackService`, `ReportFileService`, `WidgetSyncService`, `CredentialStore`) with platform-specific and no-op providers.
+- [ ] Refactor UI widgets and notifiers to eliminate inline platform checks (`if (!isAndroid)`, `kIsWeb`).
 - [ ] Verify Web report download flow and object URL cleanup.
 
 ### Phase 3: Documentation Restructure & Spec Synchronization
 
-- [ ] Update `DESIGN.md` to reflect unified architecture (Workers Static Assets, pure TS OpenXML, R2).
-- [ ] Create `docs/API.md`.
-- [ ] Create `docs/DEPLOYMENT.md`.
-- [ ] Create `CHANGELOG.md`.
-- [ ] Streamline `README.md`.
+- [x] Update `DESIGN.md` to reflect unified architecture (Workers Static Assets, pure TS OpenXML, R2).
+- [x] Create `docs/API.md`.
+- [x] Create `docs/DEPLOYMENT.md`.
+- [x] Create `CHANGELOG.md`.
+- [x] Streamline `README.md`.
 
 ### Phase 4: Automated Testing & Verification
 
-- [ ] Add Worker unit tests for Warsaw DST transitions (March and October).
-- [ ] Add Worker tests for formula injection neutralization.
-- [ ] Add Worker tests for report download path traversal rejection.
-- [ ] Add Worker integration tests for atomic undo transactions.
-- [ ] Validate entire repository: `npm test`, `npm run typecheck`, `flutter test`, `flutter analyze`.
+- [x] Add Worker unit tests for Warsaw DST transitions (March and October).
+- [x] Add Worker tests for formula injection neutralization.
+- [x] Add Worker tests for report download path traversal rejection.
+- [x] Add Worker integration tests for atomic undo transactions.
+- [x] Validate entire repository: `npm test`, `npm run typecheck`, `flutter test`, `flutter analyze`.
 
 ---
 

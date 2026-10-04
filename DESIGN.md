@@ -23,33 +23,32 @@
 ## 2. Chosen architecture
 
 ```text
-Android home-screen widget (Kotlin/Jetpack Glance)
-                    |
-                    | HTTPS JSON API
-                    v
-Flutter app (Riverpod) ---> Cloudflare Worker (TypeScript)
-                                  |
-                                  v
-                          Cloudflare D1 database
-
-Later:
-GitHub Actions scheduled workflow
-        |
-        +--> protected report API
-        +--> Python/openpyxl workbook
-        +--> email provider
+Android Widget (Kotlin)         Flutter App (Riverpod: Mobile & Web)
+         \                                  /
+          \                                / HTTPS JSON API
+           v                              v
++-----------------------------------------------------------+
+| Cloudflare Worker (Unified API & Static Assets Router)    |
+|   - /api/v1/*        -> JSON Endpoints                    |
+|   - /*               -> Flutter Web SPA (env.ASSETS)      |
+|   - Cron (0 0 1 * *) -> Monthly Report Generator          |
++-----------------------------------------------------------+
+             |                                    |
+             v                                    v
+     Cloudflare D1 (SQL)                 Cloudflare R2 Bucket
+   - events, work_state                 - work-hours-reports/
+   - devices, processed_requests          (.xlsx archives)
 ```
 
 ### Technology choices
 
-- **Mobile app:** Flutter and Riverpod
-- **Android widget:** Kotlin, preferably Jetpack Glance
-- **HTTP client:** Dio or Dart's standard HTTP client; choose one and use it consistently
-- **Backend:** TypeScript on Cloudflare Workers
-- **Database:** Cloudflare D1
-- **Deployment:** Wrangler through GitHub Actions
-- **Reporting:** Python and openpyxl in GitHub Actions
-- **Email:** Resend or an equivalent transactional-email provider
+- **Mobile & Web App:** Flutter with Riverpod (Single shared codebase for Mobile and Web)
+- **Android Widget:** Native Kotlin and RemoteViews with OkHttp communicating directly with Worker API
+- **Backend:** TypeScript running on Cloudflare Workers
+- **Database:** Cloudflare D1 (SQLite at the edge)
+- **Report Storage:** Cloudflare R2 (`work-hours-reports`)
+- **Reporting Generator:** Pure TypeScript OpenXML (.xlsx) engine running directly in Worker (zero external dependencies)
+- **Deployment:** Wrangler via GitHub Actions CI/CD
 - **Time zone for display/reporting:** `Europe/Warsaw`
 - **Time storage:** UTC ISO 8601 strings, for example `2026-10-03T13:42:17.000Z`
 
