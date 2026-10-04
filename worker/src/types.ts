@@ -154,6 +154,7 @@ export interface ShiftSummaryItem {
 
 export interface ReportStats {
   totalHours: number;
+  totalHoursFormatted: string;
   totalShifts: number;
   totalDays: number;
   averageShiftMinutes: number;

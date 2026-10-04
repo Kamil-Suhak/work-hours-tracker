@@ -84,6 +84,7 @@ describe('Reports Engine Unit Tests', () => {
 
     const stats = computeReportStats(mockShifts);
     expect(stats.totalHours).toBe(12.0);
+    expect(stats.totalHoursFormatted).toBe('12h 0m');
     expect(stats.totalShifts).toBe(2);
     expect(stats.totalDays).toBe(2);
     expect(stats.averageShiftMinutes).toBe(360);

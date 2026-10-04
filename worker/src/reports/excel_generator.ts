@@ -87,6 +87,7 @@ export function computeReportStats(shifts: ShiftSummaryItem[]): ReportStats {
   if (shifts.length === 0) {
     return {
       totalHours: 0,
+      totalHoursFormatted: '0h 0m',
       totalShifts: 0,
       totalDays: 0,
       averageShiftMinutes: 0,
@@ -102,6 +103,8 @@ export function computeReportStats(shifts: ShiftSummaryItem[]): ReportStats {
   const avgMinutes = Math.round(totalMinutes / shifts.length);
   const longestMinutes = Math.max(...shifts.map((s) => s.durationMinutes));
 
+  const totalH = Math.floor(totalMinutes / 60);
+  const totalM = totalMinutes % 60;
   const avgH = Math.floor(avgMinutes / 60);
   const avgM = avgMinutes % 60;
   const longH = Math.floor(longestMinutes / 60);
@@ -109,6 +112,7 @@ export function computeReportStats(shifts: ShiftSummaryItem[]): ReportStats {
 
   return {
     totalHours,
+    totalHoursFormatted: `${totalH}h ${totalM}m`,
     totalShifts: shifts.length,
     totalDays: uniqueDays,
     averageShiftMinutes: avgMinutes,
@@ -193,12 +197,22 @@ function buildStylesXml(): string {
     <xf numFmtId="0" fontId="2" fillId="3" borderId="1" applyFont="1" applyFill="1" applyBorder="1"/>
     <!-- 3: Number 0.00 right-aligned -->
     <xf numFmtId="2" fontId="0" fillId="0" borderId="1" applyNumberFormat="1" applyBorder="1"><alignment horizontal="right"/></xf>
-    <!-- 4: Center aligned text (Date, Time) -->
+    <!-- 4: Center aligned text (Date, Time, Duration) -->
     <xf numFmtId="0" fontId="0" fillId="0" borderId="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf>
     <!-- 5: Total number 0.00 bold right-aligned on light slate fill -->
     <xf numFmtId="2" fontId="2" fillId="3" borderId="1" applyFont="1" applyFill="1" applyNumberFormat="1" applyBorder="1"><alignment horizontal="right"/></xf>
   </cellXfs>
 </styleSheet>`;
+}
+
+function getColLetter(colIdx: number): string {
+  let temp = colIdx;
+  let letter = '';
+  while (temp >= 0) {
+    letter = String.fromCharCode((temp % 26) + 65) + letter;
+    temp = Math.floor(temp / 26) - 1;
+  }
+  return letter;
 }
 
 export function buildWorksheetXml(
@@ -212,110 +226,117 @@ export function buildWorksheetXml(
   const includeSource = isFull || options.includeSource === true;
   const includeStats = isFull || options.includeStats === true;
 
-  // Build column headers
-  const columns: { label: string; width: number }[] = [
-    { label: 'Date', width: 14 },
-    { label: 'Start Time', width: 12 },
-    { label: 'End Time', width: 12 },
-    { label: 'Duration (Hours)', width: 16 },
+  // Build Table 1 column headers with dynamic widths
+  const table1Cols: { label: string; width: number }[] = [
+    {
+      label: 'Date',
+      width: Math.max(14, ...shifts.map((s) => s.date.length), 4) + 2,
+    },
+    { label: 'Start Time', width: 13 },
+    { label: 'End Time', width: 13 },
+    {
+      label: 'Duration',
+      width: Math.max(12, ...shifts.map((s) => s.durationFormatted.length), stats.totalHoursFormatted.length, 8) + 4,
+    },
   ];
 
-  if (isFull) {
-    columns.push({ label: 'Duration', width: 12 });
-  }
   if (includeSource) {
-    columns.push({ label: 'Source', width: 16 });
+    table1Cols.push({
+      label: 'Source',
+      width: Math.max(12, ...shifts.map((s) => s.source.length), 6) + 4,
+    });
   }
   if (includeNotes) {
-    columns.push({ label: 'Shift Notes', width: 40 });
+    table1Cols.push({
+      label: 'Shift Notes',
+      width: Math.min(60, Math.max(16, ...shifts.map((s) => (s.note || '').length), 11)) + 4,
+    });
   }
 
-  // Column letters: A, B, C, D, E, F, G...
-  const colLetter = (idx: number) => String.fromCharCode(65 + idx);
+  const numTable1Cols = table1Cols.length;
+  const gapColIdx = numTable1Cols;
+  const statCol1Idx = numTable1Cols + 1;
+  const statCol2Idx = numTable1Cols + 2;
+
+  const statRows = [
+    { label: 'Total Hours Worked', val: stats.totalHoursFormatted },
+    { label: 'Total Working Days', val: `${stats.totalDays} days` },
+    { label: 'Total Completed Shifts', val: `${stats.totalShifts}` },
+    { label: 'Average Shift Length', val: stats.averageShiftFormatted },
+    { label: 'Longest Shift', val: stats.longestShiftFormatted },
+  ];
 
   let xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <cols>`;
 
-  columns.forEach((col, idx) => {
+  // Table 1 columns
+  table1Cols.forEach((col, idx) => {
     xml += `\n    <col min="${idx + 1}" max="${idx + 1}" width="${col.width}" customWidth="1"/>`;
   });
 
+  // Table 2 (side-by-side summary statistics)
+  if (includeStats) {
+    // Gap column
+    xml += `\n    <col min="${gapColIdx + 1}" max="${gapColIdx + 1}" width="4" customWidth="1"/>`;
+    // Stat columns
+    xml += `\n    <col min="${statCol1Idx + 1}" max="${statCol1Idx + 1}" width="26" customWidth="1"/>`;
+    xml += `\n    <col min="${statCol2Idx + 1}" max="${statCol2Idx + 1}" width="16" customWidth="1"/>`;
+  }
+
   xml += `\n  </cols>\n  <sheetData>`;
 
-  // Row 1: Header
+  // Row 1: Headers (Both Table 1 and Table 2 side-by-side)
   xml += `\n    <row r="1" ht="26" customHeight="1">`;
-  columns.forEach((col, idx) => {
-    xml += `\n      <c r="${colLetter(idx)}1" s="1" t="inlineStr"><is><t>${escapeXml(col.label)}</t></is></c>`;
+  table1Cols.forEach((col, idx) => {
+    xml += `\n      <c r="${getColLetter(idx)}1" s="1" t="inlineStr"><is><t>${escapeXml(col.label)}</t></is></c>`;
   });
-  xml += `\n    </row>`;
-
-  // Shift rows
-  shifts.forEach((shift, sIdx) => {
-    const rowNum = sIdx + 2;
-    xml += `\n    <row r="${rowNum}" ht="20" customHeight="1">`;
-    // Col A: Date
-    xml += `\n      <c r="A${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(shift.date)}</t></is></c>`;
-    // Col B: Start
-    xml += `\n      <c r="B${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(shift.startTimeLocal)}</t></is></c>`;
-    // Col C: End
-    xml += `\n      <c r="C${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(shift.endTimeLocal)}</t></is></c>`;
-    // Col D: Duration (Hours Decimal)
-    xml += `\n      <c r="D${rowNum}" s="3"><v>${shift.durationHoursDecimal.toFixed(2)}</v></c>`;
-
-    let curCol = 4;
-    if (isFull) {
-      xml += `\n      <c r="${colLetter(curCol)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(shift.durationFormatted)}</t></is></c>`;
-      curCol++;
-    }
-    if (includeSource) {
-      xml += `\n      <c r="${colLetter(curCol)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(shift.source)}</t></is></c>`;
-      curCol++;
-    }
-    if (includeNotes) {
-      xml += `\n      <c r="${colLetter(curCol)}${rowNum}" s="0" t="inlineStr"><is><t>${escapeXml(shift.note ?? '')}</t></is></c>`;
-      curCol++;
-    }
-
-    xml += `\n    </row>`;
-  });
-
-  // Total Summary Row
-  const totalRowNum = shifts.length + 2;
-  xml += `\n    <row r="${totalRowNum}" ht="22" customHeight="1">`;
-  xml += `\n      <c r="A${totalRowNum}" s="2" t="inlineStr"><is><t>TOTAL</t></is></c>`;
-  xml += `\n      <c r="B${totalRowNum}" s="2" t="inlineStr"><is><t>${shifts.length} Shifts</t></is></c>`;
-  xml += `\n      <c r="C${totalRowNum}" s="2" t="inlineStr"><is><t>${stats.totalDays} Days</t></is></c>`;
-  xml += `\n      <c r="D${totalRowNum}" s="5"><v>${stats.totalHours.toFixed(2)}</v></c>`;
-
-  for (let c = 4; c < columns.length; c++) {
-    xml += `\n      <c r="${colLetter(c)}${totalRowNum}" s="2" t="inlineStr"><is><t></t></is></c>`;
+  if (includeStats) {
+    xml += `\n      <c r="${getColLetter(statCol1Idx)}1" s="1" t="inlineStr"><is><t>SUMMARY STATISTIC</t></is></c>`;
+    xml += `\n      <c r="${getColLetter(statCol2Idx)}1" s="1" t="inlineStr"><is><t>VALUE</t></is></c>`;
   }
   xml += `\n    </row>`;
 
-  // Summary Statistics Section (if enabled)
-  if (includeStats) {
-    const statsStartRow = totalRowNum + 3;
-    xml += `\n    <row r="${statsStartRow}" ht="24" customHeight="1">`;
-    xml += `\n      <c r="A${statsStartRow}" s="1" t="inlineStr"><is><t>SUMMARY STATISTIC</t></is></c>`;
-    xml += `\n      <c r="B${statsStartRow}" s="1" t="inlineStr"><is><t>VALUE</t></is></c>`;
+  // Data rows (rendered side-by-side)
+  const numDataRows = Math.max(shifts.length + 1, includeStats ? statRows.length : 0);
+
+  for (let i = 0; i < numDataRows; i++) {
+    const rowNum = i + 2;
+    xml += `\n    <row r="${rowNum}" ht="20" customHeight="1">`;
+
+    // Left Table: shift row
+    if (i < shifts.length) {
+      const shift = shifts[i];
+      let c = 0;
+      xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(shift.date)}</t></is></c>`;
+      xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(shift.startTimeLocal)}</t></is></c>`;
+      xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(shift.endTimeLocal)}</t></is></c>`;
+      xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(shift.durationFormatted)}</t></is></c>`;
+      if (includeSource) {
+        xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(shift.source)}</t></is></c>`;
+      }
+      if (includeNotes) {
+        xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="0" t="inlineStr"><is><t>${escapeXml(shift.note ?? '')}</t></is></c>`;
+      }
+    } else if (i === shifts.length) {
+      // Left Table: TOTAL row
+      let c = 0;
+      xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="2" t="inlineStr"><is><t>TOTAL</t></is></c>`;
+      xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="2" t="inlineStr"><is><t>${shifts.length} Shifts</t></is></c>`;
+      xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="2" t="inlineStr"><is><t>${stats.totalDays} Days</t></is></c>`;
+      xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="2" t="inlineStr"><is><t>${escapeXml(stats.totalHoursFormatted)}</t></is></c>`;
+      while (c < numTable1Cols) {
+        xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="2" t="inlineStr"><is><t></t></is></c>`;
+      }
+    }
+
+    // Right Table: side-by-side Summary Statistics
+    if (includeStats && i < statRows.length) {
+      xml += `\n      <c r="${getColLetter(statCol1Idx)}${rowNum}" s="0" t="inlineStr"><is><t>${escapeXml(statRows[i].label)}</t></is></c>`;
+      xml += `\n      <c r="${getColLetter(statCol2Idx)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(statRows[i].val)}</t></is></c>`;
+    }
+
     xml += `\n    </row>`;
-
-    const statRows = [
-      { label: 'Total Hours Worked', val: `${stats.totalHours.toFixed(2)} hrs` },
-      { label: 'Total Working Days', val: `${stats.totalDays} days` },
-      { label: 'Total Completed Shifts', val: `${stats.totalShifts}` },
-      { label: 'Average Shift Length', val: stats.averageShiftFormatted },
-      { label: 'Longest Shift', val: stats.longestShiftFormatted },
-    ];
-
-    statRows.forEach((item, idx) => {
-      const r = statsStartRow + 1 + idx;
-      xml += `\n    <row r="${r}" ht="20" customHeight="1">`;
-      xml += `\n      <c r="A${r}" s="0" t="inlineStr"><is><t>${escapeXml(item.label)}</t></is></c>`;
-      xml += `\n      <c r="B${r}" s="4" t="inlineStr"><is><t>${escapeXml(item.val)}</t></is></c>`;
-      xml += `\n    </row>`;
-    });
   }
 
   xml += `\n  </sheetData>\n</worksheet>`;

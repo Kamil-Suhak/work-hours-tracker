@@ -96,7 +96,8 @@ void main() {
       expect(find.text('Work Hours Reports'), findsOneWidget);
       expect(find.text('This Month'), findsOneWidget);
       expect(find.text('Last Month'), findsOneWidget);
-      expect(find.text('Custom'), findsOneWidget);
+      expect(find.text('Start Date'), findsOneWidget);
+      expect(find.text('End Date'), findsOneWidget);
       expect(find.text('Formal'), findsOneWidget);
       expect(find.text('Full'), findsOneWidget);
       expect(find.text('Generate'), findsOneWidget);
@@ -146,6 +147,48 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(channelCalls.any((c) => c.method == 'openReportFile'), isTrue);
+    });
+
+    testWidgets('toggling Full preset and then Formal resets checklist options to false', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final mockClient = _MockApiClient();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            apiClientProvider.overrideWithValue(mockClient),
+          ],
+          child: const MaterialApp(
+            home: ReportsScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Tap 'Full'
+      await tester.ensureVisible(find.text('Full'));
+      await tester.tap(find.text('Full'));
+      await tester.pumpAndSettle();
+
+      // Verify all checkboxes are checked
+      final checkboxesFull = tester.widgetList<Checkbox>(find.byType(Checkbox)).toList();
+      for (final cb in checkboxesFull) {
+        expect(cb.value, isTrue);
+      }
+
+      // Tap 'Formal'
+      await tester.ensureVisible(find.text('Formal'));
+      await tester.tap(find.text('Formal'));
+      await tester.pumpAndSettle();
+
+      // Verify all checkboxes reset to false
+      final checkboxesFormal = tester.widgetList<Checkbox>(find.byType(Checkbox)).toList();
+      for (final cb in checkboxesFormal) {
+        expect(cb.value, isFalse);
+      }
     });
   });
 }

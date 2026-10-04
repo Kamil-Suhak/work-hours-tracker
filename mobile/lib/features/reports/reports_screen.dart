@@ -56,31 +56,33 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     });
   }
 
-  Future<void> _pickDateRange() async {
-    final picked = await showDateRangePicker(
+  Future<void> _selectStartDate() async {
+    final picked = await showDatePicker(
       context: context,
+      initialDate: _startDate,
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(const Duration(days: 365)),
-      initialDateRange: DateTimeRange(start: _startDate, end: _endDate),
-      builder: (context, child) {
-        return Theme(
-          data: ThemeData.dark().copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: Color(0xFF10B981),
-              onPrimary: Colors.white,
-              surface: Color(0xFF1E293B),
-              onSurface: Color(0xFFF8FAFC),
-            ),
-          ),
-          child: child!,
-        );
-      },
     );
-
     if (picked != null) {
       setState(() {
-        _startDate = picked.start;
-        _endDate = picked.end;
+        _startDate = picked;
+        if (_endDate.isBefore(_startDate)) {
+          _endDate = _startDate;
+        }
+      });
+    }
+  }
+
+  Future<void> _selectEndDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _endDate.isBefore(_startDate) ? _startDate : _endDate,
+      firstDate: _startDate,
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null) {
+      setState(() {
+        _endDate = picked;
       });
     }
   }
@@ -93,6 +95,11 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         _includeNotes = true;
         _includeStats = true;
         _includeSource = true;
+      } else {
+        // Formal preset resets options checkboxes to false
+        _includeNotes = false;
+        _includeStats = false;
+        _includeSource = false;
       }
     });
   }
@@ -119,10 +126,14 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         filename: result.filename,
       );
 
+      final totalMinutes = (result.totalHours * 60).round();
+      final h = totalMinutes ~/ 60;
+      final m = totalMinutes % 60;
+
       setState(() {
         _lastGeneratedPath = path;
         _lastGeneratedFilename = result.filename;
-        _statusMessage = 'Generated ${result.totalHours.toStringAsFixed(1)}h (${result.totalShifts} shifts)';
+        _statusMessage = 'Generated ${h}h ${m}m (${result.totalShifts} shifts)';
       });
 
       if (mounted) {
@@ -248,76 +259,134 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'DATE RANGE',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF94A3B8),
-                      letterSpacing: 1.1,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Quick selection chips
-                  Wrap(
-                    spacing: 8,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      ActionChip(
-                        label: const Text('This Month'),
-                        backgroundColor: const Color(0xFF0F172A),
-                        side: const BorderSide(color: Color(0xFF334155)),
-                        labelStyle: const TextStyle(fontSize: 12, color: Colors.white),
-                        onPressed: _setThisMonth,
+                      const Text(
+                        'DATE RANGE',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF94A3B8),
+                          letterSpacing: 1.1,
+                        ),
                       ),
-                      ActionChip(
-                        label: const Text('Last Month'),
-                        backgroundColor: const Color(0xFF0F172A),
-                        side: const BorderSide(color: Color(0xFF334155)),
-                        labelStyle: const TextStyle(fontSize: 12, color: Colors.white),
-                        onPressed: _setLastMonth,
-                      ),
-                      ActionChip(
-                        avatar: const Icon(Icons.calendar_today, size: 14, color: activeColor),
-                        label: const Text('Custom'),
-                        backgroundColor: const Color(0xFF0F172A),
-                        side: const BorderSide(color: Color(0xFF334155)),
-                        labelStyle: const TextStyle(fontSize: 12, color: Colors.white),
-                        onPressed: _pickDateRange,
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          ActionChip(
+                            visualDensity: VisualDensity.compact,
+                            label: const Text('This Month'),
+                            backgroundColor: const Color(0xFF0F172A),
+                            side: const BorderSide(color: Color(0xFF334155)),
+                            labelStyle: const TextStyle(fontSize: 11, color: Colors.white),
+                            onPressed: _setThisMonth,
+                          ),
+                          ActionChip(
+                            visualDensity: VisualDensity.compact,
+                            label: const Text('Last Month'),
+                            backgroundColor: const Color(0xFF0F172A),
+                            side: const BorderSide(color: Color(0xFF334155)),
+                            labelStyle: const TextStyle(fontSize: 11, color: Colors.white),
+                            onPressed: _setLastMonth,
+                          ),
+                        ],
                       ),
                     ],
                   ),
                   const SizedBox(height: 14),
 
-                  // Display selected range
-                  InkWell(
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: _pickDateRange,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F172A),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFF334155)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.date_range, color: activeColor, size: 20),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              '${_displayFormat.format(_startDate)}  —  ${_displayFormat.format(_endDate)}',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFFF8FAFC),
-                              ),
+                  // Side-by-side Start and End Date Pickers
+                  Row(
+                    children: [
+                      // Start Date Tile
+                      Expanded(
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: _selectStartDate,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0F172A),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFF334155)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Row(
+                                  children: [
+                                    Icon(Icons.calendar_today, size: 14, color: activeColor),
+                                    SizedBox(width: 6),
+                                    Text(
+                                      'Start Date',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                        color: Color(0xFF94A3B8),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  _displayFormat.format(_startDate),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFFF8FAFC),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const Icon(Icons.edit, color: Color(0xFF94A3B8), size: 16),
-                        ],
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 10),
+                      // End Date Tile
+                      Expanded(
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: _selectEndDate,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0F172A),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFF334155)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Row(
+                                  children: [
+                                    Icon(Icons.event, size: 14, color: activeColor),
+                                    SizedBox(width: 6),
+                                    Text(
+                                      'End Date',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                        color: Color(0xFF94A3B8),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  _displayFormat.format(_endDate),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFFF8FAFC),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
