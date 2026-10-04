@@ -15,6 +15,12 @@ import {
   handleAdminManualEvent,
   validateManualEventRequest,
 } from './events';
+import {
+  validateReportRequest,
+  generateReport,
+  getLatestReport,
+  runScheduledMonthlyReport,
+} from './reports/report_service';
 
 const MAX_BODY_BYTES = 64 * 1024; // 64 KB
 
@@ -185,6 +191,105 @@ export default {
         return jsonResponse(result, 200, standardHeaders);
       }
 
+      if (pathname === '/api/v1/reports/generate' && method === 'POST') {
+        const { deviceId } = await authenticateDevice(request, env);
+        const rawBody = await parseJsonBody(request, correlationId);
+        const reportReq = validateReportRequest(rawBody);
+        const reportResult = await generateReport(env.DB, DEFAULT_USER_ID, reportReq);
+
+        console.log(
+          JSON.stringify({
+            correlationId,
+            operation: 'generate-report',
+            deviceId,
+            preset: reportReq.preset,
+            totalHours: reportResult.stats.totalHours,
+            shiftsCount: reportResult.shifts.length,
+            latencyMs: Date.now() - startTime,
+            result: 'ok',
+          })
+        );
+
+        return new Response(reportResult.buffer, {
+          status: 200,
+          headers: {
+            ...standardHeaders,
+            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition': `attachment; filename="${reportResult.filename}"`,
+            'X-Total-Hours': reportResult.stats.totalHours.toString(),
+            'X-Total-Shifts': reportResult.stats.totalShifts.toString(),
+          },
+        });
+      }
+
+      if (pathname === '/api/v1/reports/latest' && method === 'GET') {
+        const { deviceId } = await authenticateDevice(request, env);
+        const latest = await getLatestReport(env.REPORTS_BUCKET);
+
+        if (!latest) {
+          throw new AppError(
+            'NO_REPORTS_FOUND',
+            'No automated reports have been generated yet.',
+            404,
+            correlationId
+          );
+        }
+
+        console.log(
+          JSON.stringify({
+            correlationId,
+            operation: 'get-latest-report',
+            deviceId,
+            filename: latest.filename,
+            latencyMs: Date.now() - startTime,
+            result: 'ok',
+          })
+        );
+
+        return jsonResponse(latest, 200, standardHeaders);
+      }
+
+      if (pathname.startsWith('/api/v1/reports/download/') && method === 'GET') {
+        const { deviceId } = await authenticateDevice(request, env);
+        if (!env.REPORTS_BUCKET) {
+          throw new AppError(
+            'STORAGE_NOT_CONFIGURED',
+            'Cloud storage bucket is not configured on the server.',
+            503,
+            correlationId
+          );
+        }
+
+        const rawFilename = pathname.replace('/api/v1/reports/download/', '');
+        const filename = decodeURIComponent(rawFilename);
+        const key = filename.startsWith('reports/') ? filename : `reports/${filename}`;
+        const object = await env.REPORTS_BUCKET.get(key);
+
+        if (!object) {
+          throw new AppError('REPORT_NOT_FOUND', 'Requested report file was not found.', 404, correlationId);
+        }
+
+        console.log(
+          JSON.stringify({
+            correlationId,
+            operation: 'download-report',
+            deviceId,
+            key,
+            latencyMs: Date.now() - startTime,
+            result: 'ok',
+          })
+        );
+
+        return new Response(object.body, {
+          status: 200,
+          headers: {
+            ...standardHeaders,
+            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition': `attachment; filename="${key.split('/').pop()}"`,
+          },
+        });
+      }
+
       return errorResponse('NOT_FOUND', 'The requested resource was not found.', 404, correlationId);
     } catch (err: unknown) {
       const latencyMs = Date.now() - startTime;
@@ -213,5 +318,33 @@ export default {
       );
       return errorResponse('INTERNAL_ERROR', 'An unexpected error occurred.', 500, correlationId);
     }
+  },
+
+  async scheduled(
+    event: { cron: string; scheduledTime: number },
+    env: Env,
+    ctx: { waitUntil: (promise: Promise<unknown>) => void }
+  ): Promise<void> {
+    ctx.waitUntil(
+      runScheduledMonthlyReport(env.DB, env.REPORTS_BUCKET)
+        .then((res) => {
+          console.log(
+            JSON.stringify({
+              operation: 'scheduled-monthly-report',
+              cron: event.cron,
+              scheduledTime: event.scheduledTime,
+              result: res ? 'ok' : 'skipped',
+            })
+          );
+        })
+        .catch((err) => {
+          console.error(
+            JSON.stringify({
+              operation: 'scheduled-monthly-report',
+              error: err instanceof Error ? err.message : String(err),
+            })
+          );
+        })
+    );
   },
 };

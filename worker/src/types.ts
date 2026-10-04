@@ -41,7 +41,7 @@ export interface EventRow {
   occurred_at_utc: string;
   created_at_utc: string;
   reason: string | null;
-  note: string | null;
+  note?: string | null;
 }
 
 export interface ProcessedRequestRow {
