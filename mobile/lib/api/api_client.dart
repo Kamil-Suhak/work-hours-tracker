@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'models.dart';
@@ -176,6 +177,69 @@ class ApiClient {
     final response = await _httpClient.post(uri, headers: headers, body: body);
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    _handleError(response);
+  }
+
+  Future<({Uint8List bytes, String filename, double totalHours, int totalShifts})> generateReport({
+    required DateTime startDate,
+    required DateTime endDate,
+    required String preset,
+    bool includeNotes = false,
+    bool includeStats = false,
+    bool includeSource = false,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/v1/reports/generate');
+    final headers = await _buildHeaders();
+    final body = jsonEncode({
+      'startDate': startDate.toUtc().toIso8601String(),
+      'endDate': endDate.toUtc().toIso8601String(),
+      'preset': preset,
+      'options': {
+        'includeNotes': includeNotes,
+        'includeStats': includeStats,
+        'includeSource': includeSource,
+      },
+    });
+
+    final response = await _httpClient.post(uri, headers: headers, body: body);
+    if (response.statusCode == 200) {
+      final cd = response.headers['content-disposition'] ?? '';
+      final fnMatch = RegExp(r'filename="([^"]+)"').firstMatch(cd);
+      final filename = fnMatch != null ? fnMatch.group(1)! : 'work-hours-report.xlsx';
+      final totalHours = double.tryParse(response.headers['x-total-hours'] ?? '0') ?? 0.0;
+      final totalShifts = int.tryParse(response.headers['x-total-shifts'] ?? '0') ?? 0;
+
+      return (
+        bytes: response.bodyBytes,
+        filename: filename,
+        totalHours: totalHours,
+        totalShifts: totalShifts,
+      );
+    }
+    _handleError(response);
+  }
+
+  Future<Map<String, dynamic>?> getLatestReport() async {
+    final uri = Uri.parse('$baseUrl/api/v1/reports/latest');
+    final headers = await _buildHeaders();
+    final response = await _httpClient.get(uri, headers: headers);
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    if (response.statusCode == 404) {
+      return null;
+    }
+    _handleError(response);
+  }
+
+  Future<Uint8List> downloadReport(String filename) async {
+    final encoded = Uri.encodeComponent(filename);
+    final uri = Uri.parse('$baseUrl/api/v1/reports/download/$encoded');
+    final headers = await _buildHeaders();
+    final response = await _httpClient.get(uri, headers: headers);
+    if (response.statusCode == 200) {
+      return response.bodyBytes;
     }
     _handleError(response);
   }

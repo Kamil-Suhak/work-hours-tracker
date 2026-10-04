@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../api/models.dart';
 import '../history/recent_shifts_sheet.dart';
+import '../reports/reports_screen.dart';
 import '../settings/settings_dialog.dart';
 import '../settings/settings_notifier.dart';
 import '../settings/widget_sync_service.dart';
@@ -64,6 +65,15 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.assessment_outlined),
+          tooltip: 'Reports',
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ReportsScreen()),
+            );
+          },
+        ),
         title: const Text('Work Hours Tracker'),
         centerTitle: true,
         actions: [
