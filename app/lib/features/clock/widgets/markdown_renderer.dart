@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 /// - # Heading 1
 /// - ## Heading 2
 /// - ### Heading 3
+/// - ``` code block ```
+/// - - [ ] or - [x] task checkbox
 /// - - Bullet list or * Bullet list
 /// - **bold** inline
 /// - *italic* or _italic_ inline
@@ -43,6 +45,39 @@ class MarkdownText extends StatelessWidget {
         continue;
       }
 
+      if (trimmed.startsWith('```')) {
+        final codeLines = <String>[];
+        i++;
+        while (i < lines.length && !lines[i].trim().startsWith('```')) {
+          codeLines.add(lines[i]);
+          i++;
+        }
+        final codeContent = codeLines.join('\n');
+        widgets.add(Container(
+          margin: const EdgeInsets.symmetric(vertical: 6),
+          padding: const EdgeInsets.all(12),
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F172A),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFF334155), width: 1),
+          ),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Text(
+              codeContent,
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12.5,
+                color: Color(0xFF38BDF8),
+                height: 1.4,
+              ),
+            ),
+          ),
+        ));
+        continue;
+      }
+
       if (trimmed.startsWith('# ')) {
         widgets.add(Padding(
           padding: const EdgeInsets.only(top: 8, bottom: 4),
@@ -78,6 +113,45 @@ class MarkdownText extends StatelessWidget {
               fontWeight: FontWeight.w600,
               color: Color(0xFF94A3B8),
             ),
+          ),
+        ));
+      } else if (trimmed.startsWith('- [ ] ') ||
+          trimmed.startsWith('* [ ] ') ||
+          trimmed.startsWith('- [x] ') ||
+          trimmed.startsWith('- [X] ') ||
+          trimmed.startsWith('* [x] ') ||
+          trimmed.startsWith('* [X] ')) {
+        final isChecked = trimmed.startsWith('- [x] ') ||
+            trimmed.startsWith('- [X] ') ||
+            trimmed.startsWith('* [x] ') ||
+            trimmed.startsWith('* [X] ');
+        final content = trimmed.substring(6).trim();
+        final textStyle = isChecked
+            ? defaultStyle.copyWith(
+                decoration: TextDecoration.lineThrough,
+                color: const Color(0xFF64748B),
+              )
+            : defaultStyle;
+
+        widgets.add(Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 2, right: 8),
+                child: Icon(
+                  isChecked ? Icons.check_box : Icons.check_box_outline_blank,
+                  size: 16,
+                  color: isChecked ? accent : const Color(0xFF94A3B8),
+                ),
+              ),
+              Expanded(
+                child: Text.rich(
+                  _parseInline(content, textStyle, accent),
+                ),
+              ),
+            ],
           ),
         ));
       } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {

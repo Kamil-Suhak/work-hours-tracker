@@ -49,5 +49,36 @@ void main() {
       expect(find.byType(MarkdownText), findsOneWidget);
       expect(find.textContaining('bold part'), findsOneWidget);
     });
+
+    testWidgets('renders fenced code blocks correctly', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: MarkdownText(
+              markdown: '```dart\nfinal x = 42;\nprint(x);\n```',
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('final x = 42;\nprint(x);'), findsOneWidget);
+    });
+
+    testWidgets('renders task checkboxes correctly', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: MarkdownText(
+              markdown: '- [ ] Uncompleted task\n- [x] Completed task',
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byIcon(Icons.check_box_outline_blank), findsOneWidget);
+      expect(find.byIcon(Icons.check_box), findsOneWidget);
+      expect(find.textContaining('Uncompleted task'), findsOneWidget);
+      expect(find.textContaining('Completed task'), findsOneWidget);
+    });
   });
 }
