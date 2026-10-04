@@ -235,6 +235,8 @@ class _ShiftNotesCardState extends State<ShiftNotesCard> {
                       controller: widget.controller,
                       maxLines: 5,
                       minLines: 3,
+                      maxLength: 4000,
+                      maxLengthEnforcement: MaxLengthEnforcement.enforced,
                       inputFormatters: const [
                         MarkdownListInputFormatter(),
                       ],

@@ -57,4 +57,16 @@ describe("Admin Manual Events Validation", () => {
     expect(valid.reason).toBe("Backfill for first work day");
     expect(valid.requestId).toBe("req-backfill-5");
   });
+
+  it("rejects manual shift notes exceeding 4,000 characters", () => {
+    expect(() =>
+      validateManualEventRequest({
+        clockInAt: "2026-10-02T06:00:00.000Z",
+        clockOutAt: "2026-10-02T14:00:00.000Z",
+        reason: "Valid reason",
+        requestId: "req-backfill-note-len",
+        note: "a".repeat(4001),
+      }),
+    ).toThrow(/Note must not exceed 4,000 characters/);
+  });
 });

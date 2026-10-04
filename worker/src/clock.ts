@@ -50,6 +50,15 @@ export function validateClockRequest(body: unknown): ClockRequestBody {
     ? ((body as Record<string, unknown>).note as string).trim()
     : undefined;
 
+  if (note !== undefined && note.length > 4000) {
+    throw new AppError(
+      'NOTE_TOO_LONG',
+      'Note must not exceed 4,000 characters',
+      400,
+      requestId
+    );
+  }
+
   return {
     requestId: requestId.trim(),
     source: source as EventSource,

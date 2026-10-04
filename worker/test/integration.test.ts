@@ -220,6 +220,23 @@ describe('Worker End-to-End Integration Suite', () => {
       expect(clockOutEvent?.note).toBe(noteText);
     });
 
+    it('rejects clock-out with note exceeding 4,000 characters', async () => {
+      const res = await worker.fetch(
+        createRequest('/api/v1/clock-out', {
+          method: 'POST',
+          body: {
+            requestId: 'req-out-toolong',
+            source: 'flutter_app',
+            note: 'x'.repeat(4001),
+          },
+        }),
+        env
+      );
+      expect(res.status).toBe(400);
+      const data = await res.json() as { error: { code: string; message: string } };
+      expect(data.error.code).toBe('NOTE_TOO_LONG');
+    });
+
     it('returns changed: false when clocking out while already clocked out', async () => {
       const reqOut = createRequest('/api/v1/clock-out', {
         method: 'POST',
