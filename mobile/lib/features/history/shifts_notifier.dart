@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../clock/clock_notifier.dart';
 import 'shift_model.dart';
-import 'shift_notes_storage.dart';
 
 class ShiftsNotifier extends AsyncNotifier<List<ShiftRecord>> {
   @override
@@ -10,7 +9,6 @@ class ShiftsNotifier extends AsyncNotifier<List<ShiftRecord>> {
   }
 
   Future<List<ShiftRecord>> _fetchShifts() async {
-    await ShiftNotesStorage.loadCache();
     final repository = ref.read(timeTrackingRepositoryProvider);
     final now = DateTime.now().toUtc();
     final from = DateTime.utc(now.year, now.month - 1, 1);

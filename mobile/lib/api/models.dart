@@ -42,7 +42,8 @@ class LatestEventSummary {
   bool isWithinGracePeriod({DateTime? now, Duration grace = const Duration(minutes: 5)}) {
     final reference = (now ?? DateTime.now()).toUtc();
     final diff = reference.difference(occurredAtUtc.toUtc());
-    return diff >= Duration.zero && diff <= grace;
+    // Tolerate up to 2 minutes of forward clock skew between device and server NTP clocks
+    return diff >= const Duration(minutes: -2) && diff <= grace;
   }
 }
 

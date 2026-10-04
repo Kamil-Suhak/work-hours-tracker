@@ -35,7 +35,7 @@ class CurrentStatusNotifier extends AsyncNotifier<WorkStatus> {
   }
 
   Future<void> refreshStatus() async {
-    state = const AsyncValue.loading();
+    state = const AsyncLoading<WorkStatus>().copyWithPrevious(state);
     state = await AsyncValue.guard(() async {
       final repository = ref.read(timeTrackingRepositoryProvider);
       return await repository.fetchCurrentStatus();
@@ -43,7 +43,7 @@ class CurrentStatusNotifier extends AsyncNotifier<WorkStatus> {
   }
 
   Future<void> clockIn() async {
-    state = const AsyncValue.loading();
+    state = const AsyncLoading<WorkStatus>().copyWithPrevious(state);
     state = await AsyncValue.guard(() async {
       final repository = ref.read(timeTrackingRepositoryProvider);
       final res = await repository.clockIn();
@@ -53,7 +53,7 @@ class CurrentStatusNotifier extends AsyncNotifier<WorkStatus> {
   }
 
   Future<void> clockOut({String? note}) async {
-    state = const AsyncValue.loading();
+    state = const AsyncLoading<WorkStatus>().copyWithPrevious(state);
     state = await AsyncValue.guard(() async {
       final repository = ref.read(timeTrackingRepositoryProvider);
       final res = await repository.clockOut(note: note);
@@ -63,7 +63,7 @@ class CurrentStatusNotifier extends AsyncNotifier<WorkStatus> {
   }
 
   Future<void> undo(String eventId) async {
-    state = const AsyncValue.loading();
+    state = const AsyncLoading<WorkStatus>().copyWithPrevious(state);
     state = await AsyncValue.guard(() async {
       final repository = ref.read(timeTrackingRepositoryProvider);
       final result = await repository.undo(eventId);

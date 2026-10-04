@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'features/clock/clock_notifier.dart';
 import 'features/clock/clock_screen.dart';
 
+import 'features/history/shift_notes_storage.dart';
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(
@@ -24,6 +26,7 @@ class _WorkHoursAppState extends ConsumerState<WorkHoursApp> with WidgetsBinding
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    ShiftNotesStorage.purgeLegacyCache();
   }
 
   @override

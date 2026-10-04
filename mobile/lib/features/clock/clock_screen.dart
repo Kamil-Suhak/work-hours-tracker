@@ -1,10 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../api/models.dart';
 import '../history/recent_shifts_sheet.dart';
-import '../history/shift_notes_storage.dart';
 import '../settings/settings_dialog.dart';
 import '../settings/settings_notifier.dart';
 import '../settings/widget_sync_service.dart';
@@ -27,17 +27,40 @@ class ClockScreen extends ConsumerStatefulWidget {
 
 class _ClockScreenState extends ConsumerState<ClockScreen> {
   final _notesController = TextEditingController();
+  Timer? _gracePeriodTicker;
 
   @override
   void dispose() {
+    _gracePeriodTicker?.cancel();
     _notesController.dispose();
     super.dispose();
+  }
+
+  void _syncGracePeriodTicker(WorkStatus? status) {
+    final hasGraceEvent = status?.latestEvent?.isWithinGracePeriod() ?? false;
+    if (hasGraceEvent) {
+      if (_gracePeriodTicker == null || !_gracePeriodTicker!.isActive) {
+        _gracePeriodTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+          if (!mounted) return;
+          final stillWithin = ref.read(currentStatusProvider).value?.latestEvent?.isWithinGracePeriod() ?? false;
+          setState(() {});
+          if (!stillWithin) {
+            _gracePeriodTicker?.cancel();
+            _gracePeriodTicker = null;
+          }
+        });
+      }
+    } else {
+      _gracePeriodTicker?.cancel();
+      _gracePeriodTicker = null;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final statusAsync = ref.watch(currentStatusProvider);
     final isLoading = statusAsync.isLoading;
+    _syncGracePeriodTicker(statusAsync.value);
 
     return Scaffold(
       appBar: AppBar(
@@ -189,9 +212,6 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
                     : () async {
                         _triggerHapticIfEnabled();
                         final note = _notesController.text.trim();
-                        if (note.isNotEmpty) {
-                          await ShiftNotesStorage.recordShiftNote(note, DateTime.now());
-                        }
                         await ref
                             .read(currentStatusProvider.notifier)
                             .clockOut(note: note.isNotEmpty ? note : null);
@@ -202,12 +222,6 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
             ),
           ],
         ),
-
-        // Optional Shift Notes Box when Clocked In
-        if (isClockedIn) ...[
-          const SizedBox(height: 24),
-          ShiftNotesCard(controller: _notesController),
-        ],
 
         // Undo recent event button (shown only within 5-min grace window)
         if (status.latestEvent != null &&
@@ -237,6 +251,12 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
                       ),
             ),
           ),
+        ],
+
+        // Optional Shift Notes Box when Clocked In
+        if (isClockedIn) ...[
+          const SizedBox(height: 24),
+          ShiftNotesCard(controller: _notesController),
         ],
 
         const SizedBox(height: 24),

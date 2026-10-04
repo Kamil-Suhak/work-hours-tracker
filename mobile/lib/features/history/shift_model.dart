@@ -1,5 +1,4 @@
 import '../../api/models.dart';
-import 'shift_notes_storage.dart';
 
 class ShiftRecord {
   final TrackingEvent clockIn;
@@ -22,9 +21,9 @@ class ShiftRecord {
   }
 
   String? get note {
-    if (clockOut.note?.trim().isNotEmpty == true) return clockOut.note;
-    if (clockIn.note?.trim().isNotEmpty == true) return clockIn.note;
-    return ShiftNotesStorage.getCachedNote(endTime);
+    if (clockOut.note?.trim().isNotEmpty == true) return clockOut.note!.trim();
+    if (clockIn.note?.trim().isNotEmpty == true) return clockIn.note!.trim();
+    return null;
   }
 
   bool get hasNote => note != null && note!.trim().isNotEmpty;
