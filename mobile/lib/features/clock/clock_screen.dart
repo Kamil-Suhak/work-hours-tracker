@@ -8,8 +8,8 @@ import '../settings/settings_dialog.dart';
 import '../settings/settings_notifier.dart';
 import '../settings/widget_sync_service.dart';
 import 'clock_notifier.dart';
-import 'widgets/live_shift_timer.dart';
-import 'widgets/pulse_status_badge.dart';
+import 'widgets/current_shift_timer_card.dart';
+import 'widgets/cyber_orbit_badge.dart';
 
 class ClockScreen extends ConsumerStatefulWidget {
   final bool enableAnimations;
@@ -66,15 +66,18 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 24.0, vertical: 32.0),
-                  child: statusAsync.when(
-                    data: (status) =>
-                        _buildStatusContent(context, status, isLoading),
-                    loading: () => const Center(
-                      child: CircularProgressIndicator(),
-                    ),
-                    error: (err, stack) =>
-                        _buildErrorContent(context, err, isLoading),
-                  ),
+                  child: statusAsync.hasValue
+                      ? _buildStatusContent(
+                          context, statusAsync.value!, isLoading)
+                      : statusAsync.when(
+                          data: (status) =>
+                              _buildStatusContent(context, status, isLoading),
+                          loading: () => const Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                          error: (err, stack) =>
+                              _buildErrorContent(context, err, isLoading),
+                        ),
                 ),
               ),
             );
@@ -93,95 +96,25 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Status Badge with Breathing Pulse Glow
+        // Status Badge with Animated Cyber Orbiting Beacon
         Center(
-          child: PulseStatusBadge(
+          child: CyberOrbitBadge(
             isClockedIn: isClockedIn,
-            enablePulseAnimation: widget.enableAnimations,
+            enableAnimation: widget.enableAnimations,
           ),
         ),
         const SizedBox(height: 28),
 
-        // Live Running Stopwatch for Active Shift
-        if (isClockedIn && status.activeSince != null) ...[
-          Center(
-            child: LiveShiftTimer(
-              activeSince: status.activeSince!,
-              enablePeriodicTimer: widget.enableAnimations,
-            ),
-          ),
-        ],
-
-        // Today's total card
-        Card(
-          elevation: 2,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              children: [
-                Text(
-                  "Today's Tracked Time",
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: Colors.grey[600],
-                      ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  formatSeconds(status.todaySeconds),
-                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Month to date: ${formatSeconds(status.monthSeconds)}',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.grey[500],
-                      ),
-                ),
-                const SizedBox(height: 14),
-                InkWell(
-                  borderRadius: BorderRadius.circular(8),
-                  onTap: () => RecentShiftsSheet.show(context),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.history,
-                          size: 16,
-                          color: Color(0xFF0F766E),
-                        ),
-                        const SizedBox(width: 6),
-                        const Text(
-                          'View Shift History',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF0F766E),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Icon(
-                          Icons.chevron_right,
-                          size: 16,
-                          color: Color(0xFF0F766E),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        // Central Current Shift Timer Card (Stationary Anchor)
+        CurrentShiftTimerCard(
+          isClockedIn: isClockedIn,
+          activeSince: status.activeSince,
+          todaySeconds: status.todaySeconds,
+          monthSeconds: status.monthSeconds,
+          enablePeriodicTimer: widget.enableAnimations,
+          onViewHistory: () => RecentShiftsSheet.show(context),
         ),
-        const SizedBox(height: 48),
+        const SizedBox(height: 36),
 
         // Action Buttons
         Row(
@@ -189,10 +122,19 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
             Expanded(
               child: ElevatedButton.icon(
                 key: const Key('clock_in_button'),
-                icon: const Icon(Icons.play_arrow),
+                icon: isLoading && !isClockedIn
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.play_arrow),
                 label: const Text('CLOCK IN'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
+                  backgroundColor: const Color(0xFF10B981),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 18),
                   shape: RoundedRectangleBorder(
@@ -213,10 +155,19 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
             Expanded(
               child: ElevatedButton.icon(
                 key: const Key('clock_out_button'),
-                icon: const Icon(Icons.stop),
+                icon: isLoading && isClockedIn
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.stop),
                 label: const Text('CLOCK OUT'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.redAccent,
+                  backgroundColor: const Color(0xFFEF4444),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 18),
                   shape: RoundedRectangleBorder(

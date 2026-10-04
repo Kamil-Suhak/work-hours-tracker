@@ -26,7 +26,9 @@ void main() {
               () => _MockStatusNotifier(AsyncValue.data(mockStatus)),
             ),
           ],
-          child: const MaterialApp(home: ClockScreen()),
+          child: const MaterialApp(
+            home: ClockScreen(enableAnimations: false),
+          ),
         ),
       );
 
@@ -34,7 +36,7 @@ void main() {
 
       expect(find.text('Work Hours Tracker'), findsOneWidget);
       expect(find.text('CLOCKED OUT'), findsOneWidget);
-      expect(find.text('4h 0m'), findsOneWidget);
+      expect(find.textContaining('4h 0m'), findsOneWidget);
 
       final clockInBtn = tester
           .widget<ElevatedButton>(find.byKey(const Key('clock_in_button')));
@@ -72,7 +74,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('CLOCKED IN'), findsOneWidget);
-      expect(find.textContaining('Active since'), findsOneWidget);
+      expect(find.textContaining('Started at'), findsOneWidget);
 
       final clockInBtn = tester
           .widget<ElevatedButton>(find.byKey(const Key('clock_in_button')));
