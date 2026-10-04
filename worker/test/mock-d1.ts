@@ -77,13 +77,14 @@ export class MockPreparedStatement {
   async all<T = Record<string, unknown>>(): Promise<D1Result<T>> {
     const q = this.query.trim();
 
-    if (q.includes('FROM events') && q.includes('occurred_at_utc >= ?') && q.includes('occurred_at_utc <= ?')) {
+    if (q.includes('FROM events') && q.includes('occurred_at_utc >= ?') && (q.includes('occurred_at_utc <= ?') || q.includes('occurred_at_utc < ?'))) {
       const userId = this.boundArgs[0] as string;
       const from = this.boundArgs[1] as string;
       const to = this.boundArgs[2] as string;
+      const isLessEqual = q.includes('occurred_at_utc <= ?');
 
       const filtered = this.db.events
-        .filter((e) => e.user_id === userId && e.occurred_at_utc >= from && e.occurred_at_utc <= to)
+        .filter((e) => e.user_id === userId && e.occurred_at_utc >= from && (isLessEqual ? e.occurred_at_utc <= to : e.occurred_at_utc < to))
         .sort((a, b) => a.occurred_at_utc.localeCompare(b.occurred_at_utc) || a.id.localeCompare(b.id));
 
       return {

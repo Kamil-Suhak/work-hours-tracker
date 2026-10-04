@@ -25,6 +25,76 @@ export function formatDuration(totalSeconds: number): string {
   return `${hours}h ${minutes}m`;
 }
 
+/**
+ * Converts a wall-clock date and time in Europe/Warsaw into its corresponding UTC Date instant.
+ * Handles daylight saving transitions (CET UTC+1 / CEST UTC+2).
+ */
+export function warsawWallClockToUtc(
+  year: number,
+  month: number, // 1-12
+  day: number,
+  hour = 0,
+  minute = 0,
+  second = 0
+): Date {
+  const approxUtc = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: WARSAW_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(approxUtc);
+
+  const getPart = (type: string) => parseInt(parts.find((p) => p.type === type)?.value || '0', 10);
+  const warsawYear = getPart('year');
+  const warsawMonth = getPart('month');
+  const warsawDay = getPart('day');
+  let warsawHour = getPart('hour');
+  if (warsawHour === 24) warsawHour = 0;
+  const warsawMinute = getPart('minute');
+  const warsawSecond = getPart('second');
+
+  const warsawAsUtc = Date.UTC(warsawYear, warsawMonth - 1, warsawDay, warsawHour, warsawMinute, warsawSecond);
+  const offsetMs = warsawAsUtc - approxUtc.getTime();
+
+  return new Date(approxUtc.getTime() - offsetMs);
+}
+
+/**
+ * Returns the exact UTC start and end bounds for the previous calendar month in Europe/Warsaw.
+ * Uses half-open interval [startIso, endIso).
+ */
+export function getPreviousWarsawMonthRangeUtc(now: Date = new Date()): {
+  startIso: string;
+  endIso: string;
+  monthString: string;
+} {
+  const { monthString: currentMonthString } = getWarsawDateComponents(now);
+  const currentYear = parseInt(currentMonthString.slice(0, 4), 10);
+  const currentMonth = parseInt(currentMonthString.slice(5, 7), 10);
+
+  let prevYear = currentYear;
+  let prevMonth = currentMonth - 1;
+  if (prevMonth === 0) {
+    prevMonth = 12;
+    prevYear -= 1;
+  }
+
+  const monthString = `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
+  const startUtc = warsawWallClockToUtc(prevYear, prevMonth, 1, 0, 0, 0);
+  const endUtc = warsawWallClockToUtc(currentYear, currentMonth, 1, 0, 0, 0);
+
+  return {
+    startIso: startUtc.toISOString(),
+    endIso: endUtc.toISOString(),
+    monthString,
+  };
+}
+
 export function pairShifts(events: EventRow[]): {
   clockIn: EventRow;
   clockOut: EventRow;
@@ -62,7 +132,8 @@ export async function calculateDurations(
   userId: string,
   currentState: WorkState,
   activeSinceUtc: string | null,
-  now: Date
+  now: Date,
+  excludeEventId?: string
 ): Promise<{ todaySeconds: number; monthSeconds: number }> {
   const { dateString: todayString, monthString: currentMonthString } =
     getWarsawDateComponents(now);
@@ -81,7 +152,10 @@ export async function calculateDurations(
     .bind(userId, queryStartUtc)
     .all<EventRow>();
 
-  const events = rawEvents ?? [];
+  const allEvents = rawEvents ?? [];
+  const events = excludeEventId
+    ? allEvents.filter((e) => e.id !== excludeEventId)
+    : allEvents;
   const shifts = pairShifts(events);
 
   let todaySeconds = 0;

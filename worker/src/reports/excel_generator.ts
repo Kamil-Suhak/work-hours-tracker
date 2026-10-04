@@ -28,6 +28,24 @@ export function cleanMarkdownForExcel(text?: string | null): string {
     .join('; ');
 }
 
+export function formatWarsawDate(date: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Warsaw',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+export function formatWarsawTime(date: Date): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Warsaw',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
+}
+
 function escapeXml(str: string): string {
   return str
     .replace(/&/g, '&amp;')
@@ -57,9 +75,9 @@ export function pairEventsIntoReportShifts(events: EventRow[]): ShiftSummaryItem
       const mins = durationMinutes % 60;
       const hoursDecimal = Math.round((durationMinutes / 60) * 100) / 100;
 
-      const dateStr = inDate.toISOString().slice(0, 10);
-      const startTimeLocal = inDate.toISOString().slice(11, 16);
-      const endTimeLocal = outDate.toISOString().slice(11, 16);
+      const dateStr = formatWarsawDate(inDate);
+      const startTimeLocal = formatWarsawTime(inDate);
+      const endTimeLocal = formatWarsawTime(outDate);
 
       const note = cleanMarkdownForExcel(event.note ?? pendingClockIn.note);
 

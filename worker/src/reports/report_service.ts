@@ -9,6 +9,7 @@ import type {
 } from '../types';
 import { AppError } from '../errors';
 import { DEFAULT_USER_ID } from '../clock';
+import { getPreviousWarsawMonthRangeUtc } from '../status';
 import { generateExcelWorkbook } from './excel_generator';
 
 export function validateReportRequest(body: unknown): GenerateReportRequestBody {
@@ -59,14 +60,19 @@ export async function fetchEventsForRange(
   db: D1Database,
   userId: string,
   startIso: string,
-  endIso: string
+  endIso: string,
+  inclusiveEnd = true
 ): Promise<EventRow[]> {
-  const { results } = await db
-    .prepare(
-      `SELECT * FROM events
+  const query = inclusiveEnd
+    ? `SELECT * FROM events
        WHERE user_id = ? AND occurred_at_utc >= ? AND occurred_at_utc <= ?
        ORDER BY occurred_at_utc ASC, id ASC`
-    )
+    : `SELECT * FROM events
+       WHERE user_id = ? AND occurred_at_utc >= ? AND occurred_at_utc < ?
+       ORDER BY occurred_at_utc ASC, id ASC`;
+
+  const { results } = await db
+    .prepare(query)
     .bind(userId, startIso, endIso)
     .all<EventRow>();
 
@@ -155,33 +161,28 @@ export async function runScheduledMonthlyReport(
   bucket?: R2Bucket,
   now: Date = new Date()
 ): Promise<{ formalFilename: string; fullFilename: string } | null> {
-  // Determine previous month range in UTC
-  const year = now.getUTCFullYear();
-  const month = now.getUTCMonth(); // 0-indexed: current month
-  // Previous month start: day 1 of month - 1
-  const prevMonthStart = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
-  // Previous month end: day 0 of current month at 23:59:59.999
-  const prevMonthEnd = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+  // Determine previous calendar month range in Europe/Warsaw
+  const { startIso, endIso, monthString: monthStr } = getPreviousWarsawMonthRangeUtc(now);
 
-  const monthStr = prevMonthStart.toISOString().slice(0, 7); // YYYY-MM
   const events = await fetchEventsForRange(
     db,
     DEFAULT_USER_ID,
-    prevMonthStart.toISOString(),
-    prevMonthEnd.toISOString()
+    startIso,
+    endIso,
+    false // half-open interval: [startIso, endIso)
   );
 
   // Generate Formal report
   const formal = generateExcelWorkbook(events, {
-    startDate: prevMonthStart.toISOString(),
-    endDate: prevMonthEnd.toISOString(),
+    startDate: startIso,
+    endDate: endIso,
     preset: 'formal',
   });
 
   // Generate Full report
   const full = generateExcelWorkbook(events, {
-    startDate: prevMonthStart.toISOString(),
-    endDate: prevMonthEnd.toISOString(),
+    startDate: startIso,
+    endDate: endIso,
     preset: 'full',
     options: { includeNotes: true, includeStats: true, includeSource: true },
   });
