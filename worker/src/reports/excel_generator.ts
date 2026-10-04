@@ -46,6 +46,15 @@ export function formatWarsawTime(date: Date): string {
   }).format(date);
 }
 
+export function sanitizeFormulaCell(text?: string | null): string {
+  if (!text) return '';
+  const first = text.charAt(0);
+  if (first === '=' || first === '+' || first === '-' || first === '@' || first === '\t' || first === '\r') {
+    return `'${text}`;
+  }
+  return text;
+}
+
 function escapeXml(str: string): string {
   return str
     .replace(/&/g, '&amp;')
@@ -326,15 +335,15 @@ export function buildWorksheetXml(
     if (i < shifts.length) {
       const shift = shifts[i];
       let c = 0;
-      xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(shift.date)}</t></is></c>`;
-      xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(shift.startTimeLocal)}</t></is></c>`;
-      xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(shift.endTimeLocal)}</t></is></c>`;
-      xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(shift.durationFormatted)}</t></is></c>`;
+      xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(shift.date))}</t></is></c>`;
+      xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(shift.startTimeLocal))}</t></is></c>`;
+      xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(shift.endTimeLocal))}</t></is></c>`;
+      xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(shift.durationFormatted))}</t></is></c>`;
       if (includeSource) {
-        xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(shift.source)}</t></is></c>`;
+        xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(shift.source))}</t></is></c>`;
       }
       if (includeNotes) {
-        xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="0" t="inlineStr"><is><t>${escapeXml(shift.note ?? '')}</t></is></c>`;
+        xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="0" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(shift.note ?? ''))}</t></is></c>`;
       }
     } else if (i === shifts.length) {
       // Left Table: TOTAL row
@@ -342,7 +351,7 @@ export function buildWorksheetXml(
       xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="2" t="inlineStr"><is><t>TOTAL</t></is></c>`;
       xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="2" t="inlineStr"><is><t>${shifts.length} Shifts</t></is></c>`;
       xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="2" t="inlineStr"><is><t>${stats.totalDays} Days</t></is></c>`;
-      xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="2" t="inlineStr"><is><t>${escapeXml(stats.totalHoursFormatted)}</t></is></c>`;
+      xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="2" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(stats.totalHoursFormatted))}</t></is></c>`;
       while (c < numTable1Cols) {
         xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="2" t="inlineStr"><is><t></t></is></c>`;
       }
@@ -350,8 +359,8 @@ export function buildWorksheetXml(
 
     // Right Table: side-by-side Summary Statistics
     if (includeStats && i < statRows.length) {
-      xml += `\n      <c r="${getColLetter(statCol1Idx)}${rowNum}" s="0" t="inlineStr"><is><t>${escapeXml(statRows[i].label)}</t></is></c>`;
-      xml += `\n      <c r="${getColLetter(statCol2Idx)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(statRows[i].val)}</t></is></c>`;
+      xml += `\n      <c r="${getColLetter(statCol1Idx)}${rowNum}" s="0" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(statRows[i].label))}</t></is></c>`;
+      xml += `\n      <c r="${getColLetter(statCol2Idx)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(statRows[i].val))}</t></is></c>`;
     }
 
     xml += `\n    </row>`;

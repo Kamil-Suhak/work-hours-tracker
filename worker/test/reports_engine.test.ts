@@ -6,6 +6,8 @@ import {
   computeReportStats,
   generateExcelWorkbook,
   computeCrc32,
+  sanitizeFormulaCell,
+  buildWorksheetXml,
 } from '../src/reports/excel_generator';
 import { validateReportRequest } from '../src/reports/report_service';
 import { getPreviousWarsawMonthRangeUtc, warsawWallClockToUtc } from '../src/status';
@@ -217,6 +219,38 @@ describe('Reports Engine Unit Tests', () => {
     const crc = computeCrc32(testData);
     // Standard CRC-32 for "123456789" is 0xcbf43926 (3421780262)
     expect(crc).toBe(0xcbf43926);
+  });
+
+  it('sanitizeFormulaCell neutralizes formula prefixes with a single quote', () => {
+    expect(sanitizeFormulaCell('=SUM(A1:A10)')).toBe("'=SUM(A1:A10)");
+    expect(sanitizeFormulaCell('+123456')).toBe("'+123456");
+    expect(sanitizeFormulaCell('-5+10')).toBe("'-5+10");
+    expect(sanitizeFormulaCell('@cmd|')).toBe("'@cmd|");
+    expect(sanitizeFormulaCell('\tmalicious')).toBe("'\tmalicious");
+    expect(sanitizeFormulaCell('Safe normal note')).toBe('Safe normal note');
+    expect(sanitizeFormulaCell('')).toBe('');
+    expect(sanitizeFormulaCell(null)).toBe('');
+  });
+
+  it('buildWorksheetXml neutralizes formula-like notes in sheet data', () => {
+    const mockShifts = [
+      {
+        date: '2026-10-01',
+        clockInUtc: '2026-10-01T08:00:00Z',
+        clockOutUtc: '2026-10-01T16:00:00Z',
+        startTimeLocal: '10:00',
+        endTimeLocal: '18:00',
+        durationMinutes: 480,
+        durationHoursDecimal: 8.0,
+        durationFormatted: '8h 0m',
+        note: '=cmd|\'/C calc\'!A0',
+        source: 'flutter_app' as const,
+      },
+    ];
+
+    const stats = computeReportStats(mockShifts);
+    const xml = buildWorksheetXml(mockShifts, stats, 'full');
+    expect(xml).toContain("t=\"inlineStr\"><is><t>&apos;=cmd|&apos;/C calc&apos;!A0</t></is>");
   });
 
   it('warsawWallClockToUtc correctly computes UTC instant for summer (CEST) and winter (CET)', () => {
