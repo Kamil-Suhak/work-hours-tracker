@@ -311,12 +311,26 @@ export default {
         }
 
         const rawFilename = pathname.replace('/api/v1/reports/download/', '');
-        const filename = decodeURIComponent(rawFilename);
-        const key = filename.startsWith('reports/') ? filename : `reports/${filename}`;
+        const filename = decodeURIComponent(rawFilename).trim();
+
+        // Reject directory traversal or path separators
+        if (filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
+          throw new AppError('INVALID_FILENAME', 'Invalid report filename requested.', 400, correlationId);
+        }
+
+        // Strict filename validation:
+        // Matches work-hours-YYYY-MM-(formal|full).xlsx or work-hours-YYYY-MM-DD-to-YYYY-MM-DD-(formal|full).xlsx
+        const SAFE_REPORT_FILENAME_REGEX =
+          /^work-hours-(?:\d{4}-\d{2}|\d{4}-\d{2}-\d{2}-to-\d{4}-\d{2}-\d{2})-(?:formal|full)\.xlsx$/;
+        if (!SAFE_REPORT_FILENAME_REGEX.test(filename)) {
+          throw new AppError('INVALID_FILENAME', 'Invalid report filename requested.', 400, correlationId);
+        }
+
+        const key = `reports/${filename}`;
         const object = await env.REPORTS_BUCKET.get(key);
 
         if (!object) {
-          throw new AppError('REPORT_NOT_FOUND', `Report "${filename}" was not found.`, 404, correlationId);
+          throw new AppError('REPORT_NOT_FOUND', 'Requested report file was not found.', 404, correlationId);
         }
 
         console.log(
@@ -335,7 +349,7 @@ export default {
           headers: {
             ...standardHeaders,
             'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'Content-Disposition': `attachment; filename="${key.split('/').pop()}"`,
+            'Content-Disposition': `attachment; filename="${filename}"`,
           },
         });
       }

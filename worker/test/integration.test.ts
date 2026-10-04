@@ -614,6 +614,127 @@ describe('Worker End-to-End Integration Suite', () => {
     });
   });
 
+  describe('Report Download & Storage Hardening', () => {
+    it('rejects download when REPORTS_BUCKET is not configured', async () => {
+      const res = await worker.fetch(
+        createRequest('/api/v1/reports/download/work-hours-2026-10-formal.xlsx'),
+        env
+      );
+      expect(res.status).toBe(503);
+      const data = await res.json() as { error: { code: string } };
+      expect(data.error.code).toBe('STORAGE_NOT_CONFIGURED');
+    });
+
+    it('rejects path traversal and directory separators in download filename', async () => {
+      const mockBucket: Record<string, Uint8Array> = {};
+      const bucketEnv: Env = {
+        ...env,
+        REPORTS_BUCKET: {
+          get: async (key: string) => {
+            if (!mockBucket[key]) return null;
+            return {
+              body: mockBucket[key] as any,
+              customMetadata: {},
+            } as any;
+          },
+        } as any,
+      };
+
+      const traversalFilenames = [
+        '..%2F..%2Fsecrets.json',
+        'subfolder/work-hours-2026-10-formal.xlsx',
+        '..%5Cwork-hours-2026-10-formal.xlsx',
+      ];
+
+      for (const name of traversalFilenames) {
+        const res = await worker.fetch(
+          createRequest(`/api/v1/reports/download/${name}`),
+          bucketEnv
+        );
+        expect(res.status).toBe(400);
+        const data = await res.json() as { error: { code: string } };
+        expect(data.error.code).toBe('INVALID_FILENAME');
+      }
+    });
+
+    it('rejects malformed filenames that do not match report naming convention', async () => {
+      const bucketEnv: Env = {
+        ...env,
+        REPORTS_BUCKET: {
+          get: async () => null,
+        } as any,
+      };
+
+      const invalidNames = [
+        'malicious-file.exe',
+        'work-hours-notadate-formal.xlsx',
+        'work-hours-2026-10.csv',
+      ];
+
+      for (const name of invalidNames) {
+        const res = await worker.fetch(
+          createRequest(`/api/v1/reports/download/${name}`),
+          bucketEnv
+        );
+        expect(res.status).toBe(400);
+        const data = await res.json() as { error: { code: string } };
+        expect(data.error.code).toBe('INVALID_FILENAME');
+      }
+    });
+
+    it('returns 404 when valid report filename is not present in bucket', async () => {
+      const bucketEnv: Env = {
+        ...env,
+        REPORTS_BUCKET: {
+          get: async () => null,
+        } as any,
+      };
+
+      const res = await worker.fetch(
+        createRequest('/api/v1/reports/download/work-hours-2026-10-formal.xlsx'),
+        bucketEnv
+      );
+      expect(res.status).toBe(404);
+      const data = await res.json() as { error: { code: string } };
+      expect(data.error.code).toBe('REPORT_NOT_FOUND');
+    });
+
+    it('serves report with correct headers and Content-Disposition when present', async () => {
+      const samplePayload = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x00, 0x01]);
+      const mockBucket: Record<string, Uint8Array> = {
+        'reports/work-hours-2026-10-formal.xlsx': samplePayload,
+      };
+
+      const bucketEnv: Env = {
+        ...env,
+        REPORTS_BUCKET: {
+          get: async (key: string) => {
+            if (!mockBucket[key]) return null;
+            return {
+              body: mockBucket[key] as any,
+              customMetadata: { generatedAt: '2026-10-01T00:00:00Z' },
+            } as any;
+          },
+        } as any,
+      };
+
+      const res = await worker.fetch(
+        createRequest('/api/v1/reports/download/work-hours-2026-10-formal.xlsx'),
+        bucketEnv
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get('Content-Type')).toBe(
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
+      expect(res.headers.get('Content-Disposition')).toBe(
+        'attachment; filename="work-hours-2026-10-formal.xlsx"'
+      );
+      const body = await res.arrayBuffer();
+      expect(new Uint8Array(body)).toEqual(samplePayload);
+    });
+  });
+
   describe('CORS and Security Headers', () => {
     it('allows same-origin or localhost origins and adds security headers', async () => {
       const res = await worker.fetch(
