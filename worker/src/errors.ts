@@ -17,6 +17,7 @@ export function jsonResponse<T>(data: T, status = 200, headers: HeadersInit = {}
     status,
     headers: {
       'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
       ...headers,
     },
   });
@@ -26,7 +27,8 @@ export function errorResponse(
   code: string,
   message: string,
   status = 400,
-  requestId?: string
+  requestId?: string,
+  headers: HeadersInit = {}
 ): Response {
   const payload: ApiErrorResponse = {
     error: {
@@ -35,5 +37,5 @@ export function errorResponse(
       ...(requestId ? { requestId } : {}),
     },
   };
-  return jsonResponse(payload, status);
+  return jsonResponse(payload, status, headers);
 }

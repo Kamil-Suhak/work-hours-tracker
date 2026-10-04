@@ -134,10 +134,13 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
     final isClockedIn = status.state == WorkState.clockedIn;
     final timeFormat = DateFormat('HH:mm');
 
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 500),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
         // Status Badge with Animated Cyber Orbiting Beacon
         Center(
           child: CyberOrbitBadge(
@@ -281,7 +284,9 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
           ),
         ),
       ],
-    );
+    ),
+  ),
+);
   }
 
   void _triggerHapticIfEnabled() {

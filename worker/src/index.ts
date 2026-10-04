@@ -58,19 +58,20 @@ export default {
     const pathname = url.pathname;
     const method = request.method.toUpperCase();
 
-    // Restrictive CORS headers for API clients
-    const standardHeaders = {
+    // Standard CORS and tracing headers for API clients
+    const standardHeaders: Record<string, string> = {
       'X-Correlation-ID': correlationId,
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Correlation-ID',
+      'Access-Control-Expose-Headers':
+        'Content-Disposition, X-Total-Hours, X-Total-Shifts, X-Correlation-ID',
     };
 
     if (method === 'OPTIONS') {
       return new Response(null, {
         status: 204,
-        headers: {
-          ...standardHeaders,
-          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-        },
+        headers: standardHeaders,
       });
     }
 
