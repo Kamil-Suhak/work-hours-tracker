@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../api/models.dart';
 import '../history/recent_shifts_sheet.dart';
+import '../history/shift_notes_storage.dart';
 import '../settings/settings_dialog.dart';
 import '../settings/settings_notifier.dart';
 import '../settings/widget_sync_service.dart';
@@ -188,6 +189,9 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
                     : () async {
                         _triggerHapticIfEnabled();
                         final note = _notesController.text.trim();
+                        if (note.isNotEmpty) {
+                          await ShiftNotesStorage.recordShiftNote(note, DateTime.now());
+                        }
                         await ref
                             .read(currentStatusProvider.notifier)
                             .clockOut(note: note.isNotEmpty ? note : null);

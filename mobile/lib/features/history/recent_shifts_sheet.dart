@@ -23,11 +23,14 @@ class RecentShiftsSheet extends ConsumerWidget {
     final shiftsAsync = ref.watch(shiftsProvider);
     const activeEmerald = Color(0xFF10B981);
 
-    return DraggableScrollableSheet(
-      initialChildSize: 0.75,
-      minChildSize: 0.4,
-      maxChildSize: 0.95,
-      builder: (context, scrollController) {
+    return ScaffoldMessenger(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: DraggableScrollableSheet(
+          initialChildSize: 0.75,
+          minChildSize: 0.4,
+          maxChildSize: 0.95,
+          builder: (context, scrollController) {
         return Container(
           decoration: const BoxDecoration(
             color: Color(0xFF0F172A), // Dark Slate 900
@@ -195,6 +198,8 @@ class RecentShiftsSheet extends ConsumerWidget {
           ),
         );
       },
+    ),
+      ),
     );
   }
 
@@ -219,10 +224,23 @@ class RecentShiftsSheet extends ConsumerWidget {
             _showShiftNoteDialog(context, shift);
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('No notes from this day'),
-                duration: Duration(seconds: 2),
+              SnackBar(
+                content: const Text(
+                  'No notes from this day',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+                backgroundColor: const Color(0xFF334155),
                 behavior: SnackBarBehavior.floating,
+                margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(color: Color(0xFF475569)),
+                ),
+                duration: const Duration(seconds: 2),
               ),
             );
           }

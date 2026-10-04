@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'markdown_renderer.dart';
 
@@ -75,9 +76,14 @@ class _ShiftNotesCardState extends State<ShiftNotesCard> {
 
     if (!selection.isValid || selection.isCollapsed) {
       final cursor = selection.isValid ? selection.baseOffset : text.length;
-      final newText = text.replaceRange(cursor, cursor, '$prefix$suffix');
+      final needsNewline = (prefix.startsWith('- ') || prefix.startsWith('#')) &&
+          cursor > 0 &&
+          text[cursor - 1] != '\n';
+      final actualPrefix = needsNewline ? '\n$prefix' : prefix;
+      final newText = text.replaceRange(cursor, cursor, '$actualPrefix$suffix');
       widget.controller.text = newText;
-      widget.controller.selection = TextSelection.collapsed(offset: cursor + prefix.length);
+      widget.controller.selection =
+          TextSelection.collapsed(offset: cursor + actualPrefix.length);
     } else {
       final selectedText = text.substring(selection.start, selection.end);
       final replacement = '$prefix$selectedText$suffix';
@@ -212,8 +218,11 @@ class _ShiftNotesCardState extends State<ShiftNotesCard> {
                   if (!_isPreviewMode)
                     TextField(
                       controller: widget.controller,
-                      maxLines: 4,
+                      maxLines: 5,
                       minLines: 3,
+                      inputFormatters: const [
+                        MarkdownListInputFormatter(),
+                      ],
                       style: const TextStyle(
                         fontSize: 13,
                         color: Color(0xFFF8FAFC),
@@ -324,5 +333,54 @@ class _ShiftNotesCardState extends State<ShiftNotesCard> {
         ),
       ),
     );
+  }
+}
+
+/// Automatically continues bullet list ("- ") on Enter or exits on empty bullet.
+class MarkdownListInputFormatter extends TextInputFormatter {
+  const MarkdownListInputFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.length == oldValue.text.length + 1 &&
+        newValue.selection.isCollapsed &&
+        newValue.selection.baseOffset > 0 &&
+        newValue.text[newValue.selection.baseOffset - 1] == '\n') {
+      final cursor = newValue.selection.baseOffset;
+      final textBefore = newValue.text.substring(0, cursor - 1);
+      final lastNewline = textBefore.lastIndexOf('\n');
+      final currentLine = (lastNewline == -1)
+          ? textBefore
+          : textBefore.substring(lastNewline + 1);
+
+      final bulletMatch = RegExp(r'^(\s*[-*]\s+)').firstMatch(currentLine);
+      if (bulletMatch != null) {
+        final prefix = bulletMatch.group(1)!;
+        final content = currentLine.substring(prefix.length).trim();
+
+        if (content.isEmpty) {
+          // Empty bullet line: remove prefix and exit list
+          final lineStart = (lastNewline == -1) ? 0 : lastNewline + 1;
+          final updatedText = newValue.text.replaceRange(lineStart, cursor, '\n');
+          return TextEditingValue(
+            text: updatedText,
+            selection: TextSelection.collapsed(offset: lineStart + 1),
+          );
+        } else {
+          // Auto-insert bullet continuation on next line
+          final continuation = prefix.startsWith(' ') ? prefix : '- ';
+          final updatedText = newValue.text.replaceRange(cursor, cursor, continuation);
+          return TextEditingValue(
+            text: updatedText,
+            selection: TextSelection.collapsed(offset: cursor + continuation.length),
+          );
+        }
+      }
+    }
+
+    return newValue;
   }
 }

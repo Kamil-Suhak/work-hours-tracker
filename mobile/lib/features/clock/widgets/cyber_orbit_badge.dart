@@ -24,7 +24,7 @@ class _CyberOrbitBadgeState extends State<CyberOrbitBadge>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2800),
+      duration: const Duration(milliseconds: 3200),
     );
 
     if (widget.isClockedIn && widget.enableAnimation) {
@@ -54,56 +54,58 @@ class _CyberOrbitBadgeState extends State<CyberOrbitBadge>
 
   @override
   Widget build(BuildContext context) {
-    final activeColor = const Color(0xFF10B981); // Emerald
-    final inactiveColor = const Color(0xFF64748B); // Slate
+    const activeColor = Color(0xFF10B981); // Emerald
+    const inactiveColor = Color(0xFF64748B); // Slate
 
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return CustomPaint(
-          painter: _OrbitRingPainter(
-            progress: _controller.value,
-            isActive: widget.isClockedIn,
-            activeColor: activeColor,
-            inactiveColor: inactiveColor,
-          ),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: widget.isClockedIn ? activeColor : inactiveColor,
-                    boxShadow: widget.isClockedIn
-                        ? [
-                            BoxShadow(
-                              color: activeColor.withValues(alpha: 0.8),
-                              blurRadius: 8,
-                              spreadRadius: 2,
-                            ),
-                          ]
-                        : null,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  widget.isClockedIn ? 'CLOCKED IN' : 'CLOCKED OUT',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 13,
-                    letterSpacing: 1.6,
-                    color: widget.isClockedIn ? activeColor : inactiveColor,
-                  ),
-                ),
-              ],
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return CustomPaint(
+            painter: _OrbitRingPainter(
+              progress: _controller.value,
+              isActive: widget.isClockedIn,
+              activeColor: activeColor,
+              inactiveColor: inactiveColor,
             ),
-          ),
-        );
-      },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: widget.isClockedIn ? activeColor : inactiveColor,
+                      boxShadow: widget.isClockedIn
+                          ? [
+                              BoxShadow(
+                                color: activeColor.withValues(alpha: 0.8),
+                                blurRadius: 6,
+                                spreadRadius: 1,
+                              ),
+                            ]
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    widget.isClockedIn ? 'CLOCKED IN' : 'CLOCKED OUT',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                      letterSpacing: 1.6,
+                      color: widget.isClockedIn ? activeColor : inactiveColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }
@@ -147,56 +149,71 @@ class _OrbitRingPainter extends CustomPainter {
 
     if (!isActive) return;
 
-    // Glowing orbiting tracer along perimeter
-    final path = Path()..addRRect(rrect);
-    final metrics = path.computeMetrics().toList();
-    if (metrics.isEmpty) return;
+    // High performance mathematical trajectory calculation: 0 path allocations
+    final w = size.width;
+    final h = size.height;
+    final r = h / 2;
+    final straightLen = w - 2 * r;
+    final arcLen = math.pi * r;
+    final totalLen = 2 * straightLen + 2 * arcLen;
 
-    final metric = metrics.first;
-    final totalLength = metric.length;
-    final headDistance = progress * totalLength;
-    final trailLength = totalLength * 0.35; // 35% trailing glow
+    Offset getPointOnPerimeter(double dist) {
+      dist = dist % totalLen;
+      if (dist < 0) dist += totalLen;
 
-    final trailStart = (headDistance - trailLength) % totalLength;
+      // Top straight: left to right (r -> w - r)
+      if (dist <= straightLen) {
+        return Offset(r + dist, 0);
+      }
+      dist -= straightLen;
 
-    final trailPath = Path();
-    if (trailStart < headDistance) {
-      trailPath.addPath(metric.extractPath(trailStart, headDistance), Offset.zero);
-    } else {
-      trailPath.addPath(metric.extractPath(trailStart, totalLength), Offset.zero);
-      trailPath.addPath(metric.extractPath(0, headDistance), Offset.zero);
+      // Right semicircle: top to bottom (-pi/2 -> pi/2)
+      if (dist <= arcLen) {
+        final angle = -math.pi / 2 + (dist / arcLen) * math.pi;
+        return Offset(w - r + math.cos(angle) * r, r + math.sin(angle) * r);
+      }
+      dist -= arcLen;
+
+      // Bottom straight: right to left (w - r -> r)
+      if (dist <= straightLen) {
+        return Offset(w - r - dist, h);
+      }
+      dist -= straightLen;
+
+      // Left semicircle: bottom to top (pi/2 -> 3*pi/2)
+      final angle = math.pi / 2 + (dist / arcLen) * math.pi;
+      return Offset(r + math.cos(angle) * r, r + math.sin(angle) * r);
     }
 
-    final trailPaint = Paint()
-      ..shader = SweepGradient(
-        center: Alignment.center,
-        startAngle: 0,
-        endAngle: math.pi * 2,
-        transform: GradientRotation(progress * math.pi * 2),
-        colors: [
-          activeColor.withValues(alpha: 0.0),
-          activeColor.withValues(alpha: 0.8),
-          Colors.white,
-        ],
-        stops: const [0.0, 0.85, 1.0],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5
-      ..strokeCap = StrokeCap.round;
+    final currentPos = getPointOnPerimeter(progress * totalLen);
 
-    canvas.drawPath(trailPath, trailPaint);
-
-    // Draw bright orbiting beacon head
-    final tangent = metric.getTangentForOffset(headDistance);
-    if (tangent != null) {
-      final glowPaint = Paint()
-        ..color = activeColor.withValues(alpha: 0.7)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-      canvas.drawCircle(tangent.position, 4.0, glowPaint);
-
-      final headPaint = Paint()..color = Colors.white;
-      canvas.drawCircle(tangent.position, 2.5, headPaint);
+    // Glowing trailing tail (concentric fading beads along perimeter)
+    const trailSegments = 7;
+    final trailDistStep = (totalLen * 0.22) / trailSegments;
+    for (int i = 1; i <= trailSegments; i++) {
+      final p = getPointOnPerimeter(progress * totalLen - i * trailDistStep);
+      final factor = 1.0 - (i / trailSegments);
+      final trailDotPaint = Paint()
+        ..color = activeColor.withValues(alpha: factor * 0.6)
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(p, 2.2 * factor + 0.8, trailDotPaint);
     }
+
+    // Hardware-accelerated glow beacon head (concentric circles, 0 convolution passes)
+    final outerGlowPaint = Paint()
+      ..color = activeColor.withValues(alpha: 0.25)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(currentPos, 6.5, outerGlowPaint);
+
+    final midGlowPaint = Paint()
+      ..color = activeColor.withValues(alpha: 0.8)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(currentPos, 3.8, midGlowPaint);
+
+    final headPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(currentPos, 2.2, headPaint);
   }
 
   @override

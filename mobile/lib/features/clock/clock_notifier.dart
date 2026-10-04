@@ -4,6 +4,7 @@ import '../../api/api_client.dart';
 import '../../api/models.dart';
 import 'time_tracking_repository.dart';
 
+import '../history/shifts_notifier.dart';
 import '../settings/settings_notifier.dart';
 
 // Configurable base URL provider wired to user settings
@@ -45,7 +46,9 @@ class CurrentStatusNotifier extends AsyncNotifier<WorkStatus> {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
       final repository = ref.read(timeTrackingRepositoryProvider);
-      return await repository.clockIn();
+      final res = await repository.clockIn();
+      ref.invalidate(shiftsProvider);
+      return res;
     });
   }
 
@@ -53,7 +56,9 @@ class CurrentStatusNotifier extends AsyncNotifier<WorkStatus> {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
       final repository = ref.read(timeTrackingRepositoryProvider);
-      return await repository.clockOut(note: note);
+      final res = await repository.clockOut(note: note);
+      ref.invalidate(shiftsProvider);
+      return res;
     });
   }
 
@@ -62,6 +67,7 @@ class CurrentStatusNotifier extends AsyncNotifier<WorkStatus> {
     state = await AsyncValue.guard(() async {
       final repository = ref.read(timeTrackingRepositoryProvider);
       final result = await repository.undo(eventId);
+      ref.invalidate(shiftsProvider);
       return result.status;
     });
   }
