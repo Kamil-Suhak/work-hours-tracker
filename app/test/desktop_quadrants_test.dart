@@ -109,5 +109,40 @@ void main() {
         findsOneWidget,
       );
     });
+
+    testWidgets('toolbar buttons position cursor between or after markers and retain focus',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final controller = TextEditingController();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: NoteEditorQuadrant(controller: controller),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Tap Bold 'B' button
+      await tester.tap(find.text('B'));
+      await tester.pumpAndSettle();
+
+      expect(controller.text, '****');
+      expect(controller.selection.baseOffset, 2);
+      expect(controller.selection.extentOffset, 2);
+
+      // Clear and tap H2 button
+      controller.clear();
+      await tester.tap(find.text('H2'));
+      await tester.pumpAndSettle();
+
+      expect(controller.text, '## ');
+      expect(controller.selection.baseOffset, 3);
+      expect(controller.selection.extentOffset, 3);
+    });
   });
 }

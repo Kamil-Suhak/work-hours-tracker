@@ -43,6 +43,8 @@ class _ShiftNotesCardState extends State<ShiftNotesCard> {
   late bool _isExpanded;
   bool _isPreviewMode = false;
   Timer? _syncDebounce;
+  final FocusNode _focusNode = FocusNode();
+  TextSelection _lastSelection = const TextSelection.collapsed(offset: 0);
 
   @override
   void initState() {
@@ -67,6 +69,10 @@ class _ShiftNotesCardState extends State<ShiftNotesCard> {
   }
 
   void _handleTextChange() {
+    if (widget.controller.selection.isValid &&
+        widget.controller.selection.baseOffset >= 0) {
+      _lastSelection = widget.controller.selection;
+    }
     ShiftNotesCard.saveDraft(widget.controller.text);
     _syncDebounce?.cancel();
     _syncDebounce = Timer(const Duration(milliseconds: 500), () {
@@ -82,32 +88,57 @@ class _ShiftNotesCardState extends State<ShiftNotesCard> {
       WidgetSyncService.syncActiveNote(widget.controller.text);
     }
     widget.controller.removeListener(_handleTextChange);
+    _focusNode.dispose();
     super.dispose();
   }
 
   void _insertMarkdown(String prefix, [String suffix = '']) {
     final text = widget.controller.text;
-    final selection = widget.controller.selection;
+    final currentSelection = widget.controller.selection;
+    final selection = (currentSelection.isValid && currentSelection.baseOffset >= 0)
+        ? currentSelection
+        : ((_lastSelection.isValid &&
+                _lastSelection.baseOffset >= 0 &&
+                _lastSelection.end <= text.length)
+            ? _lastSelection
+            : TextSelection.collapsed(offset: text.length));
 
-    if (!selection.isValid || selection.isCollapsed) {
-      final cursor = selection.isValid ? selection.baseOffset : text.length;
-      final needsNewline = (prefix.startsWith('- ') || prefix.startsWith('#')) &&
+    if (selection.isCollapsed) {
+      final cursor = selection.baseOffset.clamp(0, text.length);
+      final needsNewline = (prefix.startsWith('- ') ||
+              prefix.startsWith('- [ ] ') ||
+              prefix.startsWith('#')) &&
           cursor > 0 &&
           text[cursor - 1] != '\n';
       final actualPrefix = needsNewline ? '\n$prefix' : prefix;
       final newText = text.replaceRange(cursor, cursor, '$actualPrefix$suffix');
-      widget.controller.text = newText;
-      widget.controller.selection =
-          TextSelection.collapsed(offset: cursor + actualPrefix.length);
-    } else {
-      final selectedText = text.substring(selection.start, selection.end);
-      final replacement = '$prefix$selectedText$suffix';
-      final newText = text.replaceRange(selection.start, selection.end, replacement);
-      widget.controller.text = newText;
-      widget.controller.selection = TextSelection(
-        baseOffset: selection.start + prefix.length,
-        extentOffset: selection.start + prefix.length + selectedText.length,
+      final newCursorOffset = cursor + actualPrefix.length;
+
+      widget.controller.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: newCursorOffset),
       );
+      _lastSelection = TextSelection.collapsed(offset: newCursorOffset);
+      _focusNode.requestFocus();
+    } else {
+      final start = selection.start.clamp(0, text.length);
+      final end = selection.end.clamp(0, text.length);
+      final selectedText = text.substring(start, end);
+      final replacement = '$prefix$selectedText$suffix';
+      final newText = text.replaceRange(start, end, replacement);
+      final newSelection = suffix.isNotEmpty
+          ? TextSelection(
+              baseOffset: start + prefix.length,
+              extentOffset: start + prefix.length + selectedText.length,
+            )
+          : TextSelection.collapsed(offset: start + replacement.length);
+
+      widget.controller.value = TextEditingValue(
+        text: newText,
+        selection: newSelection,
+      );
+      _lastSelection = newSelection;
+      _focusNode.requestFocus();
     }
   }
 
@@ -233,6 +264,7 @@ class _ShiftNotesCardState extends State<ShiftNotesCard> {
                   if (!_isPreviewMode)
                     TextField(
                       controller: widget.controller,
+                      focusNode: _focusNode,
                       maxLines: 5,
                       minLines: 3,
                       maxLength: 4000,
