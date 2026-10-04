@@ -385,7 +385,7 @@ class _ShiftNotesCardState extends State<ShiftNotesCard> {
   }
 }
 
-/// Automatically continues bullet list ("- ") on Enter or exits on empty bullet.
+/// Automatically continues bullet list ("- ") or task checklist ("- [ ] ") on Enter or exits on empty item.
 class MarkdownListInputFormatter extends TextInputFormatter {
   const MarkdownListInputFormatter();
 
@@ -404,6 +404,36 @@ class MarkdownListInputFormatter extends TextInputFormatter {
       final currentLine = (lastNewline == -1)
           ? textBefore
           : textBefore.substring(lastNewline + 1);
+
+      // Task checklist continuation (- [ ] or * [ ])
+      final taskMatch =
+          RegExp(r'^(\s*[-*]\s+\[[ xX]?\]\s*)').firstMatch(currentLine);
+      if (taskMatch != null) {
+        final prefix = taskMatch.group(1)!;
+        final content = currentLine.substring(prefix.length).trim();
+
+        if (content.isEmpty) {
+          // Empty task line: remove prefix and exit list
+          final lineStart = (lastNewline == -1) ? 0 : lastNewline + 1;
+          final updatedText =
+              newValue.text.replaceRange(lineStart, cursor, '\n');
+          return TextEditingValue(
+            text: updatedText,
+            selection: TextSelection.collapsed(offset: lineStart + 1),
+          );
+        } else {
+          // Auto-insert checkbox continuation on next line
+          final continuation =
+              prefix.startsWith(' ') ? prefix : '- [ ] ';
+          final updatedText =
+              newValue.text.replaceRange(cursor, cursor, continuation);
+          return TextEditingValue(
+            text: updatedText,
+            selection: TextSelection.collapsed(
+                offset: cursor + continuation.length),
+          );
+        }
+      }
 
       final bulletMatch = RegExp(r'^(\s*[-*]\s+)').firstMatch(currentLine);
       if (bulletMatch != null) {

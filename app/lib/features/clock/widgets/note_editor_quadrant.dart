@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../settings/widget_sync_service.dart';
 import 'shift_notes_card.dart';
 
@@ -257,6 +258,11 @@ class _NoteEditorQuadrantState extends State<NoteEditorQuadrant> {
                 focusNode: _focusNode,
                 maxLines: null,
                 expands: true,
+                maxLength: 4000,
+                maxLengthEnforcement: MaxLengthEnforcement.enforced,
+                inputFormatters: const [
+                  MarkdownListInputFormatter(),
+                ],
                 textAlignVertical: TextAlignVertical.top,
                 style: const TextStyle(
                   fontSize: 13,

@@ -59,6 +59,40 @@ void main() {
       expect(result.text, equals('Normal paragraph\n'));
       expect(result.selection.baseOffset, equals(17));
     });
+
+    test('automatically adds task checklist continuation on Enter after task item', () {
+      const oldValue = TextEditingValue(
+        text: '- [ ] First task',
+        selection: TextSelection.collapsed(offset: 16),
+      );
+
+      const newValue = TextEditingValue(
+        text: '- [ ] First task\n',
+        selection: TextSelection.collapsed(offset: 17),
+      );
+
+      final result = formatter.formatEditUpdate(oldValue, newValue);
+
+      expect(result.text, equals('- [ ] First task\n- [ ] '));
+      expect(result.selection.baseOffset, equals(23));
+    });
+
+    test('exits task list and removes checkbox when Enter is pressed on empty task checkbox', () {
+      const oldValue = TextEditingValue(
+        text: '- [ ] Task 1\n- [ ] ',
+        selection: TextSelection.collapsed(offset: 19),
+      );
+
+      const newValue = TextEditingValue(
+        text: '- [ ] Task 1\n- [ ] \n',
+        selection: TextSelection.collapsed(offset: 20),
+      );
+
+      final result = formatter.formatEditUpdate(oldValue, newValue);
+
+      expect(result.text, equals('- [ ] Task 1\n\n'));
+      expect(result.selection.baseOffset, equals(14));
+    });
   });
 
   group('ShiftNotesCard Widget & Note Sync Tests', () {
