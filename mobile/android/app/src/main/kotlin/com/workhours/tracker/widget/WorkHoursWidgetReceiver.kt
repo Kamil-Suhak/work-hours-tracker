@@ -7,7 +7,9 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.media.AudioAttributes
 import android.os.Build
+import android.os.VibrationAttributes
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -47,18 +49,27 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
             if (!prefs.getBoolean(KEY_HAPTICS, true)) return
 
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     val manager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
-                    manager?.defaultVibrator?.vibrate(VibrationEffect.createOneShot(50L, VibrationEffect.DEFAULT_AMPLITUDE))
+                    val vibrator = manager?.defaultVibrator ?: context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+                    val attrs = VibrationAttributes.Builder()
+                        .setUsage(VibrationAttributes.USAGE_NOTIFICATION)
+                        .build()
+                    val effect = VibrationEffect.createOneShot(80L, 200)
+                    vibrator?.vibrate(effect, attrs)
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+                    val audioAttrs = AudioAttributes.Builder()
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                        .build()
+                    val effect = VibrationEffect.createOneShot(80L, 200)
+                    vibrator?.vibrate(effect, audioAttrs)
                 } else {
                     @Suppress("DEPRECATION")
                     val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        vibrator?.vibrate(VibrationEffect.createOneShot(50L, VibrationEffect.DEFAULT_AMPLITUDE))
-                    } else {
-                        @Suppress("DEPRECATION")
-                        vibrator?.vibrate(50L)
-                    }
+                    @Suppress("DEPRECATION")
+                    vibrator?.vibrate(80L)
                 }
             } catch (_: Exception) {}
         }
