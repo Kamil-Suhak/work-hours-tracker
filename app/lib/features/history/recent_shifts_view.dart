@@ -6,7 +6,7 @@ import 'manual_shift_dialog.dart';
 import 'shift_model.dart';
 import 'shifts_notifier.dart';
 
-class RecentShiftsView extends ConsumerWidget {
+class RecentShiftsView extends ConsumerStatefulWidget {
   final ScrollController? scrollController;
   final bool showHeader;
   final bool showDragHandle;
@@ -21,13 +21,29 @@ class RecentShiftsView extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RecentShiftsView> createState() => _RecentShiftsViewState();
+}
+
+class _RecentShiftsViewState extends ConsumerState<RecentShiftsView> {
+  ScrollController? _internalController;
+
+  ScrollController get _effectiveController =>
+      widget.scrollController ?? (_internalController ??= ScrollController());
+
+  @override
+  void dispose() {
+    _internalController?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final shiftsAsync = ref.watch(shiftsProvider);
     const activeEmerald = Color(0xFF10B981);
 
     return Column(
       children: [
-        if (showDragHandle)
+        if (widget.showDragHandle)
           Center(
             child: Container(
               margin: const EdgeInsets.only(top: 12, bottom: 8),
@@ -39,7 +55,7 @@ class RecentShiftsView extends ConsumerWidget {
               ),
             ),
           ),
-        if (showHeader) ...[
+        if (widget.showHeader) ...[
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             child: Row(
@@ -120,19 +136,25 @@ class RecentShiftsView extends ConsumerWidget {
                   );
                 }
 
-                return ListView.separated(
-                  controller: scrollController,
-                  padding: padding ??
-                      const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
-                      ),
-                  itemCount: shifts.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final shift = shifts[index];
-                    return _buildShiftCard(context, shift);
-                  },
+                return Scrollbar(
+                  controller: _effectiveController,
+                  thumbVisibility: true,
+                  thickness: 6,
+                  radius: const Radius.circular(4),
+                  child: ListView.separated(
+                    controller: _effectiveController,
+                    padding: widget.padding ??
+                        const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
+                    itemCount: shifts.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final shift = shifts[index];
+                      return _buildShiftCard(context, shift);
+                    },
+                  ),
                 );
               },
               loading: () => const Center(
