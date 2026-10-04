@@ -525,4 +525,91 @@ describe('Worker End-to-End Integration Suite', () => {
       expect(data2).toEqual(data1);
     });
   });
+
+  describe('Reports Pipeline & Scheduled Cron', () => {
+    it('generates on-demand excel report with correct headers and binary payload', async () => {
+      // Seed a shift pair
+      mockDb.events.push(
+        {
+          id: 'ev-rep-in',
+          request_id: 'r-in',
+          user_id: 'default-user',
+          device_id: 'dev-1',
+          event_type: 'clock_in',
+          source: 'flutter_app',
+          occurred_at_utc: '2026-10-01T08:00:00.000Z',
+          created_at_utc: '2026-10-01T08:00:00.000Z',
+          reason: null,
+          note: null,
+        },
+        {
+          id: 'ev-rep-out',
+          request_id: 'r-out',
+          user_id: 'default-user',
+          device_id: 'dev-1',
+          event_type: 'clock_out',
+          source: 'flutter_app',
+          occurred_at_utc: '2026-10-01T16:00:00.000Z',
+          created_at_utc: '2026-10-01T16:00:00.000Z',
+          reason: null,
+          note: 'Completed monthly goals',
+        }
+      );
+
+      const res = await worker.fetch(
+        createRequest('/api/v1/reports/generate', {
+          method: 'POST',
+          body: {
+            startDate: '2026-10-01',
+            endDate: '2026-10-31',
+            preset: 'formal',
+            options: { includeNotes: true },
+          },
+        }),
+        env
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get('Content-Type')).toBe(
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
+      expect(res.headers.get('Content-Disposition')).toContain('attachment; filename="work-hours-');
+      expect(res.headers.get('X-Total-Hours')).toBe('8');
+      expect(res.headers.get('X-Total-Shifts')).toBe('1');
+
+      const buffer = await res.arrayBuffer();
+      expect(buffer.byteLength).toBeGreaterThan(100);
+      const bytes = new Uint8Array(buffer);
+      // Verify ZIP magic bytes
+      expect(bytes[0]).toBe(0x50);
+      expect(bytes[1]).toBe(0x4b);
+      expect(bytes[2]).toBe(0x03);
+      expect(bytes[3]).toBe(0x04);
+    });
+
+    it('returns 404 for latest report when bucket has no reports', async () => {
+      const res = await worker.fetch(createRequest('/api/v1/reports/latest'), env);
+      expect(res.status).toBe(404);
+      const err = await res.json() as { error: { code: string } };
+      expect(err.error.code).toBe('NO_REPORTS_FOUND');
+    });
+
+    it('scheduled cron handler executes successfully without throwing', async () => {
+      let waited = false;
+      const ctx = {
+        waitUntil: (p: Promise<unknown>) => {
+          waited = true;
+          p.catch(() => {});
+        },
+      };
+
+      await worker.scheduled(
+        { cron: '0 0 1 * *', scheduledTime: Date.now() },
+        env,
+        ctx as any
+      );
+
+      expect(waited).toBe(true);
+    });
+  });
 });
