@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -221,21 +222,25 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text(
-                    'Haptic feedback',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                if (!kIsWeb) ...[
+                  const SizedBox(height: 12),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Haptic feedback',
+                      style:
+                          TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: const Text(
+                      'Vibrate on clock actions in app and home widget',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    value: _vibrationsEnabled,
+                    onChanged: (val) =>
+                        setState(() => _vibrationsEnabled = val),
+                    activeTrackColor: const Color(0xFF0F766E),
                   ),
-                  subtitle: const Text(
-                    'Vibrate on clock actions in app and home widget',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                  value: _vibrationsEnabled,
-                  onChanged: (val) => setState(() => _vibrationsEnabled = val),
-                  activeTrackColor: const Color(0xFF0F766E),
-                ),
+                ],
                 const Divider(height: 24, color: Color(0xFF334155)),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,

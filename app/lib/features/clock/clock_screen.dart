@@ -532,46 +532,66 @@ class _ClockScreenState extends ConsumerState<ClockScreen> {
 
   Widget _buildErrorContent(
       BuildContext context, Object error, bool isLoading) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Icon(Icons.error_outline, size: 64, color: Colors.amber),
-        const SizedBox(height: 16),
-        Text(
-          'Connection or Server Error',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          error.toString(),
-          textAlign: TextAlign.center,
-          style: Theme.of(context)
-              .textTheme
-              .bodyMedium
-              ?.copyWith(color: Colors.grey[700]),
-        ),
-        const SizedBox(height: 24),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          alignment: WrapAlignment.center,
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            ElevatedButton.icon(
-              onPressed: isLoading
-                  ? null
-                  : () =>
-                      ref.read(currentStatusProvider.notifier).refreshStatus(),
-              icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
+            const Icon(Icons.error_outline, size: 64, color: Colors.amber),
+            const SizedBox(height: 16),
+            Text(
+              'Connection or Server Error',
+              style: Theme.of(context).textTheme.titleLarge,
+              textAlign: TextAlign.center,
             ),
-            OutlinedButton.icon(
-              onPressed: () => SettingsDialog.show(context),
-              icon: const Icon(Icons.settings),
-              label: const Text('Configure Server'),
+            const SizedBox(height: 8),
+            Text(
+              error.toString(),
+              textAlign: TextAlign.center,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: const Color(0xFF94A3B8)),
+            ),
+            const SizedBox(height: 24),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              alignment: WrapAlignment.center,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: isLoading
+                      ? null
+                      : () =>
+                          ref.read(currentStatusProvider.notifier).refreshStatus(),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Retry'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    foregroundColor: Colors.white,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => SettingsDialog.show(context),
+                  icon: const Icon(Icons.settings),
+                  label: const Text('Configure Server'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF38BDF8),
+                    side: const BorderSide(color: Color(0xFF38BDF8)),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
-      ],
+      ),
     );
   }
 }
