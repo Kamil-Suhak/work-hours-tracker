@@ -40,6 +40,7 @@ export interface EventRow {
   occurred_at_utc: string;
   created_at_utc: string;
   reason: string | null;
+  note: string | null;
 }
 
 export interface ProcessedRequestRow {
@@ -53,6 +54,7 @@ export interface ProcessedRequestRow {
 export interface ClockRequestBody {
   requestId: string;
   source: EventSource;
+  note?: string;
 }
 
 export interface LatestEventInfo {
@@ -85,6 +87,7 @@ export interface ManualEventRequestBody {
   clockOutAt: string;
   reason: string;
   requestId: string;
+  note?: string;
 }
 
 export interface ManualEventResponse {

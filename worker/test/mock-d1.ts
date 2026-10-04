@@ -136,6 +136,7 @@ export class MockPreparedStatement {
         const occurredAtUtc = this.boundArgs[3] as string;
         const createdAtUtc = this.boundArgs[4] as string;
         const reason = (this.boundArgs[5] as string) ?? null;
+        const note = (this.boundArgs[6] as string) ?? null;
 
         this.db.events.push({
           id,
@@ -147,6 +148,7 @@ export class MockPreparedStatement {
           occurred_at_utc: occurredAtUtc,
           created_at_utc: createdAtUtc,
           reason,
+          note,
         });
       } else {
         const id = this.boundArgs[0] as string;
@@ -156,6 +158,7 @@ export class MockPreparedStatement {
         const source = this.boundArgs[4] as EventRow['source'];
         const occurredAtUtc = this.boundArgs[5] as string;
         const createdAtUtc = this.boundArgs[6] as string;
+        const note = (this.boundArgs[7] as string) ?? null;
 
         this.db.events.push({
           id,
@@ -167,6 +170,7 @@ export class MockPreparedStatement {
           occurred_at_utc: occurredAtUtc,
           created_at_utc: createdAtUtc,
           reason: null,
+          note,
         });
       }
     }

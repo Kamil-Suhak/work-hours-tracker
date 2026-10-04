@@ -46,9 +46,14 @@ export function validateClockRequest(body: unknown): ClockRequestBody {
     );
   }
 
+  const note = typeof (body as Record<string, unknown>).note === 'string'
+    ? ((body as Record<string, unknown>).note as string).trim()
+    : undefined;
+
   return {
     requestId: requestId.trim(),
     source: source as EventSource,
+    ...(note !== undefined && note.length > 0 ? { note } : {}),
   };
 }
 
@@ -143,10 +148,10 @@ export async function handleClockIn(
   await db.batch([
     db
       .prepare(
-        `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc)
-         VALUES (?, ?, ?, ?, 'clock_in', ?, ?, ?)`
+        `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, note)
+         VALUES (?, ?, ?, ?, 'clock_in', ?, ?, ?, ?)`
       )
-      .bind(eventId, requestId, DEFAULT_USER_ID, deviceId, source, nowIso, nowIso),
+      .bind(eventId, requestId, DEFAULT_USER_ID, deviceId, source, nowIso, nowIso, req.note ?? null),
     db
       .prepare(
         `INSERT INTO work_state (user_id, state, active_since_utc, version, updated_at_utc)
@@ -276,10 +281,10 @@ export async function handleClockOut(
   await db.batch([
     db
       .prepare(
-        `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc)
-         VALUES (?, ?, ?, ?, 'clock_out', ?, ?, ?)`
+        `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, note)
+         VALUES (?, ?, ?, ?, 'clock_out', ?, ?, ?, ?)`
       )
-      .bind(eventId, requestId, DEFAULT_USER_ID, deviceId, source, nowIso, nowIso),
+      .bind(eventId, requestId, DEFAULT_USER_ID, deviceId, source, nowIso, nowIso, req.note ?? null),
     db
       .prepare(
         `INSERT INTO work_state (user_id, state, active_since_utc, version, updated_at_utc)

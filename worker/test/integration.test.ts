@@ -187,6 +187,38 @@ describe('Worker End-to-End Integration Suite', () => {
       expect(mockDb.workState.get('default-user')?.state).toBe('clocked_out');
     });
 
+    it('saves note on clock-out and returns it in events query', async () => {
+      await worker.fetch(
+        createRequest('/api/v1/clock-in', {
+          method: 'POST',
+          body: { requestId: 'req-in-note', source: 'flutter_app' },
+        }),
+        env
+      );
+
+      const noteText = '# Shift Recap\n- Finished sprint tickets\n- Reviewed **PR #42**';
+      const resOut = await worker.fetch(
+        createRequest('/api/v1/clock-out', {
+          method: 'POST',
+          body: { requestId: 'req-out-note', source: 'flutter_app', note: noteText },
+        }),
+        env
+      );
+      expect(resOut.status).toBe(200);
+
+      const now = new Date();
+      const from = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+      const to = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
+      const eventsRes = await worker.fetch(
+        createRequest(`/api/v1/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+        env
+      );
+      expect(eventsRes.status).toBe(200);
+      const events = await eventsRes.json() as Array<{ event_type: string; note: string | null }>;
+      const clockOutEvent = events.find((e) => e.event_type === 'clock_out');
+      expect(clockOutEvent?.note).toBe(noteText);
+    });
+
     it('returns changed: false when clocking out while already clocked out', async () => {
       const reqOut = createRequest('/api/v1/clock-out', {
         method: 'POST',

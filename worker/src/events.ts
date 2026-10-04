@@ -119,11 +119,16 @@ export function validateManualEventRequest(body: unknown): ManualEventRequestBod
     );
   }
 
+  const note = typeof (body as Record<string, unknown>).note === 'string'
+    ? ((body as Record<string, unknown>).note as string).trim()
+    : undefined;
+
   return {
     clockInAt: inDate.toISOString(),
     clockOutAt: outDate.toISOString(),
     reason: reason.trim(),
     requestId: requestId.trim(),
+    ...(note !== undefined && note.length > 0 ? { note } : {}),
   };
 }
 
@@ -195,16 +200,16 @@ export async function handleAdminManualEvent(
   await db.batch([
     db
       .prepare(
-        `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, reason)
-         VALUES (?, ?, ?, NULL, 'clock_in', 'admin_manual', ?, ?, ?)`
+        `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, reason, note)
+         VALUES (?, ?, ?, NULL, 'clock_in', 'admin_manual', ?, ?, ?, ?)`
       )
-      .bind(clockInId, `${requestId}_in`, DEFAULT_USER_ID, clockInAt, nowIso, reason),
+      .bind(clockInId, `${requestId}_in`, DEFAULT_USER_ID, clockInAt, nowIso, reason, req.note ?? null),
     db
       .prepare(
-        `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, reason)
-         VALUES (?, ?, ?, NULL, 'clock_out', 'admin_manual', ?, ?, ?)`
+        `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, reason, note)
+         VALUES (?, ?, ?, NULL, 'clock_out', 'admin_manual', ?, ?, ?, ?)`
       )
-      .bind(clockOutId, `${requestId}_out`, DEFAULT_USER_ID, clockOutAt, nowIso, reason),
+      .bind(clockOutId, `${requestId}_out`, DEFAULT_USER_ID, clockOutAt, nowIso, reason, req.note ?? null),
     db
       .prepare(
         `INSERT INTO processed_requests (request_id, user_id, operation, response_json, created_at_utc)
