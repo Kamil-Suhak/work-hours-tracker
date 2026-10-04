@@ -403,16 +403,14 @@ export async function handleUndo(
 
   const nextVersion = (stateRow?.version ?? 0) + 1;
 
-  // 6. Delete event from DB
-  await db.prepare('DELETE FROM events WHERE id = ?').bind(eventId).run();
-
-  // 7. Calculate restored durations
+  // 6. Calculate restored durations BEFORE database mutations, excluding the event to be undone
   const { todaySeconds, monthSeconds } = await calculateDurations(
     db,
     DEFAULT_USER_ID,
     restoredState,
     restoredActiveSince,
-    now
+    now,
+    eventId
   );
 
   const response: UndoResponse = {
@@ -434,8 +432,9 @@ export async function handleUndo(
 
   const responseJson = JSON.stringify(response);
 
-  // 8. Update work_state and record processed request
+  // 7. Execute all database mutations atomically in a single batch
   await db.batch([
+    db.prepare('DELETE FROM events WHERE id = ?').bind(eventId),
     db
       .prepare(
         `INSERT INTO work_state (user_id, state, active_since_utc, version, updated_at_utc)
