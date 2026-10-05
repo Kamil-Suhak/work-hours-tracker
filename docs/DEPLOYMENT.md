@@ -149,3 +149,72 @@ npx wrangler d1 create work-hours-restore-test
 npx wrangler d1 execute work-hours-restore-test --remote --file="backups/work-hours-backup-20261004.sql"
 ```
 Verify data integrity before repointing production Worker bindings.
+
+---
+
+## 8. Operational Database Scripts & Common Queries (`worker/sql/`)
+
+A dedicated set of tested SQL scripts and operational utilities is maintained in [`worker/sql/`](../worker/sql/) and [`worker/scripts/`](../worker/scripts/) for recurring administration tasks.
+
+### 8.1 Purging Shift History & Resetting Active State
+Wipes all shift events and request idempotency logs, resetting the user state to `clocked_out` while **preserving all registered client devices**:
+
+```bash
+# Using npm script from repository root:
+npm --prefix worker run db:purge
+
+# Or using Wrangler directly:
+npx wrangler d1 execute work-hours-prod --remote --file=worker/sql/purge-shifts.sql
+```
+
+### 8.2 Full Factory Reset (Including Devices)
+> [!CAUTION]
+> This wipes the entire database, including registered device tokens. All mobile devices and web browsers will need to be re-provisioned.
+
+```bash
+npm --prefix worker run db:purge-all
+# Or:
+npx wrangler d1 execute work-hours-prod --remote --file=worker/sql/purge-all.sql
+```
+
+### 8.3 List Registered Devices
+Inspect all provisioned client devices, their authorization status (`ACTIVE` vs `REVOKED`), and creation timestamps:
+
+```bash
+npm --prefix worker run db:devices
+# Or:
+npx wrangler d1 execute work-hours-prod --remote --file=worker/sql/list-devices.sql
+```
+
+### 8.4 Inspect Current Clock State
+Query whether the user is currently clocked in or out, `active_since` timestamp, schema version, and the 5 latest events:
+
+```bash
+npm --prefix worker run db:status
+# Or:
+npx wrangler d1 execute work-hours-prod --remote --file=worker/sql/inspect-state.sql
+```
+
+### 8.5 View Recent Shifts & Event Log
+Retrieve the 25 most recent clock-in and clock-out events with associated device names and shift notes:
+
+```bash
+npm --prefix worker run db:shifts
+# Or:
+npx wrangler d1 execute work-hours-prod --remote --file=worker/sql/recent-shifts.sql
+```
+
+### 8.6 Purging Stored Reports (Cloudflare R2)
+Generated `.xlsx` spreadsheets and the latest report pointer are stored in the Cloudflare R2 bucket (`work-hours-reports`):
+
+```bash
+# 1. Reset latest report index pointer:
+npm --prefix worker run r2:purge
+
+# 2. Delete all historical reports:
+# Option A (Cloudflare Dashboard - Recommended):
+#   Navigate to Cloudflare Dashboard -> R2 -> 'work-hours-reports' -> Settings -> 'Empty bucket'.
+# Option B (Wrangler CLI for a specific file):
+#   npx wrangler r2 object delete work-hours-reports reports/<filename>.xlsx
+```
+
