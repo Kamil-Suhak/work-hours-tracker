@@ -80,7 +80,8 @@ class CurrentTrackerQuadrant extends StatelessWidget {
           // Tracker body
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              physics: const ClampingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -92,9 +93,9 @@ class CurrentTrackerQuadrant extends StatelessWidget {
                       enableAnimation: enableAnimations,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 10),
 
-                  // Central Current Shift Timer Card
+                  // Central Current Shift Timer Card (Consolidated side-by-side)
                   CurrentShiftTimerCard(
                     isClockedIn: isClockedIn,
                     activeSince: status.activeSince,
@@ -103,58 +104,61 @@ class CurrentTrackerQuadrant extends StatelessWidget {
                     enablePeriodicTimer: enableAnimations,
                     onViewHistory: onViewHistory,
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 12),
 
-                  // Action Buttons
+                  // Action Buttons (Narrower & Centered)
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Expanded(
+                      SizedBox(
+                        width: 150,
                         child: ElevatedButton.icon(
                           key: const Key('clock_in_button'),
                           icon: isLoading && !isClockedIn
                               ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
+                                  width: 16,
+                                  height: 16,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
                                     color: Colors.white,
                                   ),
                                 )
-                              : const Icon(Icons.play_arrow),
+                              : const Icon(Icons.play_arrow, size: 20),
                           label: const Text('CLOCK IN'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF10B981),
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(10),
                             ),
                           ),
                           onPressed:
                               isLoading || isClockedIn ? null : onClockIn,
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
+                      const SizedBox(width: 14),
+                      SizedBox(
+                        width: 150,
                         child: ElevatedButton.icon(
                           key: const Key('clock_out_button'),
                           icon: isLoading && isClockedIn
                               ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
+                                  width: 16,
+                                  height: 16,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
                                     color: Colors.white,
                                   ),
                                 )
-                              : const Icon(Icons.stop),
+                              : const Icon(Icons.stop, size: 20),
                           label: const Text('CLOCK OUT'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFFEF4444),
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(10),
                             ),
                           ),
                           onPressed:
@@ -168,15 +172,15 @@ class CurrentTrackerQuadrant extends StatelessWidget {
                   if (status.latestEvent != null &&
                       status.latestEvent!
                           .isWithinGracePeriod(now: DateTime.now())) ...[
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                     Center(
                       child: OutlinedButton.icon(
                         key: const Key('undo_button'),
-                        icon: const Icon(Icons.undo, size: 16),
+                        icon: const Icon(Icons.undo, size: 15),
                         label: Text(
                           'Undo ${status.latestEvent!.eventType == 'clock_in' ? 'Clock In' : 'Clock Out'}',
                           style: const TextStyle(
-                            fontSize: 12,
+                            fontSize: 11,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -184,9 +188,9 @@ class CurrentTrackerQuadrant extends StatelessWidget {
                           foregroundColor: Colors.amber[800],
                           side: BorderSide(color: Colors.amber[800]!),
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 8),
+                              horizontal: 14, vertical: 6),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(16),
                           ),
                         ),
                         onPressed: isLoading

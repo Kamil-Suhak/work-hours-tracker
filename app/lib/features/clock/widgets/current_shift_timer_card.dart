@@ -167,28 +167,28 @@ class _CurrentShiftTimerCardState extends State<CurrentShiftTimerCard> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  if (widget.isClockedIn && widget.activeSince != null)
-                    Text(
-                      'Started at ${timeFormat.format(widget.activeSince!.toLocal())} • Today: $todayFormatted',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF94A3B8),
-                      ),
-                      textAlign: TextAlign.center,
-                      overflow: TextOverflow.ellipsis,
-                    )
-                  else
-                    Text(
-                      "Today's total: $todayFormatted",
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF94A3B8),
-                      ),
-                      textAlign: TextAlign.center,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: widget.isClockedIn && widget.activeSince != null
+                        ? Text(
+                            'Started at ${timeFormat.format(widget.activeSince!.toLocal())} • Today: $todayFormatted',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF94A3B8),
+                            ),
+                            textAlign: TextAlign.center,
+                          )
+                        : Text(
+                            "Today's total: $todayFormatted",
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF94A3B8),
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                  ),
                 ],
               ),
             ),
@@ -197,7 +197,7 @@ class _CurrentShiftTimerCardState extends State<CurrentShiftTimerCard> {
             const VerticalDivider(
               color: Color(0xFF334155),
               thickness: 1,
-              width: 28,
+              width: 20,
             ),
 
             // Right: Month to date & History (aligned at same y level)
@@ -208,25 +208,28 @@ class _CurrentShiftTimerCardState extends State<CurrentShiftTimerCard> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.calendar_month_outlined,
-                        size: 13,
-                        color: Color(0xFF64748B),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Month to date: $monthFormatted',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF94A3B8),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.calendar_month_outlined,
+                          size: 13,
+                          color: Color(0xFF64748B),
                         ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
+                        const SizedBox(width: 4),
+                        Text(
+                          'Month to date: $monthFormatted',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF94A3B8),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 8),
                   InkWell(
