@@ -215,6 +215,6 @@ npm --prefix worker run r2:purge
 # Option A (Cloudflare Dashboard - Recommended):
 #   Navigate to Cloudflare Dashboard -> R2 -> 'work-hours-reports' -> Settings -> 'Empty bucket'.
 # Option B (Wrangler CLI for a specific file):
-#   npx wrangler r2 object delete work-hours-reports reports/<filename>.xlsx
+#   npx wrangler r2 object delete work-hours-reports/reports/<filename>.xlsx
 ```
 

@@ -18,7 +18,7 @@ console.log('----------------------------------------------------------------');
 // 1. Delete latest report index
 try {
   console.log('Attempting to delete cached reports/latest.json pointer...');
-  execSync(`npx wrangler r2 object delete ${BUCKET_NAME} reports/latest.json`, {
+  execSync(`npx wrangler r2 object delete ${BUCKET_NAME}/reports/latest.json`, {
     stdio: 'inherit',
   });
   console.log('Successfully deleted reports/latest.json');
@@ -33,5 +33,5 @@ console.log(`  1. Log into dash.cloudflare.com -> R2 -> Overview`);
 console.log(`  2. Click on '${BUCKET_NAME}'`);
 console.log(`  3. Select 'Settings' -> 'Empty bucket' (or delete files in Objects tab).`);
 console.log('\nOption 2 (Wrangler CLI for a specific file):');
-console.log(`  npx wrangler r2 object delete ${BUCKET_NAME} reports/<filename>.xlsx`);
+console.log(`  npx wrangler r2 object delete ${BUCKET_NAME}/reports/<filename>.xlsx`);
 console.log('================================================================\n');
