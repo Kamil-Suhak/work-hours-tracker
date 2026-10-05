@@ -21,13 +21,7 @@ bool openReportInBrowser(Uint8List bytes, String filename) {
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     );
     final url = html.Url.createObjectUrlFromBlob(blob);
-    final win = html.window.open(url, '_blank');
-    if (win == null) {
-      // Fallback if popup blocker intercepted window.open
-      html.AnchorElement(href: url)
-        ..setAttribute('download', filename)
-        ..click();
-    }
+    html.window.open(url, '_blank');
     return true;
   } catch (_) {
     return false;
