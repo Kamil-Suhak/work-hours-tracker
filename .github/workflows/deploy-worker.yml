@@ -3,10 +3,8 @@ name: Deploy Worker
 on:
   push:
     branches: [main]
-    paths:
-      - "worker/**"
-      - "app/**"
-      - ".github/workflows/deploy-worker.yml"
+    tags:
+      - "v*"
   workflow_dispatch:
 
 permissions:
