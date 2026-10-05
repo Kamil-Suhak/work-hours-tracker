@@ -1,7 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../config/app_config.dart';
 import '../../services/platform/platform_services.dart';
 
-const String defaultApiBaseUrl = 'https://work-hours-api.workers.dev';
+const String defaultApiBaseUrl = AppConfig.defaultApiBaseUrl;
 
 class AppSettings {
   final String baseUrl;
@@ -36,10 +37,10 @@ class AppSettings {
 }
 
 class SettingsNotifier extends AsyncNotifier<AppSettings> {
-  static const String _tokenStorageKey = 'device_auth_token';
-  static const String _baseUrlStorageKey = 'api_base_url';
-  static const String _adminTokenStorageKey = 'admin_auth_token';
-  static const String _hapticsStorageKey = 'vibrations_enabled';
+  static const String _tokenStorageKey = AppConfig.deviceTokenKey;
+  static const String _baseUrlStorageKey = AppConfig.apiBaseUrlKey;
+  static const String _adminTokenStorageKey = AppConfig.adminAuthTokenKey;
+  static const String _hapticsStorageKey = AppConfig.vibrationsEnabledKey;
 
   @override
   Future<AppSettings> build() async {

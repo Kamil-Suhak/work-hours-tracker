@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../config/app_config.dart';
 import '../../services/platform/platform_services.dart';
 import '../clock/clock_notifier.dart';
 import 'settings_notifier.dart';
@@ -40,7 +41,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
     final defaultUrl = ref.read(credentialStoreProvider).defaultBaseUrl;
     final initialUrl = (settings?.baseUrl != null &&
             settings!.baseUrl.isNotEmpty &&
-            settings.baseUrl != defaultApiBaseUrl)
+            settings.baseUrl != AppConfig.defaultApiBaseUrl)
         ? settings.baseUrl
         : defaultUrl;
 

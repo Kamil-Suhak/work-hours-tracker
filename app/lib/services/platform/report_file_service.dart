@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../config/app_config.dart';
 import '../../features/reports/report_downloader_stub.dart'
     if (dart.library.html) '../../features/reports/report_downloader_web.dart';
 
@@ -14,7 +15,7 @@ abstract class ReportFileService {
 
 class AndroidReportFileService implements ReportFileService {
   static const MethodChannel _channel =
-      MethodChannel('com.workhours.tracker/widget_sync');
+      MethodChannel(AppConfig.widgetSyncChannel);
 
   const AndroidReportFileService();
 

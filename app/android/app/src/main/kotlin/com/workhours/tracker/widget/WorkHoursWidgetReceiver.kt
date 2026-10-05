@@ -43,7 +43,6 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
         const val KEY_HAPTICS = "vibrations_enabled"
         const val KEY_ACTIVE_NOTE = "active_shift_note"
         const val KEY_IS_CLOCKED_IN = "is_clocked_in"
-        const val DEFAULT_API_URL = "https://work-hours-api.workers.dev"
 
         private val client = OkHttpClient()
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
@@ -146,7 +145,8 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
         }
 
         if (syncText.isNotEmpty()) {
-            views.setTextViewText(R.id.widget_sync_time, "Synced $syncText")
+            val displayText = if (syncText == "Setup") "Setup in App" else "Synced $syncText"
+            views.setTextViewText(R.id.widget_sync_time, displayText)
         }
 
         // Responsive Notes container: show if clocked in, vertically expanded, and note exists
@@ -207,8 +207,15 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
     private fun executeClockAction(context: Context, operation: String) {
         CoroutineScope(Dispatchers.IO).launch {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val baseUrl = prefs.getString(KEY_API_URL, DEFAULT_API_URL) ?: DEFAULT_API_URL
-            val token = prefs.getString(KEY_TOKEN, "") ?: ""
+            val baseUrl = prefs.getString(KEY_API_URL, null)?.trim()
+            val token = prefs.getString(KEY_TOKEN, null)?.trim()
+
+            if (baseUrl.isNullOrEmpty() || token.isNullOrEmpty()) {
+                withContext(Dispatchers.Main) {
+                    updateAllWidgets(context, isClockedIn = null, syncText = "Setup")
+                }
+                return@launch
+            }
             val requestId = UUID.randomUUID().toString()
 
             val jsonBody = JSONObject().apply {
@@ -250,8 +257,15 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
     private fun refreshStatusAsync(context: Context) {
         CoroutineScope(Dispatchers.IO).launch {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val baseUrl = prefs.getString(KEY_API_URL, DEFAULT_API_URL) ?: DEFAULT_API_URL
-            val token = prefs.getString(KEY_TOKEN, "") ?: ""
+            val baseUrl = prefs.getString(KEY_API_URL, null)?.trim()
+            val token = prefs.getString(KEY_TOKEN, null)?.trim()
+
+            if (baseUrl.isNullOrEmpty() || token.isNullOrEmpty()) {
+                withContext(Dispatchers.Main) {
+                    updateAllWidgets(context, isClockedIn = null, syncText = "Setup")
+                }
+                return@launch
+            }
 
             val request = Request.Builder()
                 .url("$baseUrl/api/v1/status")

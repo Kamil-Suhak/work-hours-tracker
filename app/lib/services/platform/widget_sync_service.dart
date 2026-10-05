@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../config/app_config.dart';
 
 abstract class WidgetSyncService {
   Future<bool> syncCredentials({
@@ -14,7 +15,7 @@ abstract class WidgetSyncService {
 
 class AndroidWidgetSyncService implements WidgetSyncService {
   static const MethodChannel _channel =
-      MethodChannel('com.workhours.tracker/widget_sync');
+      MethodChannel(AppConfig.widgetSyncChannel);
 
   const AndroidWidgetSyncService();
 

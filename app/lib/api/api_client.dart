@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import '../config/app_config.dart';
 import 'models.dart';
 
 class ApiClient {
@@ -10,8 +11,8 @@ class ApiClient {
   final http.Client _httpClient;
   final FlutterSecureStorage _storage;
 
-  static const String _tokenStorageKey = 'device_auth_token';
-  static const String _baseUrlStorageKey = 'api_base_url';
+  static const String _tokenStorageKey = AppConfig.deviceTokenKey;
+  static const String _baseUrlStorageKey = AppConfig.apiBaseUrlKey;
 
   ApiClient({
     required this.baseUrl,

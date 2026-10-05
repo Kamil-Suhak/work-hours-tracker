@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../../config/app_config.dart';
 
 abstract class SecureStorageGateway {
   Future<String?> read(String key);
@@ -33,7 +34,6 @@ abstract class CredentialStore {
 
 class MobileCredentialStore implements CredentialStore {
   final SecureStorageGateway _storage;
-  static const String _defaultApiBaseUrl = 'https://work-hours-api.workers.dev';
 
   const MobileCredentialStore([this._storage = const DefaultSecureStorageGateway()]);
 
@@ -41,10 +41,7 @@ class MobileCredentialStore implements CredentialStore {
   bool get isWeb => false;
 
   @override
-  String get defaultBaseUrl => const String.fromEnvironment(
-        'API_BASE_URL',
-        defaultValue: _defaultApiBaseUrl,
-      );
+  String get defaultBaseUrl => AppConfig.defaultApiBaseUrl;
 
   @override
   Future<String?> read(String key) => _storage.read(key);
@@ -71,7 +68,7 @@ class WebCredentialStore implements CredentialStore {
   @override
   Future<String?> read(String key) async {
     // Admin token is kept in-memory only during the active web session
-    if (key == 'admin_auth_token') {
+    if (key == AppConfig.adminAuthTokenKey) {
       return _inMemoryAdminToken;
     }
     return _storage.read(key);
@@ -80,7 +77,7 @@ class WebCredentialStore implements CredentialStore {
   @override
   Future<void> write(String key, String value) async {
     // Never persist admin token to browser storage
-    if (key == 'admin_auth_token') {
+    if (key == AppConfig.adminAuthTokenKey) {
       _inMemoryAdminToken = value;
       return;
     }
@@ -89,7 +86,7 @@ class WebCredentialStore implements CredentialStore {
 
   @override
   Future<void> delete(String key) async {
-    if (key == 'admin_auth_token') {
+    if (key == AppConfig.adminAuthTokenKey) {
       _inMemoryAdminToken = null;
       return;
     }

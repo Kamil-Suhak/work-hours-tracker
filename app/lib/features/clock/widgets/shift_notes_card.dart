@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../../../config/app_config.dart';
 import '../../settings/widget_sync_service.dart';
 import 'markdown_renderer.dart';
 
@@ -15,7 +16,7 @@ class ShiftNotesCard extends StatefulWidget {
     this.isInitiallyExpanded = false,
   });
 
-  static const String storageKey = 'active_shift_note';
+  static const String storageKey = AppConfig.activeShiftNoteKey;
   static const FlutterSecureStorage _storage = FlutterSecureStorage();
 
   static Future<String?> loadSavedDraft() async {

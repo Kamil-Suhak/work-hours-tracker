@@ -7,17 +7,14 @@ import '../../api/api_client.dart';
 import '../../api/models.dart';
 import 'time_tracking_repository.dart';
 
+import '../../config/app_config.dart';
 import '../history/shifts_notifier.dart';
 import '../settings/settings_notifier.dart';
 
 // Configurable base URL provider wired to user settings
 final apiBaseUrlProvider = Provider<String>((ref) {
   final settingsAsync = ref.watch(settingsProvider);
-  return settingsAsync.value?.baseUrl ??
-      const String.fromEnvironment(
-        'API_BASE_URL',
-        defaultValue: defaultApiBaseUrl,
-      );
+  return settingsAsync.value?.baseUrl ?? AppConfig.defaultApiBaseUrl;
 });
 
 final apiClientProvider = Provider<ApiClient>((ref) {
