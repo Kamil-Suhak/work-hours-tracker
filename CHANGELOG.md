@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.1] - 2026-10-05
+
+### Added
+- **Markdown Preview Code Blocks & Checkboxes:** Render multi-line fenced code blocks with dark cyber styling and task checklists (`- [ ]` / `- [x]`) with checked/unchecked icons and strike-through.
+- **Auto-Continuing Bullet & Task Lists:** Note editor automatically inserts `- ` or `- [ ] ` on Enter when continuing lists, and exits the list when Enter is pressed on an empty item.
+
+### Fixed
+- **Recent Shifts Scrollbar:** Added visible, interactive desktop/web scrollbar to the recent shifts quadrant.
+- **Markdown Toolbar Cursor Positioning:** Tapping formatting buttons retains editor focus and places the cursor between paired markers (`**|**`) or after prefixes (`## |`).
+- **Web Report Opening:** Cached generated report bytes in `WebReportFileService` so the "Open" button opens the report in a new tab with user feedback.
+- **Tracker Quadrant View Stability:** Consolidated Current Shift Timer and Month-to-Date/History sections into a side-by-side layout at the same Y level, narrowed and centered action buttons, and prevented scrolling when the Undo button is visible.
+
+---
+
 ## [1.0.0-experimental] - 2026-10-05
 
 > **Experimental Release:** Automated tests (backend and client) pass at 100%. Pending manual end-to-end device testing.
