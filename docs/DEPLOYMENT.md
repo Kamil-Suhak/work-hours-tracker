@@ -204,17 +204,4 @@ npm --prefix worker run db:shifts
 npx wrangler d1 execute work-hours-prod --remote --file=worker/sql/recent-shifts.sql
 ```
 
-### 8.6 Purging Stored Reports (Cloudflare R2)
-Generated `.xlsx` spreadsheets and the latest report pointer are stored in the Cloudflare R2 bucket (`work-hours-reports`):
-
-```bash
-# 1. Reset latest report index pointer:
-npm --prefix worker run r2:purge
-
-# 2. Delete all historical reports:
-# Option A (Cloudflare Dashboard - Recommended):
-#   Navigate to Cloudflare Dashboard -> R2 -> 'work-hours-reports' -> Settings -> 'Empty bucket'.
-# Option B (Wrangler CLI for a specific file):
-#   npx wrangler r2 object delete work-hours-reports/reports/<filename>.xlsx
-```
 

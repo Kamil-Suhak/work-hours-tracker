@@ -13,8 +13,7 @@
     "db:purge-all": "wrangler d1 execute work-hours-prod --remote --file=sql/purge-all.sql",
     "db:devices": "wrangler d1 execute work-hours-prod --remote --file=sql/list-devices.sql",
     "db:status": "wrangler d1 execute work-hours-prod --remote --file=sql/inspect-state.sql",
-    "db:shifts": "wrangler d1 execute work-hours-prod --remote --file=sql/recent-shifts.sql",
-    "r2:purge": "node scripts/purge-reports.mjs"
+    "db:shifts": "wrangler d1 execute work-hours-prod --remote --file=sql/recent-shifts.sql"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261003.1",
