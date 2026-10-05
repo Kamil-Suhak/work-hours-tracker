@@ -100,15 +100,15 @@ class _CurrentShiftTimerCardState extends State<CurrentShiftTimerCard> {
     final monthFormatted = formatSeconds(widget.monthSeconds);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B), // Dark Slate
-        borderRadius: BorderRadius.circular(20),
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: widget.isClockedIn
               ? activeColor.withValues(alpha: 0.35)
               : const Color(0xFF334155),
-          width: 1.5,
+          width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
@@ -118,122 +118,156 @@ class _CurrentShiftTimerCardState extends State<CurrentShiftTimerCard> {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Header Label
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.timer_outlined,
-                size: 15,
-                color: widget.isClockedIn ? activeColor : inactiveColor,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'CURRENT SHIFT TIMER',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.2,
-                  color: widget.isClockedIn
-                      ? const Color(0xFF94A3B8)
-                      : inactiveColor,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // Central High-Precision Stopwatch
-          Text(
-            timerDisplay,
-            style: TextStyle(
-              fontSize: 42,
-              fontWeight: FontWeight.w800,
-              fontFeatures: const [FontFeature.tabularFigures()],
-              letterSpacing: 2.0,
-              color: widget.isClockedIn ? Colors.white : inactiveColor,
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          // Subtitle details (Shift start or Today's tracked time)
-          if (widget.isClockedIn && widget.activeSince != null)
-            Text(
-              'Started at ${timeFormat.format(widget.activeSince!.toLocal())} • Today: $todayFormatted',
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF94A3B8),
-              ),
-            )
-          else
-            Text(
-              "Today's total: $todayFormatted",
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF94A3B8),
-              ),
-            ),
-
-          const SizedBox(height: 16),
-          const Divider(color: Color(0xFF334155), height: 1),
-          const SizedBox(height: 14),
-
-          // Month to Date Total and Shift History Button
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Left: Current Shift Timer
+            Expanded(
+              flex: 3,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
-                    Icons.calendar_month_outlined,
-                    size: 15,
-                    color: Color(0xFF64748B),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.timer_outlined,
+                        size: 14,
+                        color: widget.isClockedIn ? activeColor : inactiveColor,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'CURRENT SHIFT TIMER',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.1,
+                          color: widget.isClockedIn
+                              ? const Color(0xFF94A3B8)
+                              : inactiveColor,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Month to date: $monthFormatted',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF94A3B8),
+                  const SizedBox(height: 6),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      timerDisplay,
+                      style: TextStyle(
+                        fontSize: 34,
+                        fontWeight: FontWeight.w800,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                        letterSpacing: 1.5,
+                        color: widget.isClockedIn ? Colors.white : inactiveColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  if (widget.isClockedIn && widget.activeSince != null)
+                    Text(
+                      'Started at ${timeFormat.format(widget.activeSince!.toLocal())} • Today: $todayFormatted',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF94A3B8),
+                      ),
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                    )
+                  else
+                    Text(
+                      "Today's total: $todayFormatted",
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF94A3B8),
+                      ),
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
+            ),
+
+            // Vertical divider separating timer and month/history sections
+            const VerticalDivider(
+              color: Color(0xFF334155),
+              thickness: 1,
+              width: 28,
+            ),
+
+            // Right: Month to date & History (aligned at same y level)
+            Expanded(
+              flex: 2,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.calendar_month_outlined,
+                        size: 13,
+                        color: Color(0xFF64748B),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Month to date: $monthFormatted',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF94A3B8),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: widget.onViewHistory,
+                    child: Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: activeColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: activeColor.withValues(alpha: 0.25),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'History',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: activeColor,
+                            ),
+                          ),
+                          SizedBox(width: 2),
+                          Icon(
+                            Icons.chevron_right,
+                            size: 14,
+                            color: activeColor,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
-              InkWell(
-                borderRadius: BorderRadius.circular(8),
-                onTap: widget.onViewHistory,
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'History',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: activeColor,
-                        ),
-                      ),
-                      SizedBox(width: 2),
-                      Icon(
-                        Icons.chevron_right,
-                        size: 16,
-                        color: activeColor,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
