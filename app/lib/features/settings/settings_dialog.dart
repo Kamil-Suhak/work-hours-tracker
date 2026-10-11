@@ -31,6 +31,12 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
   bool _obscureAdminToken = true;
   bool _isSaving = false;
   bool _vibrationsEnabled = true;
+  int _shiftReminderMinutes = 0;
+  String _environment = 'production';
+  String _prodUrl = '';
+  String _prodToken = '';
+  String _stagingUrl = '';
+  String _stagingToken = '';
 
   @override
   void initState() {
@@ -45,6 +51,19 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
         ? settings.baseUrl
         : defaultUrl;
 
+    _environment = settings?.environment ?? 'production';
+    _shiftReminderMinutes = settings?.shiftReminderMinutes ?? 0;
+    _stagingUrl = settings?.stagingUrl ?? AppConfig.stagingApiBaseUrl;
+    _stagingToken = settings?.stagingToken ?? '';
+
+    if (_environment == 'production') {
+      _prodUrl = initialUrl;
+      _prodToken = settings?.deviceToken ?? '';
+    } else {
+      _prodUrl = AppConfig.defaultApiBaseUrl;
+      _prodToken = '';
+    }
+
     _urlController = TextEditingController(
       text: initialUrl,
     );
@@ -55,6 +74,29 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
       text: settings?.adminToken ?? '',
     );
     _vibrationsEnabled = settings?.vibrationsEnabled ?? true;
+  }
+
+  void _switchEnvironment(String targetEnv) {
+    if (_environment == 'production') {
+      _prodUrl = _urlController.text.trim();
+      _prodToken = _tokenController.text.trim();
+    } else if (_environment == 'staging') {
+      _stagingUrl = _urlController.text.trim();
+      _stagingToken = _tokenController.text.trim();
+    }
+
+    setState(() {
+      _environment = targetEnv;
+      if (targetEnv == 'production') {
+        _urlController.text =
+            _prodUrl.isNotEmpty ? _prodUrl : AppConfig.defaultApiBaseUrl;
+        _tokenController.text = _prodToken;
+      } else if (targetEnv == 'staging') {
+        _urlController.text =
+            _stagingUrl.isNotEmpty ? _stagingUrl : AppConfig.stagingApiBaseUrl;
+        _tokenController.text = _stagingToken;
+      }
+    });
   }
 
   @override
@@ -83,12 +125,28 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
       final token = _tokenController.text.trim();
       final adminToken = _adminTokenController.text.trim();
 
+      if (_environment == 'production') {
+        _prodUrl = url;
+        _prodToken = token;
+      } else if (_environment == 'staging') {
+        _stagingUrl = url;
+        _stagingToken = token;
+      }
+
       await ref.read(settingsProvider.notifier).saveSettings(
             baseUrl: url,
             deviceToken: token,
             adminToken: adminToken.isNotEmpty ? adminToken : null,
             vibrationsEnabled: _vibrationsEnabled,
+            shiftReminderMinutes: _shiftReminderMinutes,
+            environment: _environment,
+            stagingUrl: _stagingUrl,
+            stagingToken: _stagingToken,
           );
+
+      if (_shiftReminderMinutes > 0) {
+        await ref.read(notificationServiceProvider).requestPermissions();
+      }
 
       if (mounted) {
         // Trigger a fresh status fetch with the new credentials
@@ -140,7 +198,31 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                   'Configure your Cloudflare Worker URL and device Bearer token to connect your app and home screen widget.',
                   style: TextStyle(fontSize: 13, color: Colors.grey),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
+                SegmentedButton<String>(
+                  key: const Key('environment_selector'),
+                  segments: const [
+                    ButtonSegment(
+                      value: 'production',
+                      label: Text('Production', style: TextStyle(fontSize: 12)),
+                      icon: Icon(Icons.cloud_done, size: 15),
+                    ),
+                    ButtonSegment(
+                      value: 'staging',
+                      label: Text('Staging', style: TextStyle(fontSize: 12)),
+                      icon: Icon(Icons.science, size: 15),
+                    ),
+                    ButtonSegment(
+                      value: 'custom',
+                      label: Text('Custom', style: TextStyle(fontSize: 12)),
+                      icon: Icon(Icons.tune, size: 15),
+                    ),
+                  ],
+                  selected: {_environment},
+                  onSelectionChanged: (selectedSet) =>
+                      _switchEnvironment(selectedSet.first),
+                ),
+                const SizedBox(height: 16),
                 TextFormField(
                   controller: _urlController,
                   decoration: InputDecoration(
@@ -231,6 +313,29 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                       ],
                     ),
                   ),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<int>(
+                  key: const Key('shift_reminder_dropdown'),
+                  value: _shiftReminderMinutes,
+                  decoration: const InputDecoration(
+                    labelText: 'Clock-out Reminder',
+                    helperText: 'Notify before planned shift length ends',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(
+                      Icons.notifications_active_outlined,
+                      color: Color(0xFF10B981),
+                    ),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 0, child: Text('Disabled')),
+                    DropdownMenuItem(value: 5, child: Text('5 minutes before')),
+                    DropdownMenuItem(value: 10, child: Text('10 minutes before')),
+                    DropdownMenuItem(value: 15, child: Text('15 minutes before')),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) setState(() => _shiftReminderMinutes = val);
+                  },
                 ),
                 if (ref.watch(hapticServiceProvider).isSupported) ...[
                   const SizedBox(height: 12),

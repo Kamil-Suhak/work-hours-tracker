@@ -18,12 +18,18 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
+import android.Manifest
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.workhours.tracker/widget_sync"
+    private val NOTIFICATION_CHANNEL = "com.workhours.tracker/notifications"
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -178,6 +184,84 @@ class MainActivity: FlutterActivity() {
                         result.success(true)
                     } catch (e: Exception) {
                         result.error("OPEN_FAILED", e.localizedMessage, null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, NOTIFICATION_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "requestPermissions" -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        val granted = ContextCompat.checkSelfPermission(
+                            this,
+                            Manifest.permission.POST_NOTIFICATIONS
+                        ) == PackageManager.PERMISSION_GRANTED
+                        if (!granted) {
+                            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
+                        }
+                        result.success(true)
+                    } else {
+                        result.success(true)
+                    }
+                }
+                "scheduleReminder" -> {
+                    try {
+                        val triggerAtMillis = call.argument<Long>("triggerAtMillis")
+                            ?: (call.argument<Number>("triggerAtMillis")?.toLong() ?: 0L)
+                        val title = call.argument<String>("title") ?: "Shift Ending Soon"
+                        val body = call.argument<String>("body") ?: "Your planned shift ends soon. Remember to clock out!"
+
+                        val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+                        val intent = Intent(this, ShiftReminderReceiver::class.java).apply {
+                            action = ShiftReminderReceiver.ACTION_REMINDER
+                            putExtra("title", title)
+                            putExtra("body", body)
+                        }
+                        val pendingIntent = PendingIntent.getBroadcast(
+                            this,
+                            ShiftReminderReceiver.NOTIFICATION_ID,
+                            intent,
+                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                        )
+
+                        if (alarmManager != null && triggerAtMillis > System.currentTimeMillis()) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                alarmManager.setExactAndAllowWhileIdle(
+                                    AlarmManager.RTC_WAKEUP,
+                                    triggerAtMillis,
+                                    pendingIntent
+                                )
+                            } else {
+                                alarmManager.setExact(
+                                    AlarmManager.RTC_WAKEUP,
+                                    triggerAtMillis,
+                                    pendingIntent
+                                )
+                            }
+                        }
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("SCHEDULE_FAILED", e.localizedMessage, null)
+                    }
+                }
+                "cancelReminder" -> {
+                    try {
+                        val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+                        val intent = Intent(this, ShiftReminderReceiver::class.java).apply {
+                            action = ShiftReminderReceiver.ACTION_REMINDER
+                        }
+                        val pendingIntent = PendingIntent.getBroadcast(
+                            this,
+                            ShiftReminderReceiver.NOTIFICATION_ID,
+                            intent,
+                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                        )
+                        alarmManager?.cancel(pendingIntent)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("CANCEL_FAILED", e.localizedMessage, null)
                     }
                 }
                 else -> result.notImplemented()

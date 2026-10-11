@@ -16,6 +16,10 @@ class AppConfig {
     'API_BASE_URL',
     defaultValue: 'https://work-hours-api.workers.dev',
   );
+  static const String stagingApiBaseUrl = String.fromEnvironment(
+    'STAGING_API_BASE_URL',
+    defaultValue: 'https://work-hours-api-staging.kamilsuhak.workers.dev',
+  );
 
   // --- Secure Storage Keys ---
   static const String deviceTokenKey = 'device_auth_token';
@@ -24,9 +28,15 @@ class AppConfig {
   static const String vibrationsEnabledKey = 'vibrations_enabled';
   static const String activeShiftNoteKey = 'active_shift_note';
   static const String legacyPersistedNotesKey = 'local_persisted_shift_notes';
+  static const String plannedShiftMinutesKey = 'planned_shift_minutes';
+  static const String shiftReminderMinutesKey = 'shift_reminder_minutes';
+  static const String environmentKey = 'selected_environment';
+  static const String stagingTokenKey = 'staging_device_auth_token';
+  static const String stagingUrlKey = 'staging_api_base_url';
 
   // --- Platform Method Channels ---
   static const String widgetSyncChannel = 'com.workhours.tracker/widget_sync';
+  static const String notificationChannel = 'com.workhours.tracker/notifications';
 
   // --- Reports Configuration ---
   static const String defaultReportFilename = 'work-hours-report.xlsx';
