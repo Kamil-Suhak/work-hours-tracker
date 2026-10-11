@@ -232,37 +232,51 @@ class _CurrentShiftTimerCardState extends State<CurrentShiftTimerCard> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: widget.onViewHistory,
-                    child: Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: activeColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: activeColor.withValues(alpha: 0.25),
-                        ),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'History',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: activeColor,
+                  SizedBox(
+                    width: double.infinity,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        key: const Key('timer_card_history_button'),
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: widget.onViewHistory,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: activeColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: activeColor.withValues(alpha: 0.35),
+                              width: 1.2,
                             ),
                           ),
-                          SizedBox(width: 2),
-                          Icon(
-                            Icons.chevron_right,
-                            size: 14,
-                            color: activeColor,
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.history,
+                                size: 15,
+                                color: activeColor,
+                              ),
+                              SizedBox(width: 5),
+                              Text(
+                                'History',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.3,
+                                  color: activeColor,
+                                ),
+                              ),
+                              SizedBox(width: 2),
+                              Icon(
+                                Icons.chevron_right,
+                                size: 15,
+                                color: activeColor,
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
