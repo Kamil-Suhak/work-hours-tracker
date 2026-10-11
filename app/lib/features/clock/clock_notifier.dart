@@ -8,6 +8,7 @@ import '../../api/models.dart';
 import 'time_tracking_repository.dart';
 
 import '../../config/app_config.dart';
+import '../../services/platform/platform_services.dart';
 import '../history/shifts_notifier.dart';
 import '../settings/settings_notifier.dart';
 
@@ -29,17 +30,30 @@ final timeTrackingRepositoryProvider = Provider<TimeTrackingRepository>((ref) {
 });
 
 class CurrentStatusNotifier extends AsyncNotifier<WorkStatus> {
+  void _syncWidget(WorkStatus status) {
+    try {
+      final widgetSync = ref.read(widgetSyncServiceProvider);
+      unawaited(widgetSync.syncWidgetStatus(
+        isClockedIn: status.isClockedIn,
+      ));
+    } catch (_) {}
+  }
+
   @override
   Future<WorkStatus> build() async {
     final repository = ref.read(timeTrackingRepositoryProvider);
-    return await repository.fetchCurrentStatus();
+    final status = await repository.fetchCurrentStatus();
+    _syncWidget(status);
+    return status;
   }
 
   Future<void> refreshStatus() async {
     state = const AsyncLoading<WorkStatus>().copyWithPrevious(state);
     state = await AsyncValue.guard(() async {
       final repository = ref.read(timeTrackingRepositoryProvider);
-      return await repository.fetchCurrentStatus();
+      final status = await repository.fetchCurrentStatus();
+      _syncWidget(status);
+      return status;
     });
   }
 
@@ -49,6 +63,7 @@ class CurrentStatusNotifier extends AsyncNotifier<WorkStatus> {
       final repository = ref.read(timeTrackingRepositoryProvider);
       final res = await repository.clockIn();
       ref.invalidate(shiftsProvider);
+      _syncWidget(res);
       return res;
     });
   }
@@ -59,6 +74,7 @@ class CurrentStatusNotifier extends AsyncNotifier<WorkStatus> {
       final repository = ref.read(timeTrackingRepositoryProvider);
       final res = await repository.clockOut(note: note);
       ref.invalidate(shiftsProvider);
+      _syncWidget(res);
       return res;
     });
   }
@@ -69,6 +85,7 @@ class CurrentStatusNotifier extends AsyncNotifier<WorkStatus> {
       final repository = ref.read(timeTrackingRepositoryProvider);
       final result = await repository.undo(eventId);
       ref.invalidate(shiftsProvider);
+      _syncWidget(result.status);
       return result.status;
     });
   }

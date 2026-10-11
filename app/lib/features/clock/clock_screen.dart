@@ -30,15 +30,30 @@ class ClockScreen extends ConsumerStatefulWidget {
   ConsumerState<ClockScreen> createState() => _ClockScreenState();
 }
 
-class _ClockScreenState extends ConsumerState<ClockScreen> {
+class _ClockScreenState extends ConsumerState<ClockScreen>
+    with WidgetsBindingObserver {
   final _notesController = TextEditingController();
   Timer? _gracePeriodTicker;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _gracePeriodTicker?.cancel();
     _notesController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.read(currentStatusProvider.notifier).refreshStatus();
+    }
   }
 
   void _syncGracePeriodTicker(WorkStatus? status) {

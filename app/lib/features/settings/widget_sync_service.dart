@@ -23,6 +23,17 @@ class WidgetSyncService {
   static Future<bool> syncActiveNote(String note) =>
       _delegate.syncActiveNote(note);
 
+  static Future<bool> syncWidgetStatus({
+    required bool isClockedIn,
+    String? activeNote,
+    String? syncTime,
+  }) =>
+      _delegate.syncWidgetStatus(
+        isClockedIn: isClockedIn,
+        activeNote: activeNote,
+        syncTime: syncTime,
+      );
+
   static Future<void> vibrate() async {
     await _delegate.vibrate();
     await _haptic.vibrate();

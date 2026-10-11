@@ -80,6 +80,9 @@ void main() {
 
       final noteResult = await service.syncActiveNote('Note');
       expect(noteResult, isTrue);
+
+      final statusResult = await service.syncWidgetStatus(isClockedIn: true);
+      expect(statusResult, isTrue);
     });
   });
 

@@ -11,6 +11,11 @@ abstract class WidgetSyncService {
   });
   Future<Map<String, String>?> getWidgetCredentials();
   Future<bool> syncActiveNote(String note);
+  Future<bool> syncWidgetStatus({
+    required bool isClockedIn,
+    String? activeNote,
+    String? syncTime,
+  });
 }
 
 class AndroidWidgetSyncService implements WidgetSyncService {
@@ -60,6 +65,24 @@ class AndroidWidgetSyncService implements WidgetSyncService {
     }
   }
 
+  @override
+  Future<bool> syncWidgetStatus({
+    required bool isClockedIn,
+    String? activeNote,
+    String? syncTime,
+  }) async {
+    try {
+      final result = await _channel.invokeMethod<bool>('syncWidgetStatus', {
+        'isClockedIn': isClockedIn,
+        if (activeNote != null) 'activeNote': activeNote,
+        if (syncTime != null) 'syncTime': syncTime,
+      });
+      return result ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> vibrate() async {
     try {
       await _channel.invokeMethod('vibrate');
@@ -82,6 +105,13 @@ class NoOpWidgetSyncService implements WidgetSyncService {
 
   @override
   Future<bool> syncActiveNote(String note) async => true;
+
+  @override
+  Future<bool> syncWidgetStatus({
+    required bool isClockedIn,
+    String? activeNote,
+    String? syncTime,
+  }) async => true;
 }
 
 final widgetSyncServiceProvider = Provider<WidgetSyncService>((ref) {

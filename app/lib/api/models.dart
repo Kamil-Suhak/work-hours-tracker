@@ -81,6 +81,9 @@ class WorkStatus {
           : null,
     );
   }
+
+  bool get isClockedIn => state == WorkState.clockedIn;
+  bool get isClockedOut => state == WorkState.clockedOut;
 }
 
 class TrackingEvent {

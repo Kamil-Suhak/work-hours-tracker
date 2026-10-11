@@ -76,6 +76,102 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
                 }
             } catch (_: Exception) {}
         }
+        fun updateAllWidgets(context: Context, isClockedIn: Boolean?, syncText: String) {
+            val appWidgetManager = AppWidgetManager.getInstance(context)
+            val ids = appWidgetManager.getAppWidgetIds(ComponentName(context, WorkHoursWidgetReceiver::class.java))
+            for (id in ids) {
+                updateWidgetView(context, appWidgetManager, id, isClockedIn, syncText)
+            }
+        }
+
+        fun updateWidgetView(
+            context: Context,
+            appWidgetManager: AppWidgetManager,
+            appWidgetId: Int,
+            isClockedIn: Boolean?,
+            syncText: String = ""
+        ) {
+            val views = RemoteViews(context.packageName, R.layout.work_hours_widget)
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+            // Status badge configuration
+            when (isClockedIn) {
+                true -> {
+                    views.setInt(R.id.widget_status, "setBackgroundResource", R.drawable.widget_status_in)
+                    views.setTextColor(R.id.widget_status, Color.parseColor("#34D399"))
+                    views.setTextViewText(R.id.widget_status, "● CLOCKED IN")
+                }
+                false -> {
+                    views.setInt(R.id.widget_status, "setBackgroundResource", R.drawable.widget_status_out)
+                    views.setTextColor(R.id.widget_status, Color.parseColor("#94A3B8"))
+                    views.setTextViewText(R.id.widget_status, "○ CLOCKED OUT")
+                }
+                null -> {
+                    views.setInt(R.id.widget_status, "setBackgroundResource", R.drawable.widget_status_out)
+                    views.setTextColor(R.id.widget_status, Color.parseColor("#94A3B8"))
+                    views.setTextViewText(R.id.widget_status, "⋯ SYNCING")
+                }
+            }
+
+            if (syncText.isNotEmpty()) {
+                val displayText = if (syncText == "Setup") "Setup in App" else "Synced $syncText"
+                views.setTextViewText(R.id.widget_sync_time, displayText)
+            }
+
+            // Responsive Notes container: show if clocked in, vertically expanded, and note exists
+            val effectiveClockedIn = isClockedIn ?: prefs.getBoolean(KEY_IS_CLOCKED_IN, false)
+            val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
+            val minHeight = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT) ?: 0
+            val isExpanded = minHeight >= 100
+            val activeNote = prefs.getString(KEY_ACTIVE_NOTE, "")?.trim() ?: ""
+
+            if (effectiveClockedIn && isExpanded && activeNote.isNotEmpty()) {
+                views.setViewVisibility(R.id.widget_notes_container, View.VISIBLE)
+                val cleanNote = activeNote
+                    .lines()
+                    .map { line ->
+                        line.trim()
+                            .replace(Regex("^#+\\s*"), "")
+                            .replace(Regex("^-\\s*"), "• ")
+                            .replace(Regex("\\*\\*(.*?)\\*\\*"), "$1")
+                            .replace(Regex("\\*(.*?)\\*"), "$1")
+                    }
+                    .filter { it.isNotEmpty() }
+                    .joinToString("\n")
+                views.setTextViewText(R.id.widget_notes_text, cleanNote)
+            } else {
+                views.setViewVisibility(R.id.widget_notes_container, View.GONE)
+            }
+
+            // PendingIntent for Clock In
+            val clockInIntent = Intent(context, WorkHoursWidgetReceiver::class.java).apply {
+                action = ACTION_CLOCK_IN
+            }
+            val clockInPending = PendingIntent.getBroadcast(
+                context, 101, clockInIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.btn_clock_in, clockInPending)
+
+            // PendingIntent for Clock Out
+            val clockOutIntent = Intent(context, WorkHoursWidgetReceiver::class.java).apply {
+                action = ACTION_CLOCK_OUT
+            }
+            val clockOutPending = PendingIntent.getBroadcast(
+                context, 102, clockOutIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.btn_clock_out, clockOutPending)
+
+            // PendingIntent for Manual Sync button
+            val syncIntent = Intent(context, WorkHoursWidgetReceiver::class.java).apply {
+                action = ACTION_SYNC
+            }
+            val syncPending = PendingIntent.getBroadcast(
+                context, 103, syncIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.btn_sync, syncPending)
+
+            appWidgetManager.updateAppWidget(appWidgetId, views)
+        }
     }
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
@@ -113,95 +209,6 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
                 refreshStatusAsync(context)
             }
         }
-    }
-
-    private fun updateWidgetView(
-        context: Context,
-        appWidgetManager: AppWidgetManager,
-        appWidgetId: Int,
-        isClockedIn: Boolean?,
-        syncText: String = ""
-    ) {
-        val views = RemoteViews(context.packageName, R.layout.work_hours_widget)
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-
-        // Status badge configuration
-        when (isClockedIn) {
-            true -> {
-                views.setInt(R.id.widget_status, "setBackgroundResource", R.drawable.widget_status_in)
-                views.setTextColor(R.id.widget_status, Color.parseColor("#34D399"))
-                views.setTextViewText(R.id.widget_status, "● CLOCKED IN")
-            }
-            false -> {
-                views.setInt(R.id.widget_status, "setBackgroundResource", R.drawable.widget_status_out)
-                views.setTextColor(R.id.widget_status, Color.parseColor("#94A3B8"))
-                views.setTextViewText(R.id.widget_status, "○ CLOCKED OUT")
-            }
-            null -> {
-                views.setInt(R.id.widget_status, "setBackgroundResource", R.drawable.widget_status_out)
-                views.setTextColor(R.id.widget_status, Color.parseColor("#94A3B8"))
-                views.setTextViewText(R.id.widget_status, "⋯ SYNCING")
-            }
-        }
-
-        if (syncText.isNotEmpty()) {
-            val displayText = if (syncText == "Setup") "Setup in App" else "Synced $syncText"
-            views.setTextViewText(R.id.widget_sync_time, displayText)
-        }
-
-        // Responsive Notes container: show if clocked in, vertically expanded, and note exists
-        val effectiveClockedIn = isClockedIn ?: prefs.getBoolean(KEY_IS_CLOCKED_IN, false)
-        val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
-        val minHeight = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT) ?: 0
-        val isExpanded = minHeight >= 100
-        val activeNote = prefs.getString(KEY_ACTIVE_NOTE, "")?.trim() ?: ""
-
-        if (effectiveClockedIn && isExpanded && activeNote.isNotEmpty()) {
-            views.setViewVisibility(R.id.widget_notes_container, View.VISIBLE)
-            val cleanNote = activeNote
-                .lines()
-                .map { line ->
-                    line.trim()
-                        .replace(Regex("^#+\\s*"), "")
-                        .replace(Regex("^-\\s*"), "• ")
-                        .replace(Regex("\\*\\*(.*?)\\*\\*"), "$1")
-                        .replace(Regex("\\*(.*?)\\*"), "$1")
-                }
-                .filter { it.isNotEmpty() }
-                .joinToString("\n")
-            views.setTextViewText(R.id.widget_notes_text, cleanNote)
-        } else {
-            views.setViewVisibility(R.id.widget_notes_container, View.GONE)
-        }
-
-        // PendingIntent for Clock In
-        val clockInIntent = Intent(context, WorkHoursWidgetReceiver::class.java).apply {
-            action = ACTION_CLOCK_IN
-        }
-        val clockInPending = PendingIntent.getBroadcast(
-            context, 101, clockInIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        views.setOnClickPendingIntent(R.id.btn_clock_in, clockInPending)
-
-        // PendingIntent for Clock Out
-        val clockOutIntent = Intent(context, WorkHoursWidgetReceiver::class.java).apply {
-            action = ACTION_CLOCK_OUT
-        }
-        val clockOutPending = PendingIntent.getBroadcast(
-            context, 102, clockOutIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        views.setOnClickPendingIntent(R.id.btn_clock_out, clockOutPending)
-
-        // PendingIntent for Manual Sync button
-        val syncIntent = Intent(context, WorkHoursWidgetReceiver::class.java).apply {
-            action = ACTION_SYNC
-        }
-        val syncPending = PendingIntent.getBroadcast(
-            context, 103, syncIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        views.setOnClickPendingIntent(R.id.btn_sync, syncPending)
-
-        appWidgetManager.updateAppWidget(appWidgetId, views)
     }
 
     private fun executeClockAction(context: Context, operation: String) {
@@ -295,14 +302,6 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
                     updateAllWidgets(context, isClockedIn = null, syncText = "Offline")
                 }
             }
-        }
-    }
-
-    private fun updateAllWidgets(context: Context, isClockedIn: Boolean?, syncText: String) {
-        val appWidgetManager = AppWidgetManager.getInstance(context)
-        val ids = appWidgetManager.getAppWidgetIds(ComponentName(context, WorkHoursWidgetReceiver::class.java))
-        for (id in ids) {
-            updateWidgetView(context, appWidgetManager, id, isClockedIn, syncText)
         }
     }
 }

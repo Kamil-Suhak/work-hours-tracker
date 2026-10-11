@@ -18,6 +18,10 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.workhours.tracker/widget_sync"
 
@@ -69,16 +73,8 @@ class MainActivity: FlutterActivity() {
                         .putBoolean(WorkHoursWidgetReceiver.KEY_HAPTICS, vibrationsEnabled)
                         .apply()
 
-                    // Trigger widget update broadcast so widget re-renders with new credentials
-                    val intent = Intent(applicationContext, WorkHoursWidgetReceiver::class.java).apply {
-                        action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
-                        val appWidgetManager = AppWidgetManager.getInstance(applicationContext)
-                        val ids = appWidgetManager.getAppWidgetIds(
-                            ComponentName(applicationContext, WorkHoursWidgetReceiver::class.java)
-                        )
-                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
-                    }
-                    applicationContext.sendBroadcast(intent)
+                    val isClockedIn = if (prefs.contains(WorkHoursWidgetReceiver.KEY_IS_CLOCKED_IN)) prefs.getBoolean(WorkHoursWidgetReceiver.KEY_IS_CLOCKED_IN, false) else null
+                    WorkHoursWidgetReceiver.updateAllWidgets(applicationContext, isClockedIn, "")
 
                     result.success(true)
                 }
@@ -100,15 +96,29 @@ class MainActivity: FlutterActivity() {
                     )
                     prefs.edit().putString(WorkHoursWidgetReceiver.KEY_ACTIVE_NOTE, note).apply()
 
-                    val intent = Intent(applicationContext, WorkHoursWidgetReceiver::class.java).apply {
-                        action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
-                        val appWidgetManager = AppWidgetManager.getInstance(applicationContext)
-                        val ids = appWidgetManager.getAppWidgetIds(
-                            ComponentName(applicationContext, WorkHoursWidgetReceiver::class.java)
-                        )
-                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+                    val isClockedIn = if (prefs.contains(WorkHoursWidgetReceiver.KEY_IS_CLOCKED_IN)) prefs.getBoolean(WorkHoursWidgetReceiver.KEY_IS_CLOCKED_IN, false) else null
+                    WorkHoursWidgetReceiver.updateAllWidgets(applicationContext, isClockedIn, "")
+                    result.success(true)
+                }
+                "syncWidgetStatus" -> {
+                    val isClockedIn = call.argument<Boolean>("isClockedIn") ?: false
+                    val activeNote = call.argument<String?>("activeNote")
+                    val syncTime = call.argument<String?>("syncTime")
+                        ?: SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+
+                    val prefs = applicationContext.getSharedPreferences(
+                        WorkHoursWidgetReceiver.PREFS_NAME,
+                        Context.MODE_PRIVATE
+                    )
+                    val editor = prefs.edit().putBoolean(WorkHoursWidgetReceiver.KEY_IS_CLOCKED_IN, isClockedIn)
+                    if (activeNote != null) {
+                        editor.putString(WorkHoursWidgetReceiver.KEY_ACTIVE_NOTE, activeNote)
+                    } else if (!isClockedIn) {
+                        editor.putString(WorkHoursWidgetReceiver.KEY_ACTIVE_NOTE, "")
                     }
-                    applicationContext.sendBroadcast(intent)
+                    editor.apply()
+
+                    WorkHoursWidgetReceiver.updateAllWidgets(applicationContext, isClockedIn, syncTime)
                     result.success(true)
                 }
                 "saveAndOpenReport" -> {
