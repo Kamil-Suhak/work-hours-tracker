@@ -83,12 +83,17 @@ class ApiClient {
     _handleError(response);
   }
 
-  Future<WorkStatus> clockIn({required String requestId, String source = 'flutter_app'}) async {
+  Future<WorkStatus> clockIn({
+    required String requestId,
+    String source = 'flutter_app',
+    int? offsetMinutes,
+  }) async {
     final uri = Uri.parse('$baseUrl/api/v1/clock-in');
     final headers = await _buildHeaders();
     final body = jsonEncode({
       'requestId': requestId,
       'source': source,
+      if (offsetMinutes != null) 'offsetMinutes': offsetMinutes,
     });
 
     final response = await _httpClient.post(uri, headers: headers, body: body);
@@ -102,12 +107,14 @@ class ApiClient {
     required String requestId,
     String source = 'flutter_app',
     String? note,
+    int? offsetMinutes,
   }) async {
     final uri = Uri.parse('$baseUrl/api/v1/clock-out');
     final headers = await _buildHeaders();
     final payload = <String, dynamic>{
       'requestId': requestId,
       'source': source,
+      if (offsetMinutes != null) 'offsetMinutes': offsetMinutes,
     };
     if (note != null && note.trim().isNotEmpty) {
       payload['note'] = note.trim();

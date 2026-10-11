@@ -59,10 +59,26 @@ export function validateClockRequest(body: unknown): ClockRequestBody {
     );
   }
 
+  const offsetMinutes = typeof (body as Record<string, unknown>).offsetMinutes === 'number'
+    ? ((body as Record<string, unknown>).offsetMinutes as number)
+    : undefined;
+
+  if (offsetMinutes !== undefined) {
+    if (!Number.isInteger(offsetMinutes) || offsetMinutes < -120 || offsetMinutes > 120) {
+      throw new AppError(
+        'INVALID_OFFSET',
+        'offsetMinutes must be an integer between -120 and 120.',
+        400,
+        requestId
+      );
+    }
+  }
+
   return {
     requestId: requestId.trim(),
     source: source as EventSource,
     ...(note !== undefined && note.length > 0 ? { note } : {}),
+    ...(offsetMinutes !== undefined ? { offsetMinutes } : {}),
   };
 }
 
@@ -129,25 +145,29 @@ export async function handleClockIn(
   const eventId = crypto.randomUUID();
   const nextVersion = (stateRow?.version ?? 0) + 1;
 
+  const offsetMs = (req.offsetMinutes ?? 0) * 60 * 1000;
+  const effectiveTime = new Date(now.getTime() + offsetMs);
+  const effectiveTimeIso = effectiveTime.toISOString();
+
   const { todaySeconds, monthSeconds } = await calculateDurations(
     db,
     DEFAULT_USER_ID,
     'clocked_in',
-    nowIso,
+    effectiveTimeIso,
     now
   );
 
   const response: CommandResponse = {
     state: 'clocked_in',
     changed: true,
-    activeSince: nowIso,
+    activeSince: effectiveTimeIso,
     serverTime: nowIso,
     todaySeconds,
     monthSeconds,
     latestEvent: {
       id: eventId,
       eventType: 'clock_in',
-      occurredAtUtc: nowIso,
+      occurredAtUtc: effectiveTimeIso,
     },
   };
 
@@ -160,7 +180,7 @@ export async function handleClockIn(
         `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, note)
          VALUES (?, ?, ?, ?, 'clock_in', ?, ?, ?, ?)`
       )
-      .bind(eventId, requestId, DEFAULT_USER_ID, deviceId, source, nowIso, nowIso, req.note ?? null),
+      .bind(eventId, requestId, DEFAULT_USER_ID, deviceId, source, effectiveTimeIso, nowIso, req.note ?? null),
     db
       .prepare(
         `INSERT INTO work_state (user_id, state, active_since_utc, version, updated_at_utc)
@@ -171,7 +191,7 @@ export async function handleClockIn(
            version = excluded.version,
            updated_at_utc = excluded.updated_at_utc`
       )
-      .bind(DEFAULT_USER_ID, nowIso, nextVersion, nowIso),
+      .bind(DEFAULT_USER_ID, effectiveTimeIso, nextVersion, nowIso),
     db
       .prepare(
         `INSERT INTO processed_requests (request_id, user_id, operation, response_json, created_at_utc)
@@ -246,13 +266,21 @@ export async function handleClockOut(
   const nextVersion = (stateRow?.version ?? 0) + 1;
 
   // Calculate shift duration and cumulative totals with this shift included
+  const offsetMs = (req.offsetMinutes ?? 0) * 60 * 1000;
+  let effectiveTime = new Date(now.getTime() + offsetMs);
   const activeSince = stateRow?.active_since_utc ?? nowIso;
+  const activeStartDate = new Date(activeSince);
+
+  if (effectiveTime.getTime() < activeStartDate.getTime()) {
+    effectiveTime = activeStartDate;
+  }
+  const effectiveTimeIso = effectiveTime.toISOString();
+
   const completedShiftSeconds = Math.max(
     0,
-    Math.floor((now.getTime() - new Date(activeSince).getTime()) / 1000)
+    Math.floor((effectiveTime.getTime() - activeStartDate.getTime()) / 1000)
   );
 
-  const activeStartDate = new Date(activeSince);
   const { dateString: shiftDateString, monthString: shiftMonthString } =
     getWarsawDateComponents(activeStartDate);
   const { dateString: todayString, monthString: currentMonthString } =
@@ -280,7 +308,7 @@ export async function handleClockOut(
     latestEvent: {
       id: eventId,
       eventType: 'clock_out',
-      occurredAtUtc: nowIso,
+      occurredAtUtc: effectiveTimeIso,
     },
   };
 
@@ -293,7 +321,7 @@ export async function handleClockOut(
         `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, note)
          VALUES (?, ?, ?, ?, 'clock_out', ?, ?, ?, ?)`
       )
-      .bind(eventId, requestId, DEFAULT_USER_ID, deviceId, source, nowIso, nowIso, req.note ?? null),
+      .bind(eventId, requestId, DEFAULT_USER_ID, deviceId, source, effectiveTimeIso, nowIso, req.note ?? null),
     db
       .prepare(
         `INSERT INTO work_state (user_id, state, active_since_utc, version, updated_at_utc)

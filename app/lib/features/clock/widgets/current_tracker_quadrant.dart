@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../api/models.dart';
+import 'clock_action_button.dart';
 import 'current_shift_timer_card.dart';
 import 'cyber_orbit_badge.dart';
 
@@ -8,8 +9,8 @@ class CurrentTrackerQuadrant extends StatelessWidget {
   final WorkStatus status;
   final bool isLoading;
   final bool enableAnimations;
-  final VoidCallback onClockIn;
-  final VoidCallback onClockOut;
+  final void Function({int? offsetMinutes}) onClockIn;
+  final void Function({int? offsetMinutes}) onClockOut;
   final ValueChanged<LatestEventSummary> onUndo;
   final VoidCallback? onViewHistory;
 
@@ -121,62 +122,24 @@ class CurrentTrackerQuadrant extends StatelessWidget {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              SizedBox(
+                              ClockActionButton(
+                                isClockIn: true,
+                                isLoading: isLoading && !isClockedIn,
+                                isEnabled: !isLoading && !isClockedIn,
                                 width: buttonWidth,
-                                child: ElevatedButton.icon(
-                                  key: const Key('clock_in_button'),
-                                  icon: isLoading && !isClockedIn
-                                      ? const SizedBox(
-                                          width: 16,
-                                          height: 16,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Colors.white,
-                                          ),
-                                        )
-                                      : const Icon(Icons.play_arrow, size: 20),
-                                  label: const Text('CLOCK IN'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF10B981),
-                                    foregroundColor: Colors.white,
-                                    padding: EdgeInsets.symmetric(
-                                        vertical: buttonVerticalPadding),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                  ),
-                                  onPressed:
-                                      isLoading || isClockedIn ? null : onClockIn,
-                                ),
+                                padding: EdgeInsets.symmetric(
+                                    vertical: buttonVerticalPadding),
+                                onAction: onClockIn,
                               ),
                               const SizedBox(width: 14),
-                              SizedBox(
+                              ClockActionButton(
+                                isClockIn: false,
+                                isLoading: isLoading && isClockedIn,
+                                isEnabled: !isLoading && isClockedIn,
                                 width: buttonWidth,
-                                child: ElevatedButton.icon(
-                                  key: const Key('clock_out_button'),
-                                  icon: isLoading && isClockedIn
-                                      ? const SizedBox(
-                                          width: 16,
-                                          height: 16,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Colors.white,
-                                          ),
-                                        )
-                                      : const Icon(Icons.stop, size: 20),
-                                  label: const Text('CLOCK OUT'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFFEF4444),
-                                    foregroundColor: Colors.white,
-                                    padding: EdgeInsets.symmetric(
-                                        vertical: buttonVerticalPadding),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                  ),
-                                  onPressed:
-                                      isLoading || !isClockedIn ? null : onClockOut,
-                                ),
+                                padding: EdgeInsets.symmetric(
+                                    vertical: buttonVerticalPadding),
+                                onAction: onClockOut,
                               ),
                             ],
                           ),

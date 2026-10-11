@@ -17,6 +17,37 @@ describe('State Transitions & Duration Rules', () => {
     });
     expect(valid.requestId).toBe('req-1');
     expect(valid.source).toBe('flutter_app');
+
+    // offsetMinutes validation
+    expect(validateClockRequest({
+      requestId: 'req-offset-1',
+      source: 'flutter_app',
+      offsetMinutes: -5,
+    }).offsetMinutes).toBe(-5);
+
+    expect(validateClockRequest({
+      requestId: 'req-offset-2',
+      source: 'flutter_app',
+      offsetMinutes: 5,
+    }).offsetMinutes).toBe(5);
+
+    expect(() => validateClockRequest({
+      requestId: 'req-offset-3',
+      source: 'flutter_app',
+      offsetMinutes: 121,
+    })).toThrowError(/between -120 and 120/);
+
+    expect(() => validateClockRequest({
+      requestId: 'req-offset-4',
+      source: 'flutter_app',
+      offsetMinutes: -121,
+    })).toThrowError(/between -120 and 120/);
+
+    expect(() => validateClockRequest({
+      requestId: 'req-offset-5',
+      source: 'flutter_app',
+      offsetMinutes: 4.5,
+    })).toThrowError(/between -120 and 120/);
   });
 
   it('correctly pairs consecutive clock-in and clock-out events', () => {

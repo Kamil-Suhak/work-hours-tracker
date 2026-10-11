@@ -22,10 +22,10 @@ class _MockStatusNotifier extends AsyncNotifier<WorkStatus>
   }
 
   @override
-  Future<void> clockIn() async {}
+  Future<void> clockIn({int? offsetMinutes}) async {}
 
   @override
-  Future<void> clockOut({String? note}) async {}
+  Future<void> clockOut({String? note, int? offsetMinutes}) async {}
 
   @override
   Future<void> refreshStatus() async {}

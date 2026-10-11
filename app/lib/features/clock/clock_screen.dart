@@ -12,6 +12,7 @@ import 'clock_notifier.dart';
 import 'widgets/current_shift_timer_card.dart';
 import 'widgets/cyber_orbit_badge.dart';
 import 'widgets/shift_notes_card.dart';
+import 'widgets/clock_action_button.dart';
 import '../history/recent_shifts_view.dart';
 import 'widgets/current_tracker_quadrant.dart';
 import 'widgets/note_editor_quadrant.dart';
@@ -225,20 +226,24 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
                     status: status,
                     isLoading: isLoading,
                     enableAnimations: widget.enableAnimations,
-                    onClockIn: () async {
+                    onClockIn: ({int? offsetMinutes}) async {
                       _triggerHapticIfEnabled();
                       await ref
                           .read(currentStatusProvider.notifier)
-                          .clockIn();
+                          .clockIn(offsetMinutes: offsetMinutes);
                     },
-                    onClockOut: () async {
+                    onClockOut: ({int? offsetMinutes}) async {
                       _triggerHapticIfEnabled();
                       final note = _notesController.text.trim();
                       await ref
                           .read(currentStatusProvider.notifier)
-                          .clockOut(note: note.isNotEmpty ? note : null);
+                          .clockOut(
+                            note: note.isNotEmpty ? note : null,
+                            offsetMinutes: offsetMinutes,
+                          );
                       _notesController.clear();
                       await ShiftNotesCard.clearDraft();
+                      unawaited(ref.read(widgetSyncServiceProvider).syncActiveNote(''));
                     },
                     onUndo: (event) =>
                         _showUndoConfirmationDialog(context, event),
@@ -312,72 +317,39 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
         Row(
           children: [
             Expanded(
-              child: ElevatedButton.icon(
-                key: const Key('clock_in_button'),
-                icon: isLoading && !isClockedIn
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.play_arrow),
-                label: const Text('CLOCK IN'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF10B981),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                onPressed: isLoading || isClockedIn
-                    ? null
-                    : () async {
-                        _triggerHapticIfEnabled();
-                        await ref
-                            .read(currentStatusProvider.notifier)
-                            .clockIn();
-                      },
+              child: ClockActionButton(
+                isClockIn: true,
+                isLoading: isLoading && !isClockedIn,
+                isEnabled: !isLoading && !isClockedIn,
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                onAction: ({int? offsetMinutes}) async {
+                  _triggerHapticIfEnabled();
+                  await ref
+                      .read(currentStatusProvider.notifier)
+                      .clockIn(offsetMinutes: offsetMinutes);
+                },
               ),
             ),
             const SizedBox(width: 16),
             Expanded(
-              child: ElevatedButton.icon(
-                key: const Key('clock_out_button'),
-                icon: isLoading && isClockedIn
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.stop),
-                label: const Text('CLOCK OUT'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFEF4444),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                onPressed: isLoading || !isClockedIn
-                    ? null
-                    : () async {
-                        _triggerHapticIfEnabled();
-                        final note = _notesController.text.trim();
-                        await ref
-                            .read(currentStatusProvider.notifier)
-                            .clockOut(note: note.isNotEmpty ? note : null);
-                        _notesController.clear();
-                        await ShiftNotesCard.clearDraft();
-                        unawaited(ref.read(widgetSyncServiceProvider).syncActiveNote(''));
-                      },
+              child: ClockActionButton(
+                isClockIn: false,
+                isLoading: isLoading && isClockedIn,
+                isEnabled: !isLoading && isClockedIn,
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                onAction: ({int? offsetMinutes}) async {
+                  _triggerHapticIfEnabled();
+                  final note = _notesController.text.trim();
+                  await ref
+                      .read(currentStatusProvider.notifier)
+                      .clockOut(
+                        note: note.isNotEmpty ? note : null,
+                        offsetMinutes: offsetMinutes,
+                      );
+                  _notesController.clear();
+                  await ShiftNotesCard.clearDraft();
+                  unawaited(ref.read(widgetSyncServiceProvider).syncActiveNote(''));
+                },
               ),
             ),
           ],

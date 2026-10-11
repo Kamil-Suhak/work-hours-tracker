@@ -12,14 +12,21 @@ class TimeTrackingRepository {
     return await _apiClient.getStatus();
   }
 
-  Future<WorkStatus> clockIn() async {
+  Future<WorkStatus> clockIn({int? offsetMinutes}) async {
     final requestId = _uuid.v4();
-    return await _apiClient.clockIn(requestId: requestId);
+    return await _apiClient.clockIn(
+      requestId: requestId,
+      offsetMinutes: offsetMinutes,
+    );
   }
 
-  Future<WorkStatus> clockOut({String? note}) async {
+  Future<WorkStatus> clockOut({String? note, int? offsetMinutes}) async {
     final requestId = _uuid.v4();
-    return await _apiClient.clockOut(requestId: requestId, note: note);
+    return await _apiClient.clockOut(
+      requestId: requestId,
+      note: note,
+      offsetMinutes: offsetMinutes,
+    );
   }
 
   Future<List<TrackingEvent>> fetchEvents(DateTime from, DateTime to) async {

@@ -58,6 +58,7 @@ export interface ClockRequestBody {
   requestId: string;
   source: EventSource;
   note?: string;
+  offsetMinutes?: number;
 }
 
 export interface LatestEventInfo {
