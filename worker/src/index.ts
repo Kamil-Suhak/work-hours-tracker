@@ -14,6 +14,8 @@ import {
   handleGetEvents,
   handleAdminManualEvent,
   validateManualEventRequest,
+  handleUpdateEventNote,
+  validateUpdateNoteRequest,
 } from './events';
 import {
   validateReportRequest,
@@ -107,7 +109,7 @@ export default {
       'Referrer-Policy': 'strict-origin-when-cross-origin',
       'Vary': 'Origin',
       'Cache-Control': 'no-store, no-cache, must-revalidate',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
       'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Correlation-ID',
       'Access-Control-Expose-Headers':
         'Content-Disposition, X-Total-Hours, X-Total-Shifts, X-Correlation-ID',
@@ -233,6 +235,29 @@ export default {
             operation: 'admin-manual-event',
             clockInAt: manualReq.clockInAt,
             clockOutAt: manualReq.clockOutAt,
+            latencyMs: Date.now() - startTime,
+            result: 'ok',
+          })
+        );
+
+        return jsonResponse(result, 200, standardHeaders);
+      }
+
+      const eventNoteMatch = pathname.match(/^\/api\/v1\/events\/([^/]+)\/note$/);
+      if (eventNoteMatch && (method === 'PATCH' || method === 'POST')) {
+        const { deviceId } = await authenticateDevice(request, env);
+        const eventId = decodeURIComponent(eventNoteMatch[1]);
+        const rawBody = await parseJsonBody(request, correlationId);
+        const { note } = validateUpdateNoteRequest(rawBody);
+        const result = await handleUpdateEventNote(env.DB, DEFAULT_USER_ID, eventId, note);
+
+        console.log(
+          JSON.stringify({
+            correlationId,
+            operation: 'update-event-note',
+            deviceId,
+            eventId,
+            hasNote: Boolean(note),
             latencyMs: Date.now() - startTime,
             result: 'ok',
           })

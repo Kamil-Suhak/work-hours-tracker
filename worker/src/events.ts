@@ -4,6 +4,8 @@ import type {
   ManualEventRequestBody,
   ManualEventResponse,
   ProcessedRequestRow,
+  UpdateNoteRequestBody,
+  UpdateNoteResponse,
 } from './types';
 import { AppError } from './errors';
 import { DEFAULT_USER_ID } from './clock';
@@ -228,4 +230,54 @@ export async function handleAdminManualEvent(
   ]);
 
   return response;
+}
+
+export function validateUpdateNoteRequest(body: unknown): UpdateNoteRequestBody {
+  if (!body || typeof body !== 'object') {
+    throw new AppError('VALIDATION_ERROR', 'Request body must be a JSON object.', 400);
+  }
+
+  const { note } = body as Record<string, unknown>;
+
+  if (note === null || note === undefined) {
+    return { note: null };
+  }
+
+  if (typeof note !== 'string') {
+    throw new AppError('VALIDATION_ERROR', 'note must be a string or null.', 400);
+  }
+
+  const trimmed = note.trim();
+  if (trimmed.length > 4000) {
+    throw new AppError('NOTE_TOO_LONG', 'Note must not exceed 4,000 characters', 400);
+  }
+
+  return { note: trimmed.length > 0 ? trimmed : null };
+}
+
+export async function handleUpdateEventNote(
+  db: D1Database,
+  userId: string,
+  eventId: string,
+  note: string | null
+): Promise<UpdateNoteResponse> {
+  const event = await db
+    .prepare('SELECT id, event_type FROM events WHERE id = ? AND user_id = ?')
+    .bind(eventId, userId)
+    .first<{ id: string; event_type: string }>();
+
+  if (!event) {
+    throw new AppError('EVENT_NOT_FOUND', `Event with ID ${eventId} was not found.`, 404);
+  }
+
+  await db
+    .prepare('UPDATE events SET note = ? WHERE id = ? AND user_id = ?')
+    .bind(note, eventId, userId)
+    .run();
+
+  return {
+    success: true,
+    id: eventId,
+    note,
+  };
 }

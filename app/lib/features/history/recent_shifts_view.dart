@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../clock/clock_notifier.dart';
 import '../clock/widgets/markdown_renderer.dart';
 import 'manual_shift_dialog.dart';
 import 'shift_model.dart';
@@ -223,33 +224,7 @@ class _RecentShiftsViewState extends ConsumerState<RecentShiftsView> {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        onTap: () {
-          if (hasNote) {
-            _showShiftNoteDialog(context, shift);
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text(
-                  'No notes from this day',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                  ),
-                ),
-                backgroundColor: const Color(0xFF334155),
-                behavior: SnackBarBehavior.floating,
-                margin:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: const BorderSide(color: Color(0xFF475569)),
-                ),
-                duration: const Duration(seconds: 2),
-              ),
-            );
-          }
-        },
+        onTap: () => _showShiftNoteDialog(context, shift),
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -372,74 +347,256 @@ class _RecentShiftsViewState extends ConsumerState<RecentShiftsView> {
   }
 
   void _showShiftNoteDialog(BuildContext context, ShiftRecord shift) {
-    final dateFormat = DateFormat('EEEE, MMMM d, yyyy');
-    final timeFormat = DateFormat('HH:mm');
-
     showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: Color(0xFF334155)),
-        ),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.description,
-                  color: Color(0xFF10B981), size: 20),
+      builder: (ctx) => _ShiftNoteDialog(shift: shift),
+    );
+  }
+}
+
+class _ShiftNoteDialog extends ConsumerStatefulWidget {
+  final ShiftRecord shift;
+
+  const _ShiftNoteDialog({required this.shift});
+
+  @override
+  ConsumerState<_ShiftNoteDialog> createState() => _ShiftNoteDialogState();
+}
+
+class _ShiftNoteDialogState extends ConsumerState<_ShiftNoteDialog> {
+  late bool _isEditing;
+  late final TextEditingController _controller;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _isEditing = false;
+    _controller = TextEditingController(text: widget.shift.note ?? '');
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleSave() async {
+    final noteText = _controller.text.trim();
+    setState(() => _isSaving = true);
+
+    try {
+      final targetEventId = widget.shift.clockOut.id;
+      final apiClient = ref.read(apiClientProvider);
+      await apiClient.updateEventNote(
+        eventId: targetEventId,
+        note: noteText.isNotEmpty ? noteText : null,
+      );
+      ref.invalidate(shiftsProvider);
+
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Shift note saved'),
+            backgroundColor: Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save note: $e'),
+            backgroundColor: const Color(0xFFEF4444),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dateFormat = DateFormat('EEEE, MMMM d, yyyy');
+    final timeFormat = DateFormat('HH:mm');
+    final shift = widget.shift;
+
+    return AlertDialog(
+      backgroundColor: const Color(0xFF1E293B),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: const BorderSide(color: Color(0xFF334155)),
+      ),
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF10B981).withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Shift Notes',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFFF8FAFC),
-                    ),
-                  ),
-                  Text(
-                    '${dateFormat.format(shift.startTime)} (${timeFormat.format(shift.startTime)} - ${timeFormat.format(shift.endTime)})',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF94A3B8),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        content: Container(
-          constraints: const BoxConstraints(maxHeight: 320),
-          child: SingleChildScrollView(
-            child: MarkdownText(
-              markdown: shift.note ?? '',
-              baseStyle: const TextStyle(
-                fontSize: 13,
-                height: 1.5,
-                color: Color(0xFFE2E8F0),
-              ),
+            child: Icon(
+              _isEditing ? Icons.edit_note : Icons.description,
+              color: const Color(0xFF10B981),
+              size: 20,
             ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child:
-                const Text('Close', style: TextStyle(color: Color(0xFF10B981))),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _isEditing ? 'Edit Shift Notes' : 'Shift Notes',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFFF8FAFC),
+                  ),
+                ),
+                Text(
+                  '${dateFormat.format(shift.startTime)} (${timeFormat.format(shift.startTime)} - ${timeFormat.format(shift.endTime)})',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF94A3B8),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
+      content: Container(
+        constraints: const BoxConstraints(maxHeight: 340),
+        width: 480,
+        child: SingleChildScrollView(
+          child: _isEditing
+              ? TextField(
+                  key: const Key('shift_note_edit_field'),
+                  controller: _controller,
+                  maxLines: 9,
+                  minLines: 5,
+                  maxLength: 4000,
+                  autofocus: true,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFFE2E8F0),
+                    height: 1.4,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Enter Markdown notes for this shift...',
+                    hintStyle: const TextStyle(color: Color(0xFF64748B)),
+                    filled: true,
+                    fillColor: const Color(0xFF0F172A),
+                    counterStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFF334155)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFF334155)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFF10B981), width: 1.5),
+                    ),
+                  ),
+                )
+              : (shift.hasNote
+                  ? MarkdownText(
+                      markdown: shift.note!,
+                      baseStyle: const TextStyle(
+                        fontSize: 13,
+                        height: 1.5,
+                        color: Color(0xFFE2E8F0),
+                      ),
+                    )
+                  : Container(
+                      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                      alignment: Alignment.center,
+                      child: const Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.note_add_outlined,
+                            size: 38,
+                            color: Color(0xFF64748B),
+                          ),
+                          SizedBox(height: 10),
+                          Text(
+                            'No notes from this shift.',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF94A3B8),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Tap Edit to write or backfill notes.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )),
+        ),
+      ),
+      actions: _isEditing
+          ? [
+              TextButton(
+                onPressed: _isSaving ? null : () => setState(() => _isEditing = false),
+                child: const Text('Cancel', style: TextStyle(color: Color(0xFF94A3B8))),
+              ),
+              ElevatedButton.icon(
+                key: const Key('save_shift_note_button'),
+                icon: _isSaving
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.check, size: 16),
+                label: const Text('Save & Close'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF10B981),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: _isSaving ? null : _handleSave,
+              ),
+            ]
+          : [
+              OutlinedButton.icon(
+                key: const Key('edit_shift_note_button'),
+                icon: const Icon(Icons.edit, size: 14),
+                label: Text(shift.hasNote ? 'Edit' : 'Add Note'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF10B981),
+                  side: const BorderSide(color: Color(0xFF10B981)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: () => setState(() => _isEditing = true),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Close', style: TextStyle(color: Color(0xFF94A3B8))),
+              ),
+            ],
     );
   }
 }

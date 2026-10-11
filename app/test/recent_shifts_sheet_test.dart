@@ -85,17 +85,37 @@ void main() {
       // Verify shift with note shows 'Notes' tag
       expect(find.text('Notes'), findsOneWidget);
 
-      // Tap shift without note -> triggers "No notes from this day"
+      // Tap shift without note -> opens preview dialog with option to add note
       await tester.tap(find.text('8h 0m'));
       await tester.pumpAndSettle();
-      expect(find.text('No notes from this day'), findsOneWidget);
+      expect(find.text('No notes from this shift.'), findsOneWidget);
+      expect(find.text('Add Note'), findsOneWidget);
 
-      // Tap shift with note -> opens dialog
+      // Switch to edit mode
+      await tester.tap(find.text('Add Note'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TextField), findsOneWidget);
+      expect(find.text('Save & Close'), findsOneWidget);
+
+      // Cancel to close edit mode
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+
+      // Tap shift with note -> opens preview mode with Edit button
       await tester.tap(find.text('8h 30m'));
       await tester.pumpAndSettle();
       expect(find.text('Shift Notes'), findsOneWidget);
       expect(find.text('Work Accomplished'), findsOneWidget);
       expect(find.textContaining('Built new UI features'), findsOneWidget);
+      expect(find.text('Edit'), findsOneWidget);
+
+      // Switch to edit mode
+      await tester.tap(find.text('Edit'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TextField), findsOneWidget);
+      expect(find.text('Save & Close'), findsOneWidget);
     });
   });
 }

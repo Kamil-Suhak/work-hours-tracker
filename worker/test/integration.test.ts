@@ -220,6 +220,41 @@ describe('Worker End-to-End Integration Suite', () => {
       expect(clockOutEvent?.note).toBe(noteText);
     });
 
+    it('updates note on an existing event via PATCH /api/v1/events/:id/note', async () => {
+      await worker.fetch(
+        createRequest('/api/v1/clock-in', {
+          method: 'POST',
+          body: { requestId: 'req-in-patch-note', source: 'flutter_app' },
+        }),
+        env
+      );
+
+      await worker.fetch(
+        createRequest('/api/v1/clock-out', {
+          method: 'POST',
+          body: { requestId: 'req-out-patch-note', source: 'flutter_app' },
+        }),
+        env
+      );
+
+      const targetEvent = mockDb.events.find((e) => e.event_type === 'clock_out')!;
+      expect(targetEvent).toBeDefined();
+
+      const updateRes = await worker.fetch(
+        createRequest(`/api/v1/events/${targetEvent.id}/note`, {
+          method: 'PATCH',
+          body: { note: 'Backfilled shift note via preview dialog' },
+        }),
+        env
+      );
+      expect(updateRes.status).toBe(200);
+      const updatedData = await updateRes.json() as { success: boolean; id: string; note: string };
+      expect(updatedData.success).toBe(true);
+      expect(updatedData.note).toBe('Backfilled shift note via preview dialog');
+
+      expect(mockDb.events.find((e) => e.id === targetEvent.id)?.note).toBe('Backfilled shift note via preview dialog');
+    });
+
     it('rejects clock-out with note exceeding 4,000 characters', async () => {
       const res = await worker.fetch(
         createRequest('/api/v1/clock-out', {

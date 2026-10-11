@@ -141,6 +141,23 @@ class ApiClient {
     _handleError(response);
   }
 
+  Future<void> updateEventNote({
+    required String eventId,
+    required String? note,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/v1/events/$eventId/note');
+    final headers = await _buildHeaders();
+    final body = jsonEncode({
+      'note': note,
+    });
+
+    final response = await _httpClient.patch(uri, headers: headers, body: body);
+    if (response.statusCode == 200) {
+      return;
+    }
+    _handleError(response);
+  }
+
   Future<UndoResult> undo({
     required String eventId,
     required String requestId,

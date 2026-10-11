@@ -71,6 +71,13 @@ export class MockPreparedStatement {
       return (sorted[0] as unknown as T) ?? null;
     }
 
+    if (q.includes('FROM events WHERE id = ? AND user_id = ?')) {
+      const id = this.boundArgs[0] as string;
+      const userId = this.boundArgs[1] as string;
+      const found = this.db.events.find((e) => e.id === id && e.user_id === userId);
+      return (found as unknown as T) ?? null;
+    }
+
     return null;
   }
 
@@ -124,6 +131,15 @@ export class MockPreparedStatement {
       const idx = this.db.events.findIndex((e) => e.id === id);
       if (idx !== -1) {
         this.db.events.splice(idx, 1);
+      }
+    }
+
+    if (q.includes('UPDATE events SET note = ?')) {
+      const note = (this.boundArgs[0] as string) ?? null;
+      const id = this.boundArgs[1] as string;
+      const event = this.db.events.find((e) => e.id === id);
+      if (event) {
+        event.note = note;
       }
     }
 

@@ -107,6 +107,16 @@ export interface UndoRequestBody {
   eventId: string;
 }
 
+export interface UpdateNoteRequestBody {
+  note: string | null;
+}
+
+export interface UpdateNoteResponse {
+  success: boolean;
+  id: string;
+  note: string | null;
+}
+
 export interface UndoResponse {
   success: boolean;
   undoneEventId: string;
