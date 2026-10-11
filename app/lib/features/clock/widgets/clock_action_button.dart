@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'planned_shift_dialog.dart';
 
 class ClockActionButton extends StatefulWidget {
   final bool isClockIn;
   final bool isLoading;
   final bool isEnabled;
-  final void Function({int? offsetMinutes}) onAction;
+  final void Function({int? offsetMinutes, Duration? plannedDuration}) onAction;
   final double? width;
   final EdgeInsetsGeometry? padding;
 
@@ -24,6 +25,19 @@ class ClockActionButton extends StatefulWidget {
 }
 
 class _ClockActionButtonState extends State<ClockActionButton> {
+  Future<void> _triggerAction(BuildContext context, {int? offsetMinutes}) async {
+    if (widget.isClockIn) {
+      final planned = await PlannedShiftDialog.show(context);
+      if (planned.isCancelled || !mounted) return;
+      widget.onAction(
+        offsetMinutes: offsetMinutes,
+        plannedDuration: planned.duration,
+      );
+    } else {
+      widget.onAction(offsetMinutes: offsetMinutes);
+    }
+  }
+
   Future<void> _showOptionsMenu(BuildContext context) async {
     final renderBox = context.findRenderObject() as RenderBox?;
     if (renderBox == null) return;
@@ -103,13 +117,13 @@ class _ClockActionButtonState extends State<ClockActionButton> {
 
     if (selected == 'custom') {
       final customOffset = await _showCustomOffsetDialog(context);
-      if (customOffset != null) {
-        widget.onAction(offsetMinutes: customOffset);
+      if (customOffset != null && mounted) {
+        await _triggerAction(context, offsetMinutes: customOffset);
       }
     } else {
       final offset = int.tryParse(selected);
-      if (offset != null) {
-        widget.onAction(offsetMinutes: offset);
+      if (offset != null && mounted) {
+        await _triggerAction(context, offsetMinutes: offset);
       }
     }
   }
@@ -275,7 +289,7 @@ class _ClockActionButtonState extends State<ClockActionButton> {
             ),
           ),
           onPressed: widget.isEnabled && !widget.isLoading
-              ? () => widget.onAction()
+              ? () => _triggerAction(context)
               : null,
           onLongPress: widget.isEnabled && !widget.isLoading
               ? () => _showOptionsMenu(context)

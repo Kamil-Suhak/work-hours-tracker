@@ -13,6 +13,8 @@ import 'widgets/current_shift_timer_card.dart';
 import 'widgets/cyber_orbit_badge.dart';
 import 'widgets/shift_notes_card.dart';
 import 'widgets/clock_action_button.dart';
+import 'planned_shift_provider.dart';
+import '../../services/platform/notification_service.dart';
 import '../history/recent_shifts_view.dart';
 import 'widgets/current_tracker_quadrant.dart';
 import 'widgets/note_editor_quadrant.dart';
@@ -226,14 +228,26 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
                     status: status,
                     isLoading: isLoading,
                     enableAnimations: widget.enableAnimations,
-                    onClockIn: ({int? offsetMinutes}) async {
+                    plannedDuration: ref.watch(plannedShiftDurationProvider),
+                    onClockIn: ({int? offsetMinutes, Duration? plannedDuration}) async {
                       _triggerHapticIfEnabled();
+                      await ref
+                          .read(plannedShiftDurationProvider.notifier)
+                          .setDuration(plannedDuration);
                       await ref
                           .read(currentStatusProvider.notifier)
                           .clockIn(offsetMinutes: offsetMinutes);
+                      if (plannedDuration != null) {
+                        _scheduleShiftReminderIfConfigured(
+                          plannedDuration,
+                          offsetMinutes: offsetMinutes,
+                        );
+                      }
                     },
                     onClockOut: ({int? offsetMinutes}) async {
                       _triggerHapticIfEnabled();
+                      await ref.read(plannedShiftDurationProvider.notifier).clear();
+                      await ref.read(notificationServiceProvider).cancelShiftReminder();
                       final note = _notesController.text.trim();
                       await ref
                           .read(currentStatusProvider.notifier)
@@ -309,6 +323,7 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
           todaySeconds: status.todaySeconds,
           monthSeconds: status.monthSeconds,
           enablePeriodicTimer: widget.enableAnimations,
+          plannedDuration: ref.watch(plannedShiftDurationProvider),
           onViewHistory: () => RecentShiftsSheet.show(context),
         ),
         const SizedBox(height: 36),
@@ -322,11 +337,20 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
                 isLoading: isLoading && !isClockedIn,
                 isEnabled: !isLoading && !isClockedIn,
                 padding: const EdgeInsets.symmetric(vertical: 18),
-                onAction: ({int? offsetMinutes}) async {
+                onAction: ({int? offsetMinutes, Duration? plannedDuration}) async {
                   _triggerHapticIfEnabled();
+                  await ref
+                      .read(plannedShiftDurationProvider.notifier)
+                      .setDuration(plannedDuration);
                   await ref
                       .read(currentStatusProvider.notifier)
                       .clockIn(offsetMinutes: offsetMinutes);
+                  if (plannedDuration != null) {
+                    _scheduleShiftReminderIfConfigured(
+                      plannedDuration,
+                      offsetMinutes: offsetMinutes,
+                    );
+                  }
                 },
               ),
             ),
@@ -337,8 +361,10 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
                 isLoading: isLoading && isClockedIn,
                 isEnabled: !isLoading && isClockedIn,
                 padding: const EdgeInsets.symmetric(vertical: 18),
-                onAction: ({int? offsetMinutes}) async {
+                onAction: ({int? offsetMinutes, Duration? plannedDuration}) async {
                   _triggerHapticIfEnabled();
+                  await ref.read(plannedShiftDurationProvider.notifier).clear();
+                  await ref.read(notificationServiceProvider).cancelShiftReminder();
                   final note = _notesController.text.trim();
                   await ref
                       .read(currentStatusProvider.notifier)
@@ -413,6 +439,23 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
         ref.read(settingsProvider).value?.vibrationsEnabled ?? true;
     if (haptics) {
       ref.read(hapticServiceProvider).vibrate();
+    }
+  }
+
+  Future<void> _scheduleShiftReminderIfConfigured(
+    Duration plannedDuration, {
+    int? offsetMinutes,
+  }) async {
+    final settingsAsync = ref.read(settingsProvider);
+    final reminderMinutes = settingsAsync.value?.shiftReminderMinutes ?? 0;
+    if (reminderMinutes > 0) {
+      final now = DateTime.now();
+      final effectiveStart = now.add(Duration(minutes: offsetMinutes ?? 0));
+      final targetEndTime = effectiveStart.add(plannedDuration);
+      await ref.read(notificationServiceProvider).scheduleShiftReminder(
+            targetEndTime: targetEndTime,
+            minutesBefore: reminderMinutes,
+          );
     }
   }
 
@@ -496,6 +539,8 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
       _triggerHapticIfEnabled();
       try {
         await ref.read(currentStatusProvider.notifier).undo(event.id);
+        await ref.read(plannedShiftDurationProvider.notifier).clear();
+        await ref.read(notificationServiceProvider).cancelShiftReminder();
         if (mounted) {
           messenger.showSnackBar(
             SnackBar(

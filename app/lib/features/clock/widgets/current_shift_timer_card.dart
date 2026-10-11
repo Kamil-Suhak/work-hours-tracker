@@ -10,6 +10,7 @@ class CurrentShiftTimerCard extends StatefulWidget {
   final int monthSeconds;
   final bool enablePeriodicTimer;
   final VoidCallback? onViewHistory;
+  final Duration? plannedDuration;
 
   const CurrentShiftTimerCard({
     super.key,
@@ -19,6 +20,7 @@ class CurrentShiftTimerCard extends StatefulWidget {
     required this.monthSeconds,
     this.enablePeriodicTimer = true,
     this.onViewHistory,
+    this.plannedDuration,
   });
 
   @override
@@ -66,7 +68,8 @@ class _CurrentShiftTimerCardState extends State<CurrentShiftTimerCard> {
   void didUpdateWidget(covariant CurrentShiftTimerCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.isClockedIn != oldWidget.isClockedIn ||
-        widget.activeSince != oldWidget.activeSince) {
+        widget.activeSince != oldWidget.activeSince ||
+        widget.plannedDuration != oldWidget.plannedDuration) {
       _updateElapsed();
       if (widget.isClockedIn && widget.enablePeriodicTimer) {
         _startTimer();
@@ -189,6 +192,14 @@ class _CurrentShiftTimerCardState extends State<CurrentShiftTimerCard> {
                             textAlign: TextAlign.center,
                           ),
                   ),
+                  if (widget.isClockedIn && widget.plannedDuration != null) ...[
+                    const SizedBox(height: 8),
+                    _buildProgressBar(
+                      context,
+                      target: widget.plannedDuration!,
+                      elapsed: _elapsed,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -287,5 +298,104 @@ class _CurrentShiftTimerCardState extends State<CurrentShiftTimerCard> {
         ),
       ),
     );
+  }
+
+  Widget _buildProgressBar(
+    BuildContext context, {
+    required Duration target,
+    required Duration elapsed,
+  }) {
+    final isOvertime = elapsed >= target;
+    final fraction = isOvertime
+        ? 1.0
+        : (elapsed.inMilliseconds / target.inMilliseconds).clamp(0.0, 1.0);
+    final remaining = isOvertime ? Duration.zero : target - elapsed;
+
+    final barColor = isOvertime ? const Color(0xFFF59E0B) : const Color(0xFF10B981);
+    final glowColor = isOvertime
+        ? const Color(0xFFF59E0B).withValues(alpha: 0.5)
+        : const Color(0xFF10B981).withValues(alpha: 0.5);
+
+    return Column(
+      key: const Key('shift_progress_bar'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          height: 6,
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F172A),
+            borderRadius: BorderRadius.circular(3),
+            border: Border.all(color: const Color(0xFF334155), width: 0.8),
+          ),
+          child: LayoutBuilder(
+            builder: (ctx, constraints) {
+              return Stack(
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    width: constraints.maxWidth * fraction,
+                    decoration: BoxDecoration(
+                      gradient: isOvertime
+                          ? const LinearGradient(
+                              colors: [Color(0xFFD97706), Color(0xFFF59E0B)],
+                            )
+                          : const LinearGradient(
+                              colors: [Color(0xFF10B981), Color(0xFF34D399)],
+                            ),
+                      borderRadius: BorderRadius.circular(3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: glowColor,
+                          blurRadius: 6,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 4),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                isOvertime ? Icons.warning_amber_rounded : Icons.hourglass_bottom_rounded,
+                size: 11,
+                color: barColor,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                isOvertime
+                    ? 'Target reached • Overtime: +${_formatDuration(elapsed - target)}'
+                    : 'Target: ${_formatHoursMinutes(target)} • Remaining: ${_formatHoursMinutes(remaining)}',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: isOvertime ? const Color(0xFFFBBF24) : const Color(0xFF34D399),
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _formatHoursMinutes(Duration d) {
+    final hours = d.inHours;
+    final minutes = d.inMinutes % 60;
+    if (hours > 0 && minutes > 0) {
+      return '${hours}h ${minutes}m';
+    } else if (hours > 0) {
+      return '${hours}h';
+    }
+    return '${minutes}m';
   }
 }

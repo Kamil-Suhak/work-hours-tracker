@@ -4,8 +4,9 @@ import 'package:work_hours_mobile/features/clock/widgets/clock_action_button.dar
 
 void main() {
   group('ClockActionButton Widget Tests', () {
-    testWidgets('triggers normal action without offset on simple tap', (tester) async {
+    testWidgets('triggers normal action with selected planned shift duration on tap', (tester) async {
       int? receivedOffset;
+      Duration? receivedDuration;
       bool actionCalled = false;
 
       await tester.pumpWidget(
@@ -16,9 +17,10 @@ void main() {
                 isClockIn: true,
                 isLoading: false,
                 isEnabled: true,
-                onAction: ({int? offsetMinutes}) {
+                onAction: ({int? offsetMinutes, Duration? plannedDuration}) {
                   actionCalled = true;
                   receivedOffset = offsetMinutes;
+                  receivedDuration = plannedDuration;
                 },
               ),
             ),
@@ -31,13 +33,62 @@ void main() {
       expect(find.byIcon(Icons.arrow_drop_down), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('clock_in_button')));
-      await tester.pump();
+      await tester.pumpAndSettle();
+
+      // Planned shift dialog appears
+      expect(find.text('Planned Shift Duration'), findsOneWidget);
+      expect(find.byKey(const Key('shift_pill_6h')), findsOneWidget);
+
+      // Select 6h
+      await tester.tap(find.byKey(const Key('shift_pill_6h')));
+      await tester.pumpAndSettle();
+
+      // Tap Clock In to confirm
+      await tester.tap(find.byKey(const Key('planned_shift_confirm_button')));
+      await tester.pumpAndSettle();
 
       expect(actionCalled, isTrue);
       expect(receivedOffset, isNull);
+      expect(receivedDuration, equals(const Duration(hours: 6)));
     });
 
-    testWidgets('long press displays popup menu with options (-5m, Now, +5m, Custom...)', (tester) async {
+    testWidgets('skip target clocks in without duration', (tester) async {
+      int? receivedOffset;
+      Duration? receivedDuration;
+      bool actionCalled = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: ClockActionButton(
+                isClockIn: true,
+                isLoading: false,
+                isEnabled: true,
+                onAction: ({int? offsetMinutes, Duration? plannedDuration}) {
+                  actionCalled = true;
+                  receivedOffset = offsetMinutes;
+                  receivedDuration = plannedDuration;
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('clock_in_button')));
+      await tester.pumpAndSettle();
+
+      // Tap Skip Target
+      await tester.tap(find.byKey(const Key('planned_shift_skip_button')));
+      await tester.pumpAndSettle();
+
+      expect(actionCalled, isTrue);
+      expect(receivedOffset, isNull);
+      expect(receivedDuration, isNull);
+    });
+
+    testWidgets('long press clock out displays popup menu with options (-5m, Now, +5m, Custom...)', (tester) async {
       int? receivedOffset;
 
       await tester.pumpWidget(
@@ -48,7 +99,7 @@ void main() {
                 isClockIn: false,
                 isLoading: false,
                 isEnabled: true,
-                onAction: ({int? offsetMinutes}) {
+                onAction: ({int? offsetMinutes, Duration? plannedDuration}) {
                   receivedOffset = offsetMinutes;
                 },
               ),
@@ -77,8 +128,9 @@ void main() {
       expect(receivedOffset, equals(-5));
     });
 
-    testWidgets('selecting +5m from menu sends +5 offset', (tester) async {
+    testWidgets('selecting +5m from menu on clock in then confirming target sends +5 offset and duration', (tester) async {
       int? receivedOffset;
+      Duration? receivedDuration;
 
       await tester.pumpWidget(
         MaterialApp(
@@ -88,8 +140,9 @@ void main() {
                 isClockIn: true,
                 isLoading: false,
                 isEnabled: true,
-                onAction: ({int? offsetMinutes}) {
+                onAction: ({int? offsetMinutes, Duration? plannedDuration}) {
                   receivedOffset = offsetMinutes;
+                  receivedDuration = plannedDuration;
                 },
               ),
             ),
@@ -103,7 +156,16 @@ void main() {
       await tester.tap(find.text('+5m'));
       await tester.pumpAndSettle();
 
+      // Planned shift dialog should open next
+      expect(find.text('Planned Shift Duration'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('shift_pill_4h')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('planned_shift_confirm_button')));
+      await tester.pumpAndSettle();
+
       expect(receivedOffset, equals(5));
+      expect(receivedDuration, equals(const Duration(hours: 4)));
     });
 
     testWidgets('selecting Custom... opens custom offset dialog and confirms selection', (tester) async {
@@ -114,10 +176,10 @@ void main() {
           home: Scaffold(
             body: Center(
               child: ClockActionButton(
-                isClockIn: true,
+                isClockIn: false,
                 isLoading: false,
                 isEnabled: true,
-                onAction: ({int? offsetMinutes}) {
+                onAction: ({int? offsetMinutes, Duration? plannedDuration}) {
                   receivedOffset = offsetMinutes;
                 },
               ),
@@ -126,13 +188,13 @@ void main() {
         ),
       );
 
-      await tester.longPress(find.byKey(const Key('clock_in_button')));
+      await tester.longPress(find.byKey(const Key('clock_out_button')));
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Custom...'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Custom Clock In'), findsOneWidget);
+      expect(find.text('Custom Clock Out'), findsOneWidget);
       expect(find.byKey(const Key('custom_offset_input')), findsOneWidget);
       expect(find.text('-15m'), findsOneWidget);
 

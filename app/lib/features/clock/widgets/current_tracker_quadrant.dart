@@ -9,10 +9,11 @@ class CurrentTrackerQuadrant extends StatelessWidget {
   final WorkStatus status;
   final bool isLoading;
   final bool enableAnimations;
-  final void Function({int? offsetMinutes}) onClockIn;
+  final void Function({int? offsetMinutes, Duration? plannedDuration}) onClockIn;
   final void Function({int? offsetMinutes}) onClockOut;
   final ValueChanged<LatestEventSummary> onUndo;
   final VoidCallback? onViewHistory;
+  final Duration? plannedDuration;
 
   const CurrentTrackerQuadrant({
     super.key,
@@ -23,6 +24,7 @@ class CurrentTrackerQuadrant extends StatelessWidget {
     required this.onClockOut,
     required this.onUndo,
     this.onViewHistory,
+    this.plannedDuration,
   });
 
   @override
@@ -115,6 +117,7 @@ class CurrentTrackerQuadrant extends StatelessWidget {
                             monthSeconds: status.monthSeconds,
                             enablePeriodicTimer: enableAnimations,
                             onViewHistory: onViewHistory,
+                            plannedDuration: plannedDuration,
                           ),
                           SizedBox(height: verticalGap + 2),
 
@@ -139,7 +142,8 @@ class CurrentTrackerQuadrant extends StatelessWidget {
                                 width: buttonWidth,
                                 padding: EdgeInsets.symmetric(
                                     vertical: buttonVerticalPadding),
-                                onAction: onClockOut,
+                                onAction: ({int? offsetMinutes, Duration? plannedDuration}) =>
+                                    onClockOut(offsetMinutes: offsetMinutes),
                               ),
                             ],
                           ),
