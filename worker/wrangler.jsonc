@@ -31,4 +31,23 @@
     // Example: "0 0 * * 1"  -> Fires at 00:00 every Monday
     "crons": ["0 0 1 * *"],
   },
+  "env": {
+    "staging": {
+      "name": "work-hours-api-staging",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "work-hours-staging",
+          "database_id": "af1ec0e4-505b-4ca5-8b20-f9a0cfd03a43",
+          "migrations_dir": "migrations",
+        },
+      ],
+      "r2_buckets": [
+        {
+          "binding": "REPORTS_BUCKET",
+          "bucket_name": "work-hours-reports-staging",
+        },
+      ],
+    },
+  },
 }
