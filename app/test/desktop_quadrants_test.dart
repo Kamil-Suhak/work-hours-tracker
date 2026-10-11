@@ -144,5 +144,44 @@ void main() {
       expect(controller.selection.baseOffset, 3);
       expect(controller.selection.extentOffset, 3);
     });
+
+    testWidgets(
+        'renders gracefully and vertically centered on 1373x944 viewport without overflow',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1373, 944);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final mockStatus = WorkStatus(
+        state: WorkState.clockedIn,
+        activeSince: DateTime.parse('2026-10-04T08:00:00Z'),
+        serverTime: DateTime.parse('2026-10-04T12:00:00Z'),
+        todaySeconds: 7200,
+        monthSeconds: 28800,
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            currentStatusProvider.overrideWith(
+              () => _MockStatusNotifier(AsyncValue.data(mockStatus)),
+            ),
+            shiftsProvider.overrideWith(
+              () => _MockShiftsNotifier(),
+            ),
+          ],
+          child: const MaterialApp(
+            home: ClockScreen(enableAnimations: false),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(CurrentTrackerQuadrant), findsOneWidget);
+      expect(find.byKey(const Key('clock_out_button')), findsOneWidget);
+      expect(find.byKey(const Key('clock_in_button')), findsOneWidget);
+    });
   });
 }

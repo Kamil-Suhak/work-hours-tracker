@@ -79,128 +79,145 @@ class CurrentTrackerQuadrant extends StatelessWidget {
 
           // Tracker body
           Expanded(
-            child: SingleChildScrollView(
-              physics: const ClampingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Status Badge with Animated Cyber Orbiting Beacon
-                  Center(
-                    child: CyberOrbitBadge(
-                      isClockedIn: isClockedIn,
-                      enableAnimation: enableAnimations,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final verticalGap = (constraints.maxHeight * 0.035).clamp(8.0, 20.0);
+                final buttonWidth = ((constraints.maxWidth - 52) / 2).clamp(140.0, 210.0);
+                final buttonVerticalPadding = (constraints.maxHeight * 0.03).clamp(10.0, 15.0);
+
+                return SingleChildScrollView(
+                  physics: const ClampingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: (constraints.maxHeight - 16).clamp(0.0, double.infinity),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Central Current Shift Timer Card (Consolidated side-by-side)
-                  CurrentShiftTimerCard(
-                    isClockedIn: isClockedIn,
-                    activeSince: status.activeSince,
-                    todaySeconds: status.todaySeconds,
-                    monthSeconds: status.monthSeconds,
-                    enablePeriodicTimer: enableAnimations,
-                    onViewHistory: onViewHistory,
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Action Buttons (Narrower & Centered)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                        width: 150,
-                        child: ElevatedButton.icon(
-                          key: const Key('clock_in_button'),
-                          icon: isLoading && !isClockedIn
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Icon(Icons.play_arrow, size: 20),
-                          label: const Text('CLOCK IN'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF10B981),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                    child: IntrinsicHeight(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Status Badge with Animated Cyber Orbiting Beacon
+                          Center(
+                            child: CyberOrbitBadge(
+                              isClockedIn: isClockedIn,
+                              enableAnimation: enableAnimations,
                             ),
                           ),
-                          onPressed:
-                              isLoading || isClockedIn ? null : onClockIn,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      SizedBox(
-                        width: 150,
-                        child: ElevatedButton.icon(
-                          key: const Key('clock_out_button'),
-                          icon: isLoading && isClockedIn
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Icon(Icons.stop, size: 20),
-                          label: const Text('CLOCK OUT'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFEF4444),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          onPressed:
-                              isLoading || !isClockedIn ? null : onClockOut,
-                        ),
-                      ),
-                    ],
-                  ),
+                          SizedBox(height: verticalGap),
 
-                  // Undo Action Button if within grace period
-                  if (status.latestEvent != null &&
-                      status.latestEvent!
-                          .isWithinGracePeriod(now: DateTime.now())) ...[
-                    const SizedBox(height: 8),
-                    Center(
-                      child: OutlinedButton.icon(
-                        key: const Key('undo_button'),
-                        icon: const Icon(Icons.undo, size: 15),
-                        label: Text(
-                          'Undo ${status.latestEvent!.eventType == 'clock_in' ? 'Clock In' : 'Clock Out'}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+                          // Central Current Shift Timer Card (Consolidated side-by-side)
+                          CurrentShiftTimerCard(
+                            isClockedIn: isClockedIn,
+                            activeSince: status.activeSince,
+                            todaySeconds: status.todaySeconds,
+                            monthSeconds: status.monthSeconds,
+                            enablePeriodicTimer: enableAnimations,
+                            onViewHistory: onViewHistory,
                           ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.amber[800],
-                          side: BorderSide(color: Colors.amber[800]!),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 6),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                          SizedBox(height: verticalGap + 2),
+
+                          // Action Buttons (Narrower & Centered)
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                width: buttonWidth,
+                                child: ElevatedButton.icon(
+                                  key: const Key('clock_in_button'),
+                                  icon: isLoading && !isClockedIn
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : const Icon(Icons.play_arrow, size: 20),
+                                  label: const Text('CLOCK IN'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF10B981),
+                                    foregroundColor: Colors.white,
+                                    padding: EdgeInsets.symmetric(
+                                        vertical: buttonVerticalPadding),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                  onPressed:
+                                      isLoading || isClockedIn ? null : onClockIn,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              SizedBox(
+                                width: buttonWidth,
+                                child: ElevatedButton.icon(
+                                  key: const Key('clock_out_button'),
+                                  icon: isLoading && isClockedIn
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : const Icon(Icons.stop, size: 20),
+                                  label: const Text('CLOCK OUT'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFEF4444),
+                                    foregroundColor: Colors.white,
+                                    padding: EdgeInsets.symmetric(
+                                        vertical: buttonVerticalPadding),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                  onPressed:
+                                      isLoading || !isClockedIn ? null : onClockOut,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        onPressed: isLoading
-                            ? null
-                            : () => onUndo(status.latestEvent!),
+
+                          // Undo Action Button if within grace period
+                          if (status.latestEvent != null &&
+                              status.latestEvent!
+                                  .isWithinGracePeriod(now: DateTime.now())) ...[
+                            const SizedBox(height: 8),
+                            Center(
+                              child: OutlinedButton.icon(
+                                key: const Key('undo_button'),
+                                icon: const Icon(Icons.undo, size: 15),
+                                label: Text(
+                                  'Undo ${status.latestEvent!.eventType == 'clock_in' ? 'Clock In' : 'Clock Out'}',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.amber[800],
+                                  side: BorderSide(color: Colors.amber[800]!),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 6),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
+                                onPressed: isLoading
+                                    ? null
+                                    : () => onUndo(status.latestEvent!),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
-                  ],
-                ],
-              ),
+                  ),
+                );
+              },
             ),
           ),
         ],

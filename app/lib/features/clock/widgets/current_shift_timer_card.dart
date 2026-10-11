@@ -100,7 +100,7 @@ class _CurrentShiftTimerCardState extends State<CurrentShiftTimerCard> {
     final monthFormatted = formatSeconds(widget.monthSeconds);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: const Color(0xFF1E293B),
         borderRadius: BorderRadius.circular(16),
