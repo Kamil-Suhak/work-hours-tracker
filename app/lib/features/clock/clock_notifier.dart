@@ -57,6 +57,16 @@ class CurrentStatusNotifier extends AsyncNotifier<WorkStatus> {
     });
   }
 
+  Future<void> resetAndRefresh() async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      final repository = ref.read(timeTrackingRepositoryProvider);
+      final status = await repository.fetchCurrentStatus();
+      _syncWidget(status);
+      return status;
+    });
+  }
+
   Future<void> clockIn({int? offsetMinutes}) async {
     state = const AsyncLoading<WorkStatus>().copyWithPrevious(state);
     state = await AsyncValue.guard(() async {

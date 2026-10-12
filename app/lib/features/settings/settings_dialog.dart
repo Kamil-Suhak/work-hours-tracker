@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../api/api_client.dart';
+import '../../api/models.dart';
 import '../../config/app_config.dart';
 import '../../services/platform/platform_services.dart';
 import '../clock/clock_notifier.dart';
@@ -149,24 +151,38 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
       }
 
       if (mounted) {
-        // Invalidate and refresh both status and shifts
+        // Invalidate and refresh both status and shifts without carrying over old environment cache
         ref.invalidate(currentStatusProvider);
         ref.invalidate(shiftsProvider);
         await Future.wait([
-          ref.read(currentStatusProvider.notifier).refreshStatus(),
+          ref.read(currentStatusProvider.notifier).resetAndRefresh(),
           ref.read(shiftsProvider.notifier).refresh(),
         ]);
 
         if (mounted) {
           Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Connected to ${_environment == 'staging' ? 'Staging' : 'Production'} & synced!',
+          final statusState = ref.read(currentStatusProvider);
+          final envName = _environment == 'staging' ? 'Staging' : 'Production';
+          if (statusState.hasError) {
+            final err = statusState.error;
+            final msg = (err is ApiException)
+                ? '${err.message} (${err.code})'
+                : err.toString();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Warning: Failed to connect to $envName: $msg'),
+                backgroundColor: Colors.redAccent,
+                behavior: SnackBarBehavior.floating,
               ),
-              backgroundColor: const Color(0xFF0F766E),
-            ),
-          );
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Connected to $envName & synced!'),
+                backgroundColor: const Color(0xFF0F766E),
+              ),
+            );
+          }
         }
       }
     } catch (e) {

@@ -31,6 +31,9 @@ class _MockStatusNotifier extends AsyncNotifier<WorkStatus>
   Future<void> refreshStatus() async {}
 
   @override
+  Future<void> resetAndRefresh() async {}
+
+  @override
   Future<void> undo(String eventId) async {}
 }
 
