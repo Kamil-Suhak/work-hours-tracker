@@ -168,6 +168,7 @@ export async function handleClockIn(
       id: eventId,
       eventType: 'clock_in',
       occurredAtUtc: effectiveTimeIso,
+      createdAtUtc: nowIso,
     },
   };
 
@@ -309,6 +310,7 @@ export async function handleClockOut(
       id: eventId,
       eventType: 'clock_out',
       occurredAtUtc: effectiveTimeIso,
+      createdAtUtc: nowIso,
     },
   };
 
@@ -395,10 +397,10 @@ export async function handleUndo(
   // 2. Query latest event
   const latestEvent = await db
     .prepare(
-      'SELECT id, event_type, occurred_at_utc FROM events WHERE user_id = ? ORDER BY occurred_at_utc DESC, id DESC LIMIT 1'
+      'SELECT id, event_type, occurred_at_utc, created_at_utc FROM events WHERE user_id = ? ORDER BY occurred_at_utc DESC, id DESC LIMIT 1'
     )
     .bind(DEFAULT_USER_ID)
-    .first<Pick<EventRow, 'id' | 'event_type' | 'occurred_at_utc'>>();
+    .first<Pick<EventRow, 'id' | 'event_type' | 'occurred_at_utc' | 'created_at_utc'>>();
 
   if (!latestEvent) {
     throw new AppError('NO_EVENTS_FOUND', 'No clock events exist to undo.', 404, requestId);
@@ -413,11 +415,11 @@ export async function handleUndo(
     );
   }
 
-  // 3. Grace period check: 5 minutes (300,000 ms)
-  const eventTimeMs = new Date(latestEvent.occurred_at_utc).getTime();
+  // 3. Grace period check: 5 minutes (300,000 ms) based on transaction creation timestamp
+  const creationTimeMs = new Date(latestEvent.created_at_utc ?? latestEvent.occurred_at_utc).getTime();
   const nowMs = now.getTime();
   const UNDO_WINDOW_MS = 5 * 60 * 1000;
-  if (nowMs - eventTimeMs > UNDO_WINDOW_MS) {
+  if (nowMs - creationTimeMs > UNDO_WINDOW_MS) {
     throw new AppError('UNDO_WINDOW_EXPIRED', 'The 5-minute undo window has expired.', 400, requestId);
   }
 

@@ -224,16 +224,22 @@ export async function getStatus(
 
   const latestEventRow = await db
     .prepare(
-      'SELECT id, event_type, occurred_at_utc FROM events WHERE user_id = ? ORDER BY occurred_at_utc DESC, id DESC LIMIT 1'
+      'SELECT id, event_type, occurred_at_utc, created_at_utc FROM events WHERE user_id = ? ORDER BY occurred_at_utc DESC, id DESC LIMIT 1'
     )
     .bind(userId)
-    .first<{ id: string; event_type: EventType; occurred_at_utc: string }>();
+    .first<{
+      id: string;
+      event_type: EventType;
+      occurred_at_utc: string;
+      created_at_utc: string;
+    }>();
 
   const latestEvent = latestEventRow
     ? {
         id: latestEventRow.id,
         eventType: latestEventRow.event_type,
         occurredAtUtc: latestEventRow.occurred_at_utc,
+        createdAtUtc: latestEventRow.created_at_utc,
       }
     : null;
 

@@ -65,6 +65,7 @@ export interface LatestEventInfo {
   id: string;
   eventType: EventType;
   occurredAtUtc: string;
+  createdAtUtc?: string;
 }
 
 export interface CommandResponse {

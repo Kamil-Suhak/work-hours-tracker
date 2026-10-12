@@ -521,6 +521,31 @@ describe('Worker End-to-End Integration Suite', () => {
       expect(mockDb.events[0].id).toBe(inEvent.id);
     });
 
+    it('allows undoing retroactive clock action (-5m offset) based on creation time', async () => {
+      const clockInRes = await worker.fetch(
+        createRequest('/api/v1/clock-in', {
+          method: 'POST',
+          body: { requestId: 'req-in-retro', source: 'flutter_app', offsetMinutes: -5 },
+        }),
+        env
+      );
+      expect(clockInRes.status).toBe(200);
+      const clockInData = await clockInRes.json() as { latestEvent: { id: string; occurredAtUtc: string; createdAtUtc: string } };
+      expect(clockInData.latestEvent.createdAtUtc).toBeDefined();
+
+      const undoRes = await worker.fetch(
+        createRequest('/api/v1/undo', {
+          method: 'POST',
+          body: { requestId: 'req-undo-retro', eventId: clockInData.latestEvent.id },
+        }),
+        env
+      );
+      expect(undoRes.status).toBe(200);
+      const undoData = await undoRes.json() as { success: boolean; restoredState: string };
+      expect(undoData.success).toBe(true);
+      expect(undoData.restoredState).toBe('clocked_out');
+    });
+
     it('rejects undo if event is not the latest event', async () => {
       await worker.fetch(
         createRequest('/api/v1/clock-in', {
