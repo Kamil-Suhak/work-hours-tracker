@@ -40,8 +40,20 @@
 
 ---
 
+---
+
+### Phase 5: v1.1.0 Feature Set & Multi-Environment Support
+- [x] **Staging Infrastructure**: Cloudflare staging D1 database (`work-hours-staging`), R2 bucket (`work-hours-reports-staging`), and wrangler environment configuration.
+- [x] **Planned Shift Duration & Progress**: `PlannedShiftDialog` with 4h, 6h, 8h, custom, and skip options; glowing progress bar and overtime indicator in `CurrentShiftTimerCard`.
+- [x] **Shift End Reminders**: Android `AlarmManager` + `BroadcastReceiver` notifications, `NotificationService` abstraction, configurable reminder offsets (5m, 10m, 15m, disabled).
+- [x] **Expanded Mobile History Touch Target**: History button in timer card expanded to fill available layout space.
+- [x] **Environment Switcher & Credential Storage**: Removed Custom tab, added dedicated persistent storage keys for `prod` and `staging` (URL and Bearer token) to prevent credential wipe, migrated default production URL to `https://work-hours-api.kamilsuhak.workers.dev`, and invalidated status/shifts on environment swap.
+- [x] **Verification**: All 67 Flutter tests and 61 Vitest tests passing.
+
+---
+
 ## Status Summary
-All phases from `ROADMAP.md` are 100% implemented, tested, and validated. Ready for temporary full audit report generation.
+All v1.1.0 planned features and environment storage hardening are implemented, atomically committed, and verified.
 
 
 
