@@ -53,8 +53,14 @@
 
 ---
 
+### Phase 6: v1.2 Correctness & Staging Environment Resolution
+- [x] **Staging Cloudflare Secrets & Authentication**: Configured `DEVICE_TOKEN_PEPPER` and `ADMIN_API_TOKEN` secrets on Cloudflare Staging worker (`work-hours-api-staging`). Provisioned test device `phone-staging` in `work-hours-staging` D1 database and verified live API connectivity.
+- [x] **Undo Grace Window Temporal Alignment**: Server (`clock.ts`, `status.ts`, `types.ts`) and client (`models.dart`) now measure the 5-minute undo grace window against physical transaction creation time (`created_at_utc`) rather than offset timestamp (`occurred_at_utc`), resolving edge cases where retroactive (-5m) actions expired immediately or post-dated (+5m) actions hid the undo button.
+- [x] **Environment Switch Cache Invalidation & Connection Feedback**: Implemented `resetAndRefresh` in `CurrentStatusNotifier` to clear cached state during environment transitions. `SettingsDialog` now detects and displays server connection errors instead of giving false confirmation toasts.
+- [x] **UI Error Visibility**: Added Riverpod error listener in `ClockScreen` to surface action failures via floating SnackBars, and rendered `_buildErrorContent` when server errors occur rather than deceptively masking them with stale production state.
+- [x] **Verification**: All 62 Vitest worker tests and 69 Flutter unit/widget tests passing.
+
+---
+
 ## Status Summary
-All v1.1.0 planned features and environment storage hardening are implemented, atomically committed, and verified.
-
-
-
+All v1.2 implementation plan items are complete, tested, and atomically committed locally. Live staging worker is verified and operational.
