@@ -48,6 +48,7 @@
 - [x] **Shift End Reminders**: Android `AlarmManager` + `BroadcastReceiver` notifications, `NotificationService` abstraction, configurable reminder offsets (5m, 10m, 15m, disabled).
 - [x] **Expanded Mobile History Touch Target**: History button in timer card expanded to fill available layout space.
 - [x] **Environment Switcher & Credential Storage**: Removed Custom tab, added dedicated persistent storage keys for `prod` and `staging` (URL and Bearer token) to prevent credential wipe, migrated default production URL to `https://work-hours-api.kamilsuhak.workers.dev`, and invalidated status/shifts on environment swap.
+- [x] **Top AppBar Streamlining**: Removed redundant Shift History, Download APK, and GitHub buttons from AppBar (preserved in Timer Card and SettingsDialog).
 - [x] **Verification**: All 67 Flutter tests and 61 Vitest tests passing.
 
 ---
