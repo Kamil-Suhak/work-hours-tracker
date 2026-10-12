@@ -253,5 +253,45 @@ void main() {
       final deviceNowExpired = serverTime.add(const Duration(minutes: 5, seconds: 1));
       expect(event.isWithinGracePeriod(now: deviceNowExpired), isFalse);
     });
+
+    test('returns true for retroactive (-5m offset) event created recently', () {
+      final now = DateTime.parse('2026-10-04T12:00:00Z');
+      final occurred5mAgo = now.subtract(const Duration(minutes: 5));
+      final event = LatestEventSummary(
+        id: 'evt-retro',
+        eventType: 'clock_in',
+        occurredAtUtc: occurred5mAgo,
+        createdAtUtc: now,
+      );
+
+      // Immediately after action (diff on createdAtUtc is 0s)
+      expect(event.isWithinGracePeriod(now: now), isTrue);
+
+      // 4 minutes after action
+      expect(event.isWithinGracePeriod(now: now.add(const Duration(minutes: 4))), isTrue);
+
+      // 6 minutes after action (expired)
+      expect(event.isWithinGracePeriod(now: now.add(const Duration(minutes: 6))), isFalse);
+    });
+
+    test('returns true for post-dated (+5m offset) event created recently', () {
+      final now = DateTime.parse('2026-10-04T12:00:00Z');
+      final occurred5mInFuture = now.add(const Duration(minutes: 5));
+      final event = LatestEventSummary(
+        id: 'evt-future',
+        eventType: 'clock_in',
+        occurredAtUtc: occurred5mInFuture,
+        createdAtUtc: now,
+      );
+
+      // Immediately after action
+      expect(event.isWithinGracePeriod(now: now), isTrue);
+
+      // 4 minutes after action
+      expect(event.isWithinGracePeriod(now: now.add(const Duration(minutes: 4))), isTrue);
+
+      // 6 minutes after action (expired)
+      expect(event.isWithinGracePeriod(now: now.add(const Duration(minutes: 6))), isFalse);
+    });
   });
 }

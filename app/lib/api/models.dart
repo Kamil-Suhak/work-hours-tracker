@@ -22,26 +22,34 @@ class LatestEventSummary {
   final String id;
   final String eventType;
   final DateTime occurredAtUtc;
+  final DateTime createdAtUtc;
 
   const LatestEventSummary({
     required this.id,
     required this.eventType,
     required this.occurredAtUtc,
-  });
+    DateTime? createdAtUtc,
+  }) : createdAtUtc = createdAtUtc ?? occurredAtUtc;
 
   factory LatestEventSummary.fromJson(Map<String, dynamic> json) {
+    final occurred = DateTime.parse(
+      (json['occurredAtUtc'] ?? json['occurred_at_utc']) as String,
+    );
+    final createdStr = json['createdAtUtc'] ?? json['created_at_utc'];
+    final created = createdStr != null
+        ? DateTime.parse(createdStr as String)
+        : occurred;
     return LatestEventSummary(
       id: json['id'] as String,
       eventType: (json['eventType'] ?? json['event_type']) as String,
-      occurredAtUtc: DateTime.parse(
-        (json['occurredAtUtc'] ?? json['occurred_at_utc']) as String,
-      ),
+      occurredAtUtc: occurred,
+      createdAtUtc: created,
     );
   }
 
   bool isWithinGracePeriod({DateTime? now, Duration grace = const Duration(minutes: 5)}) {
     final reference = (now ?? DateTime.now()).toUtc();
-    final diff = reference.difference(occurredAtUtc.toUtc());
+    final diff = reference.difference(createdAtUtc.toUtc());
     // Tolerate up to 2 minutes of forward clock skew between device and server NTP clocks
     return diff >= const Duration(minutes: -2) && diff <= grace;
   }

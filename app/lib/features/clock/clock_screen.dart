@@ -86,6 +86,22 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
         ref.watch(settingsProvider).value?.environment == 'staging';
     _syncGracePeriodTicker(statusAsync.value);
 
+    ref.listen<AsyncValue<WorkStatus>>(currentStatusProvider, (previous, next) {
+      if (next.hasError && !next.isLoading) {
+        final error = next.error;
+        final message = (error is ApiException)
+            ? '${error.message} (${error.code})'
+            : error.toString();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    });
+
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -147,8 +163,11 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
         child: LayoutBuilder(
           builder: (context, constraints) {
             final isDesktop = constraints.maxWidth >= 900;
+            final showContent = statusAsync.hasValue &&
+                (!statusAsync.hasError || isLoading);
+
             if (isDesktop) {
-              return statusAsync.hasValue
+              return showContent
                   ? _buildDesktopQuadrants(
                       context, statusAsync.value!, isLoading)
                   : statusAsync.when(
@@ -169,7 +188,7 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 24.0, vertical: 32.0),
-                  child: statusAsync.hasValue
+                  child: showContent
                       ? _buildStatusContent(
                           context, statusAsync.value!, isLoading)
                       : statusAsync.when(
