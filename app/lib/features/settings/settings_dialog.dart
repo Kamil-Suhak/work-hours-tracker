@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../config/app_config.dart';
 import '../../services/platform/platform_services.dart';
 import '../clock/clock_notifier.dart';
+import '../history/shifts_notifier.dart';
 import 'settings_notifier.dart';
 
 class SettingsDialog extends ConsumerStatefulWidget {
@@ -44,43 +45,42 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
     final settingsAsync = ref.read(settingsProvider);
     final settings = settingsAsync.value;
 
-    final defaultUrl = ref.read(credentialStoreProvider).defaultBaseUrl;
-    final initialUrl = (settings?.baseUrl != null &&
-            settings!.baseUrl.isNotEmpty &&
-            settings.baseUrl != AppConfig.defaultApiBaseUrl)
-        ? settings.baseUrl
-        : defaultUrl;
-
-    _environment = settings?.environment ?? 'production';
+    _environment =
+        (settings?.environment == 'staging') ? 'staging' : 'production';
     _shiftReminderMinutes = settings?.shiftReminderMinutes ?? 0;
-    _stagingUrl = settings?.stagingUrl ?? AppConfig.stagingApiBaseUrl;
+    _vibrationsEnabled = settings?.vibrationsEnabled ?? true;
+
+    _prodUrl = (settings?.prodUrl != null &&
+            settings!.prodUrl.isNotEmpty &&
+            settings.prodUrl != 'https://work-hours-api.workers.dev')
+        ? settings.prodUrl
+        : AppConfig.defaultApiBaseUrl;
+    _prodToken = settings?.prodToken ?? '';
+
+    _stagingUrl = (settings?.stagingUrl != null &&
+            settings!.stagingUrl.isNotEmpty)
+        ? settings.stagingUrl
+        : AppConfig.stagingApiBaseUrl;
     _stagingToken = settings?.stagingToken ?? '';
 
-    if (_environment == 'production') {
-      _prodUrl = initialUrl;
-      _prodToken = settings?.deviceToken ?? '';
-    } else {
-      _prodUrl = AppConfig.defaultApiBaseUrl;
-      _prodToken = '';
-    }
+    final initialUrl = _environment == 'staging' ? _stagingUrl : _prodUrl;
+    final initialToken =
+        _environment == 'staging' ? _stagingToken : _prodToken;
 
-    _urlController = TextEditingController(
-      text: initialUrl,
-    );
-    _tokenController = TextEditingController(
-      text: settings?.deviceToken ?? '',
-    );
+    _urlController = TextEditingController(text: initialUrl);
+    _tokenController = TextEditingController(text: initialToken);
     _adminTokenController = TextEditingController(
       text: settings?.adminToken ?? '',
     );
-    _vibrationsEnabled = settings?.vibrationsEnabled ?? true;
   }
 
   void _switchEnvironment(String targetEnv) {
+    if (_environment == targetEnv) return;
+
     if (_environment == 'production') {
       _prodUrl = _urlController.text.trim();
       _prodToken = _tokenController.text.trim();
-    } else if (_environment == 'staging') {
+    } else {
       _stagingUrl = _urlController.text.trim();
       _stagingToken = _tokenController.text.trim();
     }
@@ -91,7 +91,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
         _urlController.text =
             _prodUrl.isNotEmpty ? _prodUrl : AppConfig.defaultApiBaseUrl;
         _tokenController.text = _prodToken;
-      } else if (targetEnv == 'staging') {
+      } else {
         _urlController.text =
             _stagingUrl.isNotEmpty ? _stagingUrl : AppConfig.stagingApiBaseUrl;
         _tokenController.text = _stagingToken;
@@ -121,27 +121,27 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
 
     setState(() => _isSaving = true);
     try {
-      final url = _urlController.text.trim();
-      final token = _tokenController.text.trim();
+      final currentUrl = _urlController.text.trim();
+      final currentToken = _tokenController.text.trim();
       final adminToken = _adminTokenController.text.trim();
 
       if (_environment == 'production') {
-        _prodUrl = url;
-        _prodToken = token;
-      } else if (_environment == 'staging') {
-        _stagingUrl = url;
-        _stagingToken = token;
+        _prodUrl = currentUrl;
+        _prodToken = currentToken;
+      } else {
+        _stagingUrl = currentUrl;
+        _stagingToken = currentToken;
       }
 
       await ref.read(settingsProvider.notifier).saveSettings(
-            baseUrl: url,
-            deviceToken: token,
+            prodUrl: _prodUrl,
+            prodToken: _prodToken,
+            stagingUrl: _stagingUrl,
+            stagingToken: _stagingToken,
+            environment: _environment,
             adminToken: adminToken.isNotEmpty ? adminToken : null,
             vibrationsEnabled: _vibrationsEnabled,
             shiftReminderMinutes: _shiftReminderMinutes,
-            environment: _environment,
-            stagingUrl: _stagingUrl,
-            stagingToken: _stagingToken,
           );
 
       if (_shiftReminderMinutes > 0) {
@@ -149,15 +149,25 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
       }
 
       if (mounted) {
-        // Trigger a fresh status fetch with the new credentials
-        ref.read(currentStatusProvider.notifier).refreshStatus();
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Settings saved & synced to Android widget!'),
-            backgroundColor: Color(0xFF0F766E),
-          ),
-        );
+        // Invalidate and refresh both status and shifts
+        ref.invalidate(currentStatusProvider);
+        ref.invalidate(shiftsProvider);
+        await Future.wait([
+          ref.read(currentStatusProvider.notifier).refreshStatus(),
+          ref.read(shiftsProvider.notifier).refresh(),
+        ]);
+
+        if (mounted) {
+          Navigator.of(context).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Connected to ${_environment == 'staging' ? 'Staging' : 'Production'} & synced!',
+              ),
+              backgroundColor: const Color(0xFF0F766E),
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -212,11 +222,6 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                       label: Text('Staging', style: TextStyle(fontSize: 12)),
                       icon: Icon(Icons.science, size: 15),
                     ),
-                    ButtonSegment(
-                      value: 'custom',
-                      label: Text('Custom', style: TextStyle(fontSize: 12)),
-                      icon: Icon(Icons.tune, size: 15),
-                    ),
                   ],
                   selected: {_environment},
                   onSelectionChanged: (selectedSet) =>
@@ -254,7 +259,8 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                   decoration: InputDecoration(
                     labelText: 'Device Bearer Token',
                     hintText: '64-character hex token from provision script',
-                    helperText: 'Paste the raw Bearer Token (do NOT paste the token_hash)',
+                    helperText:
+                        'Paste the raw Bearer Token (do NOT paste the token_hash)',
                     helperMaxLines: 2,
                     border: const OutlineInputBorder(),
                     suffixIcon: Row(
@@ -330,11 +336,14 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                   items: const [
                     DropdownMenuItem(value: 0, child: Text('Disabled')),
                     DropdownMenuItem(value: 5, child: Text('5 minutes before')),
-                    DropdownMenuItem(value: 10, child: Text('10 minutes before')),
-                    DropdownMenuItem(value: 15, child: Text('15 minutes before')),
+                    DropdownMenuItem(
+                        value: 10, child: Text('10 minutes before')),
+                    DropdownMenuItem(
+                        value: 15, child: Text('15 minutes before')),
                   ],
                   onChanged: (val) {
-                    if (val != null) setState(() => _shiftReminderMinutes = val);
+                    if (val != null)
+                      setState(() => _shiftReminderMinutes = val);
                   },
                 ),
                 if (ref.watch(hapticServiceProvider).isSupported) ...[

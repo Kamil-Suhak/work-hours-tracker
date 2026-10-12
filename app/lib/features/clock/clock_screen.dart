@@ -83,6 +83,8 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
   Widget build(BuildContext context) {
     final statusAsync = ref.watch(currentStatusProvider);
     final isLoading = statusAsync.isLoading;
+    final isStaging =
+        ref.watch(settingsProvider).value?.environment == 'staging';
     _syncGracePeriodTicker(statusAsync.value);
 
     return Scaffold(
@@ -96,7 +98,33 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
             );
           },
         ),
-        title: const Text('Work Hours Tracker'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Work Hours Tracker'),
+            if (isStaging) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.amber, width: 1),
+                ),
+                child: const Text(
+                  'STAGING',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.amber,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
         centerTitle: true,
         actions: [
           IconButton(

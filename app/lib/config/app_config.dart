@@ -14,7 +14,7 @@ class AppConfig {
   /// Can be overridden at build-time using `--dart-define=API_BASE_URL=https://...`.
   static const String defaultApiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://work-hours-api.workers.dev',
+    defaultValue: 'https://work-hours-api.kamilsuhak.workers.dev',
   );
   static const String stagingApiBaseUrl = String.fromEnvironment(
     'STAGING_API_BASE_URL',
@@ -24,6 +24,8 @@ class AppConfig {
   // --- Secure Storage Keys ---
   static const String deviceTokenKey = 'device_auth_token';
   static const String apiBaseUrlKey = 'api_base_url';
+  static const String prodDeviceTokenKey = 'prod_device_auth_token';
+  static const String prodApiBaseUrlKey = 'prod_api_base_url';
   static const String adminAuthTokenKey = 'admin_auth_token';
   static const String vibrationsEnabledKey = 'vibrations_enabled';
   static const String activeShiftNoteKey = 'active_shift_note';

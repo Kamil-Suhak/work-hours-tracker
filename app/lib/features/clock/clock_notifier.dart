@@ -41,7 +41,7 @@ class CurrentStatusNotifier extends AsyncNotifier<WorkStatus> {
 
   @override
   Future<WorkStatus> build() async {
-    final repository = ref.read(timeTrackingRepositoryProvider);
+    final repository = ref.watch(timeTrackingRepositoryProvider);
     final status = await repository.fetchCurrentStatus();
     _syncWidget(status);
     return status;

@@ -12,8 +12,10 @@ class AppSettings {
   final bool vibrationsEnabled;
   final int shiftReminderMinutes;
   final String environment;
-  final String? stagingUrl;
-  final String? stagingToken;
+  final String prodUrl;
+  final String prodToken;
+  final String stagingUrl;
+  final String stagingToken;
 
   const AppSettings({
     required this.baseUrl,
@@ -23,8 +25,10 @@ class AppSettings {
     this.vibrationsEnabled = true,
     this.shiftReminderMinutes = 0,
     this.environment = 'production',
-    this.stagingUrl,
-    this.stagingToken,
+    this.prodUrl = AppConfig.defaultApiBaseUrl,
+    this.prodToken = '',
+    this.stagingUrl = AppConfig.stagingApiBaseUrl,
+    this.stagingToken = '',
   });
 
   AppSettings copyWith({
@@ -35,6 +39,8 @@ class AppSettings {
     bool? vibrationsEnabled,
     int? shiftReminderMinutes,
     String? environment,
+    String? prodUrl,
+    String? prodToken,
     String? stagingUrl,
     String? stagingToken,
   }) {
@@ -46,6 +52,8 @@ class AppSettings {
       vibrationsEnabled: vibrationsEnabled ?? this.vibrationsEnabled,
       shiftReminderMinutes: shiftReminderMinutes ?? this.shiftReminderMinutes,
       environment: environment ?? this.environment,
+      prodUrl: prodUrl ?? this.prodUrl,
+      prodToken: prodToken ?? this.prodToken,
       stagingUrl: stagingUrl ?? this.stagingUrl,
       stagingToken: stagingToken ?? this.stagingToken,
     );
@@ -55,6 +63,8 @@ class AppSettings {
 class SettingsNotifier extends AsyncNotifier<AppSettings> {
   static const String _tokenStorageKey = AppConfig.deviceTokenKey;
   static const String _baseUrlStorageKey = AppConfig.apiBaseUrlKey;
+  static const String _prodTokenStorageKey = AppConfig.prodDeviceTokenKey;
+  static const String _prodUrlStorageKey = AppConfig.prodApiBaseUrlKey;
   static const String _adminTokenStorageKey = AppConfig.adminAuthTokenKey;
   static const String _hapticsStorageKey = AppConfig.vibrationsEnabledKey;
   static const String _reminderStorageKey = AppConfig.shiftReminderMinutesKey;
@@ -62,11 +72,16 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
   static const String _stagingUrlStorageKey = AppConfig.stagingUrlKey;
   static const String _stagingTokenStorageKey = AppConfig.stagingTokenKey;
 
+  static const String _legacyGenericWorkersDevUrl =
+      'https://work-hours-api.workers.dev';
+
   @override
   Future<AppSettings> build() async {
     final store = ref.read(credentialStoreProvider);
     final widgetSync = ref.read(widgetSyncServiceProvider);
 
+    final storedProdUrl = await store.read(_prodUrlStorageKey);
+    final storedProdToken = await store.read(_prodTokenStorageKey);
     final storedUrl = await store.read(_baseUrlStorageKey);
     final storedToken = await store.read(_tokenStorageKey);
     final storedAdminToken = await store.read(_adminTokenStorageKey);
@@ -78,62 +93,111 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
 
     final defaultUrl = store.defaultBaseUrl;
 
-    final isDefaultPlaceholder = storedUrl?.trim() == defaultApiBaseUrl;
-    final baseUrl = (storedUrl != null &&
-            storedUrl.trim().isNotEmpty &&
-            (!store.isWeb || !isDefaultPlaceholder))
-        ? storedUrl.trim()
-        : defaultUrl;
+    // Resolve production base URL with legacy fallback and migration away from generic worker domain
+    String prodUrl = (storedProdUrl != null &&
+            storedProdUrl.trim().isNotEmpty &&
+            storedProdUrl.trim() != _legacyGenericWorkersDevUrl)
+        ? storedProdUrl.trim()
+        : ((storedUrl != null &&
+                storedUrl.trim().isNotEmpty &&
+                storedUrl.trim() != _legacyGenericWorkersDevUrl)
+            ? storedUrl.trim()
+            : defaultUrl);
 
-    final deviceToken = storedToken?.trim() ?? '';
-    final isConfigured =
-        deviceToken.isNotEmpty && (store.isWeb || baseUrl != defaultApiBaseUrl);
+    if (prodUrl.isEmpty || prodUrl == _legacyGenericWorkersDevUrl) {
+      prodUrl = AppConfig.defaultApiBaseUrl;
+    }
+
+    final prodToken = (storedProdToken != null && storedProdToken.trim().isNotEmpty)
+        ? storedProdToken.trim()
+        : (storedToken?.trim() ?? '');
+
+    final stagingUrl = (storedStagingUrl != null &&
+            storedStagingUrl.trim().isNotEmpty)
+        ? storedStagingUrl.trim()
+        : AppConfig.stagingApiBaseUrl;
+
+    final stagingToken = storedStagingToken?.trim() ?? '';
+    final environment =
+        (storedEnv?.trim() == 'staging') ? 'staging' : 'production';
+
+    final activeUrl = environment == 'staging' ? stagingUrl : prodUrl;
+    final activeToken = environment == 'staging' ? stagingToken : prodToken;
+
+    final isConfigured = activeToken.isNotEmpty &&
+        (store.isWeb || activeUrl != defaultApiBaseUrl);
     final vibrationsEnabled = storedHaptics != 'false';
     final shiftReminderMinutes = int.tryParse(storedReminder ?? '0') ?? 0;
-    final environment = storedEnv?.trim().isNotEmpty == true ? storedEnv!.trim() : 'production';
 
     if (isConfigured) {
       await widgetSync.syncCredentials(
-        baseUrl: baseUrl,
-        deviceToken: deviceToken,
+        baseUrl: activeUrl,
+        deviceToken: activeToken,
         vibrationsEnabled: vibrationsEnabled,
       );
     }
 
     return AppSettings(
-      baseUrl: baseUrl,
-      deviceToken: deviceToken,
+      baseUrl: activeUrl,
+      deviceToken: activeToken,
       adminToken: storedAdminToken?.trim(),
       isConfigured: isConfigured,
       vibrationsEnabled: vibrationsEnabled,
       shiftReminderMinutes: shiftReminderMinutes,
       environment: environment,
-      stagingUrl: storedStagingUrl?.trim(),
-      stagingToken: storedStagingToken?.trim(),
+      prodUrl: prodUrl,
+      prodToken: prodToken,
+      stagingUrl: stagingUrl,
+      stagingToken: stagingToken,
     );
   }
 
   Future<void> saveSettings({
-    required String baseUrl,
-    required String deviceToken,
+    required String prodUrl,
+    required String prodToken,
+    required String stagingUrl,
+    required String stagingToken,
+    required String environment,
     String? adminToken,
     bool vibrationsEnabled = true,
     int shiftReminderMinutes = 0,
-    String environment = 'production',
-    String? stagingUrl,
-    String? stagingToken,
   }) async {
     final store = ref.read(credentialStoreProvider);
     final widgetSync = ref.read(widgetSyncServiceProvider);
 
-    var cleanedUrl = baseUrl.trim();
-    if (cleanedUrl.endsWith('/')) {
-      cleanedUrl = cleanedUrl.substring(0, cleanedUrl.length - 1);
+    var cleanProdUrl = prodUrl.trim();
+    if (cleanProdUrl.endsWith('/')) {
+      cleanProdUrl = cleanProdUrl.substring(0, cleanProdUrl.length - 1);
     }
-    final cleanedToken = deviceToken.trim();
+    if (cleanProdUrl.isEmpty) {
+      cleanProdUrl = AppConfig.defaultApiBaseUrl;
+    }
+    final cleanProdToken = prodToken.trim();
 
-    await store.write(_baseUrlStorageKey, cleanedUrl);
-    await store.write(_tokenStorageKey, cleanedToken);
+    var cleanStagingUrl = stagingUrl.trim();
+    if (cleanStagingUrl.endsWith('/')) {
+      cleanStagingUrl = cleanStagingUrl.substring(0, cleanStagingUrl.length - 1);
+    }
+    if (cleanStagingUrl.isEmpty) {
+      cleanStagingUrl = AppConfig.stagingApiBaseUrl;
+    }
+    final cleanStagingToken = stagingToken.trim();
+
+    final cleanEnv = (environment == 'staging') ? 'staging' : 'production';
+    final activeUrl = cleanEnv == 'staging' ? cleanStagingUrl : cleanProdUrl;
+    final activeToken = cleanEnv == 'staging' ? cleanStagingToken : cleanProdToken;
+
+    // Persist discrete environment configurations
+    await store.write(_prodUrlStorageKey, cleanProdUrl);
+    await store.write(_prodTokenStorageKey, cleanProdToken);
+    await store.write(_stagingUrlStorageKey, cleanStagingUrl);
+    await store.write(_stagingTokenStorageKey, cleanStagingToken);
+    await store.write(_envStorageKey, cleanEnv);
+
+    // Also persist active credentials to legacy keys for widget & background readers
+    await store.write(_baseUrlStorageKey, activeUrl);
+    await store.write(_tokenStorageKey, activeToken);
+
     if (adminToken != null && adminToken.trim().isNotEmpty) {
       await store.write(_adminTokenStorageKey, adminToken.trim());
     } else {
@@ -141,33 +205,27 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
     }
     await store.write(_hapticsStorageKey, vibrationsEnabled.toString());
     await store.write(_reminderStorageKey, shiftReminderMinutes.toString());
-    await store.write(_envStorageKey, environment);
-
-    if (stagingUrl != null && stagingUrl.trim().isNotEmpty) {
-      await store.write(_stagingUrlStorageKey, stagingUrl.trim());
-    }
-    if (stagingToken != null && stagingToken.trim().isNotEmpty) {
-      await store.write(_stagingTokenStorageKey, stagingToken.trim());
-    }
 
     await widgetSync.syncCredentials(
-      baseUrl: cleanedUrl,
-      deviceToken: cleanedToken,
+      baseUrl: activeUrl,
+      deviceToken: activeToken,
       vibrationsEnabled: vibrationsEnabled,
     );
 
     state = AsyncValue.data(
       AppSettings(
-        baseUrl: cleanedUrl,
-        deviceToken: cleanedToken,
+        baseUrl: activeUrl,
+        deviceToken: activeToken,
         adminToken: adminToken?.trim(),
-        isConfigured:
-            cleanedToken.isNotEmpty && (store.isWeb || cleanedUrl != defaultApiBaseUrl),
+        isConfigured: activeToken.isNotEmpty &&
+            (store.isWeb || activeUrl != defaultApiBaseUrl),
         vibrationsEnabled: vibrationsEnabled,
         shiftReminderMinutes: shiftReminderMinutes,
-        environment: environment,
-        stagingUrl: stagingUrl?.trim(),
-        stagingToken: stagingToken?.trim(),
+        environment: cleanEnv,
+        prodUrl: cleanProdUrl,
+        prodToken: cleanProdToken,
+        stagingUrl: cleanStagingUrl,
+        stagingToken: cleanStagingToken,
       ),
     );
   }

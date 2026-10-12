@@ -5,6 +5,7 @@ import 'shift_model.dart';
 class ShiftsNotifier extends AsyncNotifier<List<ShiftRecord>> {
   @override
   Future<List<ShiftRecord>> build() async {
+    ref.watch(timeTrackingRepositoryProvider);
     return _fetchShifts();
   }
 
