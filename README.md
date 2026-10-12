@@ -6,9 +6,9 @@ A low-friction, single-user work hours tracking platform with authoritative serv
 
 ## Project Status
 
-- **Current Version:** `v0.3.1` (see [CHANGELOG.md](CHANGELOG.md))
+- **Current Version:** `v1.1.1` (see [CHANGELOG.md](CHANGELOG.md))
 - **Status:** Personal production, actively used
-- **Supported Platforms:** Android (App + Widget), Web (Desktop/Mobile browser), Cloudflare Workers (Backend + Static Assets)
+- **Supported Platforms:** Android (App + Native Widget), Web (Desktop/Mobile browser), Cloudflare Workers (Backend + Static Assets)
 
 ---
 
@@ -44,6 +44,7 @@ Detailed specifications, runbooks, and contracts have been separated into dedica
 +-----------------------------------------------------------+
 |               Unified Cloudflare Worker                   |
 |   - Serves /api/v1/* and Flutter Web (Workers Assets)     |
+|   - Multi-Environment Support (Production & Staging)      |
 |   - SHA-256 Hashed Device Auth & Idempotency Engine       |
 |   - 5-Minute Undo Grace Window & State Machine Engine     |
 |   - Pure TS OpenXML Generator (.xlsx) & R2 Storage        |
@@ -53,7 +54,8 @@ Detailed specifications, runbooks, and contracts have been separated into dedica
                        v                      v
           +-----------------------+ +--------------------+
           |     Cloudflare D1     | |   Cloudflare R2    |
-          |   (SQLite Edge DB)    | |  (Reports Bucket)  |
+          |  (work-hours-prod/    | |(work-hours-reports/|
+          |   work-hours-staging) | |      -staging)     |
           +-----------------------+ +--------------------+
 ```
 
@@ -64,19 +66,23 @@ Detailed specifications, runbooks, and contracts have been separated into dedica
 ### Authoritative Server Time & State Engine
 - **Server Authority:** The server generates all authoritative timestamps in UTC ISO 8601. Client clocks are never trusted for state transitions.
 - **Explicit Transitions:** Separate `POST /api/v1/clock-in` and `POST /api/v1/clock-out` endpoints prevent toggle race conditions.
+- **Time Offset Support:** Clock actions support retroactive or anticipated adjustments (`offsetMinutes: -5` or `+5`) for accurate timekeeping when clocking slightly late or early.
 - **Strict Idempotency:** Duplicate or replayed network requests with the same `requestId` return cached results without inserting duplicate events.
 - **Warsaw Timezone:** Daily boundaries, active shift pairing, and month-to-date durations are computed in `Europe/Warsaw` across daylight saving transitions.
-- **5-Minute Undo Grace Window:** Accidental clock actions can be atomically reverted within 300 seconds via `POST /api/v1/undo`.
+- **Undo Grace Window:** Accidental clock actions can be atomically reverted via `POST /api/v1/undo`.
 
-### Unified Edge Backend
+### Unified Edge Backend & Environments
 - **Single Worker Deployment:** Serves both `/api/v1/*` JSON endpoints and Flutter Web static assets (`app/build/web`) via Cloudflare Workers Static Assets (`run_worker_first: true`).
+- **Production & Staging Isolation:** Dedicated Wrangler environments isolate production (`work-hours-prod` D1, `work-hours-reports` R2) from staging (`work-hours-staging` D1, `work-hours-reports-staging` R2).
 - **Timing-Safe Device Auth:** Bearer tokens are hashed with a server-side pepper (`DEVICE_TOKEN_PEPPER`) and verified against D1 `devices.token_hash` using timing-safe comparisons.
 
 ### Flutter Client (Android & Responsive Web)
 - **Shared Codebase:** Riverpod state management, domain models, and API clients are 100% shared across mobile and browser.
-- **Responsive 4-Quadrant Desktop View:** Viewports `>= 900px` render Clock, Shift Duration, Recents, and Reports side-by-side.
-- **Presentational Live Timer:** The UI calculates elapsed duration dynamically from the server-confirmed `activeSince` timestamp. The ticker is presentational; the server remains authoritative.
-- **Shift Notes:** Markdown-capable notes editor with live preview, in-shift draft autosave, and automatic server upload upon clock-out.
+- **Planned Shift Lengths & Progress Ring:** Clock in with planned duration pills (4h, 6h, 8h, or custom), displaying a glowing animated progress bar, countdown timer, and overtime indicator.
+- **Shift End Reminders:** Configurable notifications (5m, 10m, 15m lead times) scheduled natively via Android `AlarmManager`.
+- **Environment Switcher:** In-app server settings dialog allows seamless switching between Production and Staging with isolated secure credential storage.
+- **Responsive 4-Quadrant Desktop View:** Viewports `>= 900px` render Clock, Shift Duration, Recents, and Reports side-by-side with full keyboard accessibility.
+- **Shift Notes & Inline Editing:** Markdown-capable notes editor with live preview, autosaved drafts, and retroactive editing for past shifts.
 - **Historical Backfill:** Admin dialog to record missed past shifts with date/time pickers and overlap validation.
 
 ### Native Android Home-Screen Widget
@@ -101,6 +107,7 @@ Detailed specifications, runbooks, and contracts have been separated into dedica
 | **Web Frontend** | Flutter Web + Workers Static Assets | Co-located on the same domain with SPA route fallback |
 | **Mobile Client** | Flutter (Dart 3.5+) + Riverpod | Cross-platform state management with unified API contracts |
 | **Android Widget** | Kotlin + Android RemoteViews | Lightweight native widget operating independently without Flutter runtime |
+| **Notifications** | Android AlarmManager + BroadcastReceiver | Reliable background shift alarms that wake the device |
 | **Report Engine** | Pure TypeScript OpenXML (.xlsx) | Runs natively in Workers isolates without Node.js filesystem APIs |
 
 ---
