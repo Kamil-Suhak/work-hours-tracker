@@ -196,17 +196,37 @@ void main() {
 
       expect(find.text('Custom Clock Out'), findsOneWidget);
       expect(find.byKey(const Key('custom_offset_input')), findsOneWidget);
+      expect(find.text('Allowed range: -120 to +120 min (±2h)'), findsOneWidget);
       expect(find.text('-15m'), findsOneWidget);
+      expect(find.text('-10m'), findsNothing);
+      expect(find.text('+10m'), findsNothing);
 
-      // Tap -15m preset chip
-      await tester.tap(find.text('-15m'));
+      // Typing an out-of-range value like 150 unselects the +15m chip, shows limit error, and disables Confirm
+      await tester.enterText(find.byKey(const Key('custom_offset_input')), '15');
+      await tester.pumpAndSettle();
+      ChoiceChip chip15 = tester.widget(find.widgetWithText(ChoiceChip, '+15m'));
+      expect(chip15.selected, isTrue);
+
+      await tester.enterText(find.byKey(const Key('custom_offset_input')), '150');
+      await tester.pumpAndSettle();
+      chip15 = tester.widget(find.widgetWithText(ChoiceChip, '+15m'));
+      expect(chip15.selected, isFalse);
+      expect(find.text('Limit is -120 to +120 min (±2h)'), findsOneWidget);
+      expect(find.text('--:--'), findsOneWidget);
+      final confirmBtn = tester.widget<ElevatedButton>(
+        find.byKey(const Key('confirm_custom_offset_button')),
+      );
+      expect(confirmBtn.onPressed, isNull);
+
+      // Tap -30m preset chip
+      await tester.tap(find.text('-30m'));
       await tester.pumpAndSettle();
 
       // Confirm dialog
       await tester.tap(find.byKey(const Key('confirm_custom_offset_button')));
       await tester.pumpAndSettle();
 
-      expect(receivedOffset, equals(-15));
+      expect(receivedOffset, equals(-30));
     });
   });
 }

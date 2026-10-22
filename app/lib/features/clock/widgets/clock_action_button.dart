@@ -129,17 +129,23 @@ class _ClockActionButtonState extends State<ClockActionButton> {
   }
 
   Future<int?> _showCustomOffsetDialog(BuildContext context) async {
-    final textController = TextEditingController(text: '-10');
+    final textController = TextEditingController(text: '-15');
     final timeFormat = DateFormat('HH:mm');
 
     return showDialog<int>(
       context: context,
       builder: (ctx) {
-        int currentOffset = -10;
         return StatefulBuilder(
           builder: (dialogCtx, setDialogState) {
+            final rawText = textController.text.trim();
+            final parsedOffset = int.tryParse(rawText);
+            final isOutOfRange =
+                parsedOffset != null && (parsedOffset < -120 || parsedOffset > 120);
+            final isValid =
+                parsedOffset != null && parsedOffset >= -120 && parsedOffset <= 120;
             final now = DateTime.now();
-            final targetTime = now.add(Duration(minutes: currentOffset));
+            final targetTime =
+                isValid ? now.add(Duration(minutes: parsedOffset)) : null;
 
             return AlertDialog(
               backgroundColor: const Color(0xFF1E293B),
@@ -153,7 +159,11 @@ class _ClockActionButtonState extends State<ClockActionButton> {
                   const SizedBox(width: 8),
                   Text(
                     widget.isClockIn ? 'Custom Clock In' : 'Custom Clock Out',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
                 ],
               ),
@@ -161,22 +171,33 @@ class _ClockActionButtonState extends State<ClockActionButton> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    'Set offset in minutes (-120 to +120):',
-                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                  ),
-                  const SizedBox(height: 12),
                   TextField(
                     key: const Key('custom_offset_input'),
                     controller: textController,
                     keyboardType: const TextInputType.numberWithOptions(signed: true),
                     autofocus: true,
-                    style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
                     decoration: InputDecoration(
                       labelText: 'Offset (minutes)',
                       labelStyle: const TextStyle(color: Color(0xFF94A3B8)),
                       suffixText: 'min',
                       suffixStyle: const TextStyle(color: Color(0xFF64748B)),
+                      helperText: 'Allowed range: -120 to +120 min (±2h)',
+                      helperStyle: const TextStyle(
+                        color: Color(0xFF64748B),
+                        fontSize: 11,
+                      ),
+                      errorText: isOutOfRange
+                          ? 'Limit is -120 to +120 min (±2h)'
+                          : null,
+                      errorStyle: const TextStyle(
+                        color: Color(0xFFF59E0B),
+                        fontSize: 11,
+                      ),
                       filled: true,
                       fillColor: const Color(0xFF0F172A),
                       border: OutlineInputBorder(
@@ -187,33 +208,47 @@ class _ClockActionButtonState extends State<ClockActionButton> {
                         borderRadius: BorderRadius.circular(10),
                         borderSide: const BorderSide(color: Color(0xFF38BDF8)),
                       ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFFF59E0B)),
+                      ),
+                      focusedErrorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFF59E0B),
+                          width: 1.5,
+                        ),
+                      ),
                     ),
-                    onChanged: (val) {
-                      final parsed = int.tryParse(val.trim());
-                      if (parsed != null && parsed >= -120 && parsed <= 120) {
-                        setDialogState(() => currentOffset = parsed);
-                      }
-                    },
+                    onChanged: (_) => setDialogState(() {}),
                   ),
                   const SizedBox(height: 12),
                   Wrap(
                     spacing: 6,
                     runSpacing: 6,
-                    children: [-30, -15, -10, -5, 5, 10, 15, 30].map((val) {
-                      final isSelected = currentOffset == val;
+                    children: const [-30, -15, -5, 5, 15, 30].map((val) {
+                      final isSelected = isValid && parsedOffset == val;
                       return ChoiceChip(
                         label: Text('${val > 0 ? "+$val" : val}m'),
                         selected: isSelected,
                         onSelected: (selected) {
                           if (selected) {
-                            textController.text = val.toString();
-                            setDialogState(() => currentOffset = val);
+                            final text = val.toString();
+                            textController.value = TextEditingValue(
+                              text: text,
+                              selection: TextSelection.collapsed(
+                                offset: text.length,
+                              ),
+                            );
+                            setDialogState(() {});
                           }
                         },
                         backgroundColor: const Color(0xFF0F172A),
                         selectedColor: const Color(0xFF0284C7),
                         labelStyle: TextStyle(
-                          color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+                          color: isSelected
+                              ? Colors.white
+                              : const Color(0xFF94A3B8),
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                         ),
@@ -222,7 +257,10 @@ class _ClockActionButtonState extends State<ClockActionButton> {
                   ),
                   const SizedBox(height: 14),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF0F172A),
                       borderRadius: BorderRadius.circular(8),
@@ -231,10 +269,24 @@ class _ClockActionButtonState extends State<ClockActionButton> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Target event time:', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11)),
+                        const Text(
+                          'Target event time:',
+                          style: TextStyle(
+                            color: Color(0xFF94A3B8),
+                            fontSize: 11,
+                          ),
+                        ),
                         Text(
-                          timeFormat.format(targetTime),
-                          style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 13, fontWeight: FontWeight.bold),
+                          targetTime != null
+                              ? timeFormat.format(targetTime)
+                              : '--:--',
+                          style: TextStyle(
+                            color: targetTime != null
+                                ? const Color(0xFF38BDF8)
+                                : const Color(0xFF64748B),
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
@@ -244,22 +296,29 @@ class _ClockActionButtonState extends State<ClockActionButton> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(null),
-                  child: const Text('Cancel', style: TextStyle(color: Color(0xFF94A3B8))),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(color: Color(0xFF94A3B8)),
+                  ),
                 ),
                 ElevatedButton(
                   key: const Key('confirm_custom_offset_button'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF38BDF8),
                     foregroundColor: const Color(0xFF0F172A),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    disabledBackgroundColor: const Color(0xFF334155),
+                    disabledForegroundColor: const Color(0xFF64748B),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
-                  onPressed: () {
-                    final parsed = int.tryParse(textController.text.trim());
-                    if (parsed != null && parsed >= -120 && parsed <= 120) {
-                      Navigator.of(ctx).pop(parsed);
-                    }
-                  },
-                  child: const Text('Confirm', style: TextStyle(fontWeight: FontWeight.bold)),
+                  onPressed: isValid
+                      ? () => Navigator.of(ctx).pop(parsedOffset)
+                      : null,
+                  child: const Text(
+                    'Confirm',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
               ],
             );
