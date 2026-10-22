@@ -6,6 +6,7 @@ import type {
   EventSource,
   UndoRequestBody,
   UndoResponse,
+  WorkLocation,
   WorkState,
   WorkStateRow,
   ProcessedRequestRow,
@@ -21,6 +22,8 @@ const VALID_SOURCES = new Set<EventSource>([
   'admin_manual',
   'web_dashboard',
 ]);
+
+export const VALID_LOCATIONS = new Set<WorkLocation>(['remote', 'in-office']);
 
 export function validateClockRequest(body: unknown): ClockRequestBody {
   if (!body || typeof body !== 'object') {
@@ -74,11 +77,26 @@ export function validateClockRequest(body: unknown): ClockRequestBody {
     }
   }
 
+  const rawLocation = (body as Record<string, unknown>).location;
+  let location: WorkLocation | undefined;
+  if (rawLocation !== undefined && rawLocation !== null) {
+    if (typeof rawLocation !== 'string' || !VALID_LOCATIONS.has(rawLocation as WorkLocation)) {
+      throw new AppError(
+        'INVALID_LOCATION',
+        `location must be one of: ${Array.from(VALID_LOCATIONS).join(', ')}`,
+        400,
+        requestId
+      );
+    }
+    location = rawLocation as WorkLocation;
+  }
+
   return {
     requestId: requestId.trim(),
     source: source as EventSource,
     ...(note !== undefined && note.length > 0 ? { note } : {}),
     ...(offsetMinutes !== undefined ? { offsetMinutes } : {}),
+    ...(location !== undefined ? { location } : {}),
   };
 }
 
@@ -178,10 +196,10 @@ export async function handleClockIn(
   await db.batch([
     db
       .prepare(
-        `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, note)
-         VALUES (?, ?, ?, ?, 'clock_in', ?, ?, ?, ?)`
+        `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, note, location)
+         VALUES (?, ?, ?, ?, 'clock_in', ?, ?, ?, ?, ?)`
       )
-      .bind(eventId, requestId, DEFAULT_USER_ID, deviceId, source, effectiveTimeIso, nowIso, req.note ?? null),
+      .bind(eventId, requestId, DEFAULT_USER_ID, deviceId, source, effectiveTimeIso, nowIso, req.note ?? null, req.location ?? 'remote'),
     db
       .prepare(
         `INSERT INTO work_state (user_id, state, active_since_utc, version, updated_at_utc)
@@ -320,10 +338,10 @@ export async function handleClockOut(
   await db.batch([
     db
       .prepare(
-        `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, note)
-         VALUES (?, ?, ?, ?, 'clock_out', ?, ?, ?, ?)`
+        `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, note, location)
+         VALUES (?, ?, ?, ?, 'clock_out', ?, ?, ?, ?, ?)`
       )
-      .bind(eventId, requestId, DEFAULT_USER_ID, deviceId, source, effectiveTimeIso, nowIso, req.note ?? null),
+      .bind(eventId, requestId, DEFAULT_USER_ID, deviceId, source, effectiveTimeIso, nowIso, req.note ?? null, req.location ?? 'remote'),
     db
       .prepare(
         `INSERT INTO work_state (user_id, state, active_since_utc, version, updated_at_utc)

@@ -17,6 +17,9 @@ class ShiftRecord {
 
   String get durationFormatted => formatSeconds(duration.inSeconds);
 
+  String get location => clockIn.location;
+  bool get isInOffice => location == 'in-office';
+
   String? get note {
     if (clockOut.note?.trim().isNotEmpty == true) return clockOut.note!.trim();
     if (clockIn.note?.trim().isNotEmpty == true) return clockIn.note!.trim();

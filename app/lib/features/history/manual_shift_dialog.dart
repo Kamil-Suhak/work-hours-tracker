@@ -27,6 +27,7 @@ class _ManualShiftDialogState extends ConsumerState<ManualShiftDialog> {
   DateTime _selectedDate = DateTime.now();
   TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay _endTime = const TimeOfDay(hour: 17, minute: 0);
+  String _selectedLocation = 'remote';
 
   late final TextEditingController _reasonController;
   late final TextEditingController _adminTokenController;
@@ -128,6 +129,7 @@ class _ManualShiftDialogState extends ConsumerState<ManualShiftDialog> {
         clockInAt: start.toUtc(),
         clockOutAt: end.toUtc(),
         reason: _reasonController.text.trim(),
+        location: _selectedLocation,
         adminToken: adminToken.isNotEmpty ? adminToken : null,
       );
 
@@ -275,6 +277,51 @@ class _ManualShiftDialogState extends ConsumerState<ManualShiftDialog> {
                       ),
                     ],
                   ),
+                ),
+                const SizedBox(height: 16),
+
+                // Work Location selector
+                const Text(
+                  'Work Location',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    ('remote', 'Remote', Icons.home_work_outlined),
+                    ('in-office', 'In-Office', Icons.business_outlined),
+                  ].map((entry) {
+                    final (value, label, icon) = entry;
+                    final isSelected = _selectedLocation == value;
+                    return Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: ChoiceChip(
+                          key: Key('manual_location_$value'),
+                          avatar: Icon(
+                            icon,
+                            size: 16,
+                            color: isSelected
+                                ? const Color(0xFF0F766E)
+                                : Colors.grey,
+                          ),
+                          label: SizedBox(
+                            width: double.infinity,
+                            child: Text(
+                              label,
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            if (selected) {
+                              setState(() => _selectedLocation = value);
+                            }
+                          },
+                        ),
+                      ),
+                    );
+                  }).toList(),
                 ),
                 const SizedBox(height: 16),
 

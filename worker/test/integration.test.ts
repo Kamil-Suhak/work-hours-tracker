@@ -105,7 +105,20 @@ describe('Worker End-to-End Integration Suite', () => {
       expect(mockDb.events).toHaveLength(1);
       expect(mockDb.events[0].event_type).toBe('clock_in');
       expect(mockDb.events[0].source).toBe('flutter_app');
+      expect(mockDb.events[0].location).toBe('remote');
       expect(mockDb.workState.get('default-user')?.state).toBe('clocked_in');
+    });
+
+    it('stores selected in-office location on clock-in', async () => {
+      const req = createRequest('/api/v1/clock-in', {
+        method: 'POST',
+        body: { requestId: 'req-in-office', source: 'flutter_app', location: 'in-office' },
+      });
+
+      const res = await worker.fetch(req, env);
+      expect(res.status).toBe(200);
+      expect(mockDb.events).toHaveLength(1);
+      expect(mockDb.events[0].location).toBe('in-office');
     });
 
     it('returns changed: false when clocking in while already clocked in', async () => {
@@ -377,7 +390,30 @@ describe('Worker End-to-End Integration Suite', () => {
       // Verify pair created in D1
       expect(mockDb.events).toHaveLength(2);
       expect(mockDb.events[0].source).toBe('admin_manual');
+      expect(mockDb.events[0].location).toBe('remote');
       expect(mockDb.events[1].source).toBe('admin_manual');
+      expect(mockDb.events[1].location).toBe('remote');
+    });
+
+    it('stores in-office location for manual shift backfill when specified', async () => {
+      const res = await worker.fetch(
+        createRequest('/api/v1/admin/events/manual', {
+          method: 'POST',
+          token: adminToken,
+          body: {
+            clockInAt: '2026-10-02T08:00:00Z',
+            clockOutAt: '2026-10-02T16:00:00Z',
+            reason: 'Worked in office',
+            requestId: 'req-admin-office',
+            location: 'in-office',
+          },
+        }),
+        env
+      );
+      expect(res.status).toBe(200);
+      expect(mockDb.events).toHaveLength(2);
+      expect(mockDb.events[0].location).toBe('in-office');
+      expect(mockDb.events[1].location).toBe('in-office');
     });
 
     it('rejects overlapping shift with existing shifts', async () => {

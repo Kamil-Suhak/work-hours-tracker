@@ -42,6 +42,7 @@ void main() {
           source: 'flutter_app',
           occurredAtUtc: DateTime.parse('2026-10-02T09:00:00Z'),
           createdAtUtc: DateTime.parse('2026-10-02T09:00:00Z'),
+          location: 'in-office',
         ),
         clockOut: TrackingEvent(
           id: 'evt-4',
@@ -82,8 +83,10 @@ void main() {
       expect(find.text('flutter_app'), findsNothing);
       expect(find.text('android_widget'), findsNothing);
 
-      // Verify shift with note shows 'Notes' tag
+      // Verify shift with note shows 'Notes' tag and location badges render
       expect(find.text('Notes'), findsOneWidget);
+      expect(find.text('In-Office'), findsOneWidget);
+      expect(find.text('Remote'), findsOneWidget);
 
       // Tap shift without note -> opens preview dialog with option to add note
       await tester.tap(find.text('8h 0m'));

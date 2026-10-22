@@ -42,6 +42,44 @@ void main() {
       expect(result, isNotNull);
       expect(result!.isCancelled, isFalse);
       expect(result!.duration, equals(const Duration(hours: 4)));
+      expect(result!.location, equals('remote'));
+    });
+
+    testWidgets('PlannedShiftDialog allows selecting In-Office location and skipping target', (tester) async {
+      PlannedShiftResult? result;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => ElevatedButton(
+                key: const Key('open_dialog'),
+                onPressed: () async {
+                  result = await PlannedShiftDialog.show(ctx);
+                },
+                child: const Text('Open'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('open_dialog')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('shift_location_remote')), findsOneWidget);
+      expect(find.byKey(const Key('shift_location_in-office')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('shift_location_in-office')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('planned_shift_skip_button')));
+      await tester.pumpAndSettle();
+
+      expect(result, isNotNull);
+      expect(result!.isCancelled, isFalse);
+      expect(result!.duration, isNull);
+      expect(result!.location, equals('in-office'));
     });
 
     testWidgets('PlannedShiftDialog cancel returns cancelled result', (tester) async {

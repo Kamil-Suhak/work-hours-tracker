@@ -69,6 +69,27 @@ describe("Admin Manual Events Validation", () => {
       }),
     ).toThrow(/Note must not exceed 4,000 characters/);
   });
+
+  it("validates location field for manual shifts", () => {
+    const inOffice = validateManualEventRequest({
+      clockInAt: "2026-10-02T06:00:00.000Z",
+      clockOutAt: "2026-10-02T14:00:00.000Z",
+      reason: "In-office workshop",
+      requestId: "req-backfill-office",
+      location: "in-office",
+    });
+    expect(inOffice.location).toBe("in-office");
+
+    expect(() =>
+      validateManualEventRequest({
+        clockInAt: "2026-10-02T06:00:00.000Z",
+        clockOutAt: "2026-10-02T14:00:00.000Z",
+        reason: "Invalid location",
+        requestId: "req-backfill-bad-loc",
+        location: "cafe",
+      }),
+    ).toThrow(/location must be one of/);
+  });
 });
 
 describe("Event Note Update Tests", () => {

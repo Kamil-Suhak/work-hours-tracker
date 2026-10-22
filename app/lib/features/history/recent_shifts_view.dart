@@ -282,6 +282,42 @@ class _RecentShiftsViewState extends ConsumerState<RecentShiftsView> {
                     ),
                   ),
                   const Spacer(),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: shift.isInOffice
+                          ? const Color(0xFF38BDF8).withValues(alpha: 0.15)
+                          : const Color(0xFF475569).withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          shift.isInOffice
+                              ? Icons.business_outlined
+                              : Icons.home_work_outlined,
+                          size: 12,
+                          color: shift.isInOffice
+                              ? const Color(0xFF38BDF8)
+                              : const Color(0xFF94A3B8),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          shift.isInOffice ? 'In-Office' : 'Remote',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: shift.isInOffice
+                                ? const Color(0xFF38BDF8)
+                                : const Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
                   if (hasNote) ...[
                     Container(
                       padding:

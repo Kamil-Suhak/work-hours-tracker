@@ -93,6 +93,7 @@ export function pairEventsIntoReportShifts(events: EventRow[]): ShiftSummaryItem
       durationFormatted: formatDuration(durationSeconds),
       note: note.length > 0 ? note : undefined,
       source: clockOut.source as EventSource,
+      location: clockIn.location ?? 'remote',
     };
   });
 }

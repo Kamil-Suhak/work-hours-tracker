@@ -8,6 +8,8 @@ export type EventSource =
 
 export type EventType = 'clock_in' | 'clock_out';
 
+export type WorkLocation = 'remote' | 'in-office';
+
 export interface Env {
   DB: D1Database;
   ADMIN_API_TOKEN?: string;
@@ -44,6 +46,7 @@ export interface EventRow {
   created_at_utc: string;
   reason: string | null;
   note?: string | null;
+  location?: WorkLocation;
 }
 
 export interface ProcessedRequestRow {
@@ -59,6 +62,7 @@ export interface ClockRequestBody {
   source: EventSource;
   note?: string;
   offsetMinutes?: number;
+  location?: WorkLocation;
 }
 
 export interface LatestEventInfo {
@@ -93,6 +97,7 @@ export interface ManualEventRequestBody {
   reason: string;
   requestId: string;
   note?: string;
+  location?: WorkLocation;
 }
 
 export interface ManualEventResponse {
@@ -164,6 +169,7 @@ export interface ShiftSummaryItem {
   durationFormatted: string;
   note?: string;
   source: EventSource;
+  location?: WorkLocation;
 }
 
 export interface ReportStats {

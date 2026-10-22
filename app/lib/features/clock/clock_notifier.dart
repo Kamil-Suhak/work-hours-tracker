@@ -67,11 +67,17 @@ class CurrentStatusNotifier extends AsyncNotifier<WorkStatus> {
     });
   }
 
-  Future<void> clockIn({int? offsetMinutes}) async {
+  Future<void> clockIn({
+    int? offsetMinutes,
+    String location = 'remote',
+  }) async {
     state = const AsyncLoading<WorkStatus>().copyWithPrevious(state);
     state = await AsyncValue.guard(() async {
       final repository = ref.read(timeTrackingRepositoryProvider);
-      final res = await repository.clockIn(offsetMinutes: offsetMinutes);
+      final res = await repository.clockIn(
+        offsetMinutes: offsetMinutes,
+        location: location,
+      );
       ref.invalidate(shiftsProvider);
       _syncWidget(res);
       return res;

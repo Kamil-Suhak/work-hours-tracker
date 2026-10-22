@@ -87,12 +87,14 @@ class ApiClient {
     required String requestId,
     String source = 'flutter_app',
     int? offsetMinutes,
+    String location = 'remote',
   }) async {
     final uri = Uri.parse('$baseUrl/api/v1/clock-in');
     final headers = await _buildHeaders();
     final body = jsonEncode({
       'requestId': requestId,
       'source': source,
+      'location': location,
       if (offsetMinutes != null) 'offsetMinutes': offsetMinutes,
     });
 
@@ -190,6 +192,7 @@ class ApiClient {
     required DateTime clockOutAt,
     required String reason,
     required String requestId,
+    String location = 'remote',
     String? adminToken,
   }) async {
     final uri = Uri.parse('$baseUrl/api/v1/admin/events/manual');
@@ -202,6 +205,7 @@ class ApiClient {
       'clockOutAt': clockOutAt.toUtc().toIso8601String(),
       'reason': reason,
       'requestId': requestId,
+      'location': location,
     });
 
     final response = await _httpClient.post(uri, headers: headers, body: body);

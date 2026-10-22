@@ -6,7 +6,11 @@ class ClockActionButton extends StatefulWidget {
   final bool isClockIn;
   final bool isLoading;
   final bool isEnabled;
-  final void Function({int? offsetMinutes, Duration? plannedDuration}) onAction;
+  final void Function({
+    int? offsetMinutes,
+    Duration? plannedDuration,
+    String location,
+  }) onAction;
   final double? width;
   final EdgeInsetsGeometry? padding;
 
@@ -32,6 +36,7 @@ class _ClockActionButtonState extends State<ClockActionButton> {
       widget.onAction(
         offsetMinutes: offsetMinutes,
         plannedDuration: planned.duration,
+        location: planned.location,
       );
     } else {
       widget.onAction(offsetMinutes: offsetMinutes);

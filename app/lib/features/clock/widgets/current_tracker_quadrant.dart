@@ -9,7 +9,11 @@ class CurrentTrackerQuadrant extends StatelessWidget {
   final WorkStatus status;
   final bool isLoading;
   final bool enableAnimations;
-  final void Function({int? offsetMinutes, Duration? plannedDuration}) onClockIn;
+  final void Function({
+    int? offsetMinutes,
+    Duration? plannedDuration,
+    String location,
+  }) onClockIn;
   final void Function({int? offsetMinutes}) onClockOut;
   final ValueChanged<LatestEventSummary> onUndo;
   final VoidCallback? onViewHistory;
@@ -143,7 +147,11 @@ class CurrentTrackerQuadrant extends StatelessWidget {
                                 width: buttonWidth,
                                 padding: EdgeInsets.symmetric(
                                     vertical: buttonVerticalPadding),
-                                onAction: ({int? offsetMinutes, Duration? plannedDuration}) =>
+                                onAction: ({
+                                  int? offsetMinutes,
+                                  Duration? plannedDuration,
+                                  String location = 'remote',
+                                }) =>
                                     onClockOut(offsetMinutes: offsetMinutes),
                               ),
                             ],

@@ -12,11 +12,15 @@ class TimeTrackingRepository {
     return await _apiClient.getStatus();
   }
 
-  Future<WorkStatus> clockIn({int? offsetMinutes}) async {
+  Future<WorkStatus> clockIn({
+    int? offsetMinutes,
+    String location = 'remote',
+  }) async {
     final requestId = _uuid.v4();
     return await _apiClient.clockIn(
       requestId: requestId,
       offsetMinutes: offsetMinutes,
+      location: location,
     );
   }
 
@@ -42,6 +46,7 @@ class TimeTrackingRepository {
     required DateTime clockInAt,
     required DateTime clockOutAt,
     required String reason,
+    String location = 'remote',
     String? adminToken,
   }) async {
     final requestId = _uuid.v4();
@@ -50,6 +55,7 @@ class TimeTrackingRepository {
       clockOutAt: clockOutAt,
       reason: reason,
       requestId: requestId,
+      location: location,
       adminToken: adminToken,
     );
   }

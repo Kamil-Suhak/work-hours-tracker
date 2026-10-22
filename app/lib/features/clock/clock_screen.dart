@@ -253,14 +253,21 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
                     isLoading: isLoading,
                     enableAnimations: widget.enableAnimations,
                     plannedDuration: ref.watch(plannedShiftDurationProvider),
-                    onClockIn: ({int? offsetMinutes, Duration? plannedDuration}) async {
+                    onClockIn: ({
+                      int? offsetMinutes,
+                      Duration? plannedDuration,
+                      String location = 'remote',
+                    }) async {
                       _triggerHapticIfEnabled();
                       await ref
                           .read(plannedShiftDurationProvider.notifier)
                           .setDuration(plannedDuration);
                       await ref
                           .read(currentStatusProvider.notifier)
-                          .clockIn(offsetMinutes: offsetMinutes);
+                          .clockIn(
+                            offsetMinutes: offsetMinutes,
+                            location: location,
+                          );
                       if (plannedDuration != null) {
                         _scheduleShiftReminderIfConfigured(
                           plannedDuration,
@@ -362,14 +369,21 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
                 isLoading: isLoading && !isClockedIn,
                 isEnabled: !isLoading && !isClockedIn,
                 padding: const EdgeInsets.symmetric(vertical: 18),
-                onAction: ({int? offsetMinutes, Duration? plannedDuration}) async {
+                onAction: ({
+                  int? offsetMinutes,
+                  Duration? plannedDuration,
+                  String location = 'remote',
+                }) async {
                   _triggerHapticIfEnabled();
                   await ref
                       .read(plannedShiftDurationProvider.notifier)
                       .setDuration(plannedDuration);
                   await ref
                       .read(currentStatusProvider.notifier)
-                      .clockIn(offsetMinutes: offsetMinutes);
+                      .clockIn(
+                        offsetMinutes: offsetMinutes,
+                        location: location,
+                      );
                   if (plannedDuration != null) {
                     _scheduleShiftReminderIfConfigured(
                       plannedDuration,
@@ -386,7 +400,11 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
                 isLoading: isLoading && isClockedIn,
                 isEnabled: !isLoading && isClockedIn,
                 padding: const EdgeInsets.symmetric(vertical: 18),
-                onAction: ({int? offsetMinutes, Duration? plannedDuration}) async {
+                onAction: ({
+                  int? offsetMinutes,
+                  Duration? plannedDuration,
+                  String location = 'remote',
+                }) async {
                   _triggerHapticIfEnabled();
                   await ref.read(plannedShiftDurationProvider.notifier).clear();
                   await ref.read(notificationServiceProvider).cancelShiftReminder();

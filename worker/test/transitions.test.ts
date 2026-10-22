@@ -48,6 +48,25 @@ describe('State Transitions & Duration Rules', () => {
       source: 'flutter_app',
       offsetMinutes: 4.5,
     })).toThrowError(/between -120 and 120/);
+
+    // location validation
+    expect(validateClockRequest({
+      requestId: 'req-loc-1',
+      source: 'flutter_app',
+      location: 'remote',
+    }).location).toBe('remote');
+
+    expect(validateClockRequest({
+      requestId: 'req-loc-2',
+      source: 'flutter_app',
+      location: 'in-office',
+    }).location).toBe('in-office');
+
+    expect(() => validateClockRequest({
+      requestId: 'req-loc-3',
+      source: 'flutter_app',
+      location: 'hybrid',
+    })).toThrowError(/location must be one of/);
   });
 
   it('correctly pairs consecutive clock-in and clock-out events', () => {

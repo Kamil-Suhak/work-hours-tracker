@@ -111,6 +111,7 @@ class TrackingEvent {
   final DateTime createdAtUtc;
   final String? reason;
   final String? note;
+  final String location;
 
   const TrackingEvent({
     required this.id,
@@ -123,6 +124,7 @@ class TrackingEvent {
     required this.createdAtUtc,
     this.reason,
     this.note,
+    this.location = 'remote',
   });
 
   factory TrackingEvent.fromJson(Map<String, dynamic> json) {
@@ -137,6 +139,7 @@ class TrackingEvent {
       createdAtUtc: DateTime.parse(json['created_at_utc'] as String),
       reason: json['reason'] as String?,
       note: json['note'] as String?,
+      location: (json['location'] as String?) ?? 'remote',
     );
   }
 }

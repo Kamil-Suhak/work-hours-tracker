@@ -17,7 +17,11 @@ void main() {
                 isClockIn: true,
                 isLoading: false,
                 isEnabled: true,
-                onAction: ({int? offsetMinutes, Duration? plannedDuration}) {
+                onAction: ({
+                  int? offsetMinutes,
+                  Duration? plannedDuration,
+                  String location = 'remote',
+                }) {
                   actionCalled = true;
                   receivedOffset = offsetMinutes;
                   receivedDuration = plannedDuration;
@@ -65,7 +69,11 @@ void main() {
                 isClockIn: true,
                 isLoading: false,
                 isEnabled: true,
-                onAction: ({int? offsetMinutes, Duration? plannedDuration}) {
+                onAction: ({
+                  int? offsetMinutes,
+                  Duration? plannedDuration,
+                  String location = 'remote',
+                }) {
                   actionCalled = true;
                   receivedOffset = offsetMinutes;
                   receivedDuration = plannedDuration;
@@ -99,7 +107,11 @@ void main() {
                 isClockIn: false,
                 isLoading: false,
                 isEnabled: true,
-                onAction: ({int? offsetMinutes, Duration? plannedDuration}) {
+                onAction: ({
+                  int? offsetMinutes,
+                  Duration? plannedDuration,
+                  String location = 'remote',
+                }) {
                   receivedOffset = offsetMinutes;
                 },
               ),
@@ -140,7 +152,11 @@ void main() {
                 isClockIn: true,
                 isLoading: false,
                 isEnabled: true,
-                onAction: ({int? offsetMinutes, Duration? plannedDuration}) {
+                onAction: ({
+                  int? offsetMinutes,
+                  Duration? plannedDuration,
+                  String location = 'remote',
+                }) {
                   receivedOffset = offsetMinutes;
                   receivedDuration = plannedDuration;
                 },
@@ -179,7 +195,11 @@ void main() {
                 isClockIn: false,
                 isLoading: false,
                 isEnabled: true,
-                onAction: ({int? offsetMinutes, Duration? plannedDuration}) {
+                onAction: ({
+                  int? offsetMinutes,
+                  Duration? plannedDuration,
+                  String location = 'remote',
+                }) {
                   receivedOffset = offsetMinutes;
                 },
               ),

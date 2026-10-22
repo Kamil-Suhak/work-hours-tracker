@@ -3,16 +3,18 @@ import 'package:flutter/material.dart';
 class PlannedShiftResult {
   final bool isCancelled;
   final Duration? duration;
+  final String location;
 
   const PlannedShiftResult.cancelled()
       : isCancelled = true,
-        duration = null;
+        duration = null,
+        location = 'remote';
 
-  const PlannedShiftResult.skipped()
+  const PlannedShiftResult.skipped({this.location = 'remote'})
       : isCancelled = false,
         duration = null;
 
-  const PlannedShiftResult.selected(Duration d)
+  const PlannedShiftResult.selected(Duration d, {this.location = 'remote'})
       : isCancelled = false,
         duration = d;
 }
@@ -36,6 +38,7 @@ class PlannedShiftDialog extends StatefulWidget {
 class _PlannedShiftDialogState extends State<PlannedShiftDialog> {
   int? _selectedHours = 8;
   bool _isCustom = false;
+  String _selectedLocation = 'remote';
   final _customController = TextEditingController();
 
   @override
@@ -97,6 +100,73 @@ class _PlannedShiftDialogState extends State<PlannedShiftDialog> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
+              'Work Location',
+              style: TextStyle(
+                color: Colors.grey[400],
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                ('remote', 'Remote', Icons.home_work_outlined),
+                ('in-office', 'In-Office', Icons.business_outlined),
+              ].map((entry) {
+                final (value, label, icon) = entry;
+                final isSelected = _selectedLocation == value;
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: InkWell(
+                      key: Key('shift_location_$value'),
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () {
+                        setState(() {
+                          _selectedLocation = value;
+                        });
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? emerald.withValues(alpha: 0.2)
+                              : const Color(0xFF0F172A),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isSelected ? emerald : slateBorder,
+                            width: isSelected ? 1.5 : 1.0,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              icon,
+                              size: 16,
+                              color: isSelected ? emerald : Colors.grey[400],
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              label,
+                              style: TextStyle(
+                                color: isSelected ? Colors.white : Colors.grey[400],
+                                fontWeight:
+                                    isSelected ? FontWeight.bold : FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 16),
+            Text(
               'Select planned length for this shift to track countdown and notifications:',
               style: TextStyle(
                 color: Colors.grey[400],
@@ -104,7 +174,7 @@ class _PlannedShiftDialogState extends State<PlannedShiftDialog> {
                 height: 1.4,
               ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 12),
 
             // Preset Pills: 4h, 6h, 8h
             Row(
@@ -238,7 +308,9 @@ class _PlannedShiftDialogState extends State<PlannedShiftDialog> {
         // Skip (Clocks in without a target)
         TextButton(
           key: const Key('planned_shift_skip_button'),
-          onPressed: () => Navigator.of(context).pop(const PlannedShiftResult.skipped()),
+          onPressed: () => Navigator.of(context).pop(
+            PlannedShiftResult.skipped(location: _selectedLocation),
+          ),
           child: const Text('Skip Target', style: TextStyle(color: Color(0xFF38BDF8))),
         ),
 
@@ -252,7 +324,12 @@ class _PlannedShiftDialogState extends State<PlannedShiftDialog> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           ),
           onPressed: resolvedDuration != null
-              ? () => Navigator.of(context).pop(PlannedShiftResult.selected(resolvedDuration))
+              ? () => Navigator.of(context).pop(
+                    PlannedShiftResult.selected(
+                      resolvedDuration,
+                      location: _selectedLocation,
+                    ),
+                  )
               : null,
           child: const Text(
             'Clock In',

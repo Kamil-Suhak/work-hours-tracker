@@ -6,9 +6,10 @@ import type {
   ProcessedRequestRow,
   UpdateNoteRequestBody,
   UpdateNoteResponse,
+  WorkLocation,
 } from './types';
 import { AppError } from './errors';
-import { DEFAULT_USER_ID } from './clock';
+import { DEFAULT_USER_ID, VALID_LOCATIONS } from './clock';
 import { pairShifts, formatDuration, truncateToMinute } from './status';
 
 const MAX_QUERY_RANGE_DAYS = 93;
@@ -134,12 +135,27 @@ export function validateManualEventRequest(body: unknown): ManualEventRequestBod
     );
   }
 
+  const rawLocation = (body as Record<string, unknown>).location;
+  let location: WorkLocation | undefined;
+  if (rawLocation !== undefined && rawLocation !== null) {
+    if (typeof rawLocation !== 'string' || !VALID_LOCATIONS.has(rawLocation as WorkLocation)) {
+      throw new AppError(
+        'INVALID_LOCATION',
+        `location must be one of: ${Array.from(VALID_LOCATIONS).join(', ')}`,
+        400,
+        requestId
+      );
+    }
+    location = rawLocation as WorkLocation;
+  }
+
   return {
     clockInAt: inDate.toISOString(),
     clockOutAt: outDate.toISOString(),
     reason: reason.trim(),
     requestId: requestId.trim(),
     ...(note !== undefined && note.length > 0 ? { note } : {}),
+    ...(location !== undefined ? { location } : {}),
   };
 }
 
@@ -208,19 +224,21 @@ export async function handleAdminManualEvent(
 
   const responseJson = JSON.stringify(response);
 
+  const location = req.location ?? 'remote';
+
   await db.batch([
     db
       .prepare(
-        `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, reason, note)
-         VALUES (?, ?, ?, NULL, 'clock_in', 'admin_manual', ?, ?, ?, ?)`
+        `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, reason, note, location)
+         VALUES (?, ?, ?, NULL, 'clock_in', 'admin_manual', ?, ?, ?, ?, ?)`
       )
-      .bind(clockInId, `${requestId}_in`, DEFAULT_USER_ID, clockInAt, nowIso, reason, req.note ?? null),
+      .bind(clockInId, `${requestId}_in`, DEFAULT_USER_ID, clockInAt, nowIso, reason, req.note ?? null, location),
     db
       .prepare(
-        `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, reason, note)
-         VALUES (?, ?, ?, NULL, 'clock_out', 'admin_manual', ?, ?, ?, ?)`
+        `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, reason, note, location)
+         VALUES (?, ?, ?, NULL, 'clock_out', 'admin_manual', ?, ?, ?, ?, ?)`
       )
-      .bind(clockOutId, `${requestId}_out`, DEFAULT_USER_ID, clockOutAt, nowIso, reason, req.note ?? null),
+      .bind(clockOutId, `${requestId}_out`, DEFAULT_USER_ID, clockOutAt, nowIso, reason, req.note ?? null, location),
     db
       .prepare(
         `INSERT INTO processed_requests (request_id, user_id, operation, response_json, created_at_utc)
