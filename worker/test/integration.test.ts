@@ -748,9 +748,9 @@ describe('Worker End-to-End Integration Suite', () => {
   </w:body>
 </w:document>`;
       const templateZip = createZipBuffer([
-        { name: '[Content_Types].xml', data: enc.encode('<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"></Types>') },
-        { name: 'word/document.xml', data: enc.encode(docXml) },
-        { name: 'word/_rels/document.xml.rels', data: enc.encode('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>') },
+        { path: '[Content_Types].xml', data: enc.encode('<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"></Types>') },
+        { path: 'word/document.xml', data: enc.encode(docXml) },
+        { path: 'word/_rels/document.xml.rels', data: enc.encode('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>') },
       ]);
       const fakePng = new Uint8Array(24);
       fakePng.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);

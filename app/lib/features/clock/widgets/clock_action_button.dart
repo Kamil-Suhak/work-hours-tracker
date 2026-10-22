@@ -29,7 +29,7 @@ class ClockActionButton extends StatefulWidget {
 }
 
 class _ClockActionButtonState extends State<ClockActionButton> {
-  Future<void> _triggerAction(BuildContext context, {int? offsetMinutes}) async {
+  Future<void> _triggerAction({int? offsetMinutes}) async {
     if (widget.isClockIn) {
       final planned = await PlannedShiftDialog.show(context);
       if (planned.isCancelled || !mounted) return;
@@ -43,7 +43,7 @@ class _ClockActionButtonState extends State<ClockActionButton> {
     }
   }
 
-  Future<void> _showOptionsMenu(BuildContext context) async {
+  Future<void> _showOptionsMenu() async {
     final renderBox = context.findRenderObject() as RenderBox?;
     if (renderBox == null) return;
     final size = renderBox.size;
@@ -121,19 +121,19 @@ class _ClockActionButtonState extends State<ClockActionButton> {
     if (selected == null || !mounted) return;
 
     if (selected == 'custom') {
-      final customOffset = await _showCustomOffsetDialog(context);
+      final customOffset = await _showCustomOffsetDialog();
       if (customOffset != null && mounted) {
-        await _triggerAction(context, offsetMinutes: customOffset);
+        await _triggerAction(offsetMinutes: customOffset);
       }
     } else {
       final offset = int.tryParse(selected);
       if (offset != null && mounted) {
-        await _triggerAction(context, offsetMinutes: offset);
+        await _triggerAction(offsetMinutes: offset);
       }
     }
   }
 
-  Future<int?> _showCustomOffsetDialog(BuildContext context) async {
+  Future<int?> _showCustomOffsetDialog() async {
     final textController = TextEditingController(text: '-15');
     final timeFormat = DateFormat('HH:mm');
 
@@ -353,10 +353,10 @@ class _ClockActionButtonState extends State<ClockActionButton> {
             ),
           ),
           onPressed: widget.isEnabled && !widget.isLoading
-              ? () => _triggerAction(context)
+              ? () => _triggerAction()
               : null,
           onLongPress: widget.isEnabled && !widget.isLoading
-              ? () => _showOptionsMenu(context)
+              ? () => _showOptionsMenu()
               : null,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,

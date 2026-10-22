@@ -14,7 +14,6 @@ import 'widgets/cyber_orbit_badge.dart';
 import 'widgets/shift_notes_card.dart';
 import 'widgets/clock_action_button.dart';
 import 'planned_shift_provider.dart';
-import '../../services/platform/notification_service.dart';
 import '../history/recent_shifts_view.dart';
 import 'widgets/current_tracker_quadrant.dart';
 import 'widgets/note_editor_quadrant.dart';
@@ -123,7 +122,7 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
                 padding:
                     const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Colors.amber.withOpacity(0.2),
+                  color: Colors.amber.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(color: Colors.amber, width: 1),
                 ),

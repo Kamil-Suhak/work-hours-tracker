@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:work_hours_mobile/features/clock/widgets/current_shift_timer_card.dart';
 import 'package:work_hours_mobile/features/clock/widgets/planned_shift_dialog.dart';
 import 'package:work_hours_mobile/features/settings/settings_dialog.dart';
-import 'package:work_hours_mobile/features/settings/settings_notifier.dart';
 
 void main() {
   group('Planned Shift & Progress Bar Tests', () {

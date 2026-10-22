@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../api/api_client.dart';
 import '../../api/models.dart';
 import '../../config/app_config.dart';
 import '../../services/platform/platform_services.dart';
@@ -339,7 +338,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                 const SizedBox(height: 16),
                 DropdownButtonFormField<int>(
                   key: const Key('shift_reminder_dropdown'),
-                  value: _shiftReminderMinutes,
+                  initialValue: _shiftReminderMinutes,
                   decoration: const InputDecoration(
                     labelText: 'Clock-out Reminder',
                     helperText: 'Notify before planned shift length ends',
@@ -358,8 +357,9 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                         value: 15, child: Text('15 minutes before')),
                   ],
                   onChanged: (val) {
-                    if (val != null)
+                    if (val != null) {
                       setState(() => _shiftReminderMinutes = val);
+                    }
                   },
                 ),
                 if (ref.watch(hapticServiceProvider).isSupported) ...[
