@@ -12,6 +12,25 @@ A low-friction, single-user work hours tracking platform with authoritative serv
 
 ---
 
+## Screenshots & Visual Overview
+
+| Main Dashboard (Clocked Out) | Active Shift (Clocked In) |
+| :---: | :---: |
+| ![Main Dashboard](docs/screenshots/main-screen.png) | ![Active Shift](docs/screenshots/clocked-in.png) |
+
+| Shift Duration & Location | Custom Time Offsets |
+| :---: | :---: |
+| ![Shift Duration & Location](docs/screenshots/shift-duration-location.png) | ![Custom Time Offsets](docs/screenshots/clock-in-out-custom.png) |
+
+| Recent Shifts & History | Multi-Environment Settings |
+| :---: | :---: |
+| ![Recent Shifts](docs/screenshots/recent-shifts.png) | ![Settings](docs/screenshots/settings.png) |
+
+### Side-by-Side Reports Dashboard (Formal Contract & Full Excel)
+![Reports Screen](docs/screenshots/reports.png)
+
+---
+
 ## Documentation Directory
 
 Detailed specifications, runbooks, and contracts have been separated into dedicated documents:
