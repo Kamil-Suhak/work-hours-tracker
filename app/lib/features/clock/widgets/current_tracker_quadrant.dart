@@ -123,6 +123,7 @@ class CurrentTrackerQuadrant extends StatelessWidget {
                             enablePeriodicTimer: enableAnimations,
                             onViewHistory: onViewHistory,
                             plannedDuration: plannedDuration,
+                            showHistoryButton: false,
                           ),
                           SizedBox(height: verticalGap + 2),
 

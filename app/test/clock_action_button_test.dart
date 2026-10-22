@@ -248,5 +248,44 @@ void main() {
 
       expect(receivedOffset, equals(-30));
     });
+
+    testWidgets('tapping dropdown arrow directly opens options menu without long-press', (tester) async {
+      int? receivedOffset;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: ClockActionButton(
+                isClockIn: false,
+                isLoading: false,
+                isEnabled: true,
+                onAction: ({
+                  int? offsetMinutes,
+                  Duration? plannedDuration,
+                  String location = 'remote',
+                }) {
+                  receivedOffset = offsetMinutes;
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byKey(const Key('clock_out_button_options')), findsOneWidget);
+
+      // Single tap the dropdown arrow target
+      await tester.tap(find.byKey(const Key('clock_out_button_options')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('-5m'), findsOneWidget);
+      expect(find.text('+5m'), findsOneWidget);
+
+      await tester.tap(find.text('+5m'));
+      await tester.pumpAndSettle();
+
+      expect(receivedOffset, equals(5));
+    });
   });
 }

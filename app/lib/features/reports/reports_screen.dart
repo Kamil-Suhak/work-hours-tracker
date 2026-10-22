@@ -12,38 +12,35 @@ class ReportsScreen extends ConsumerStatefulWidget {
 }
 
 class _ReportsScreenState extends ConsumerState<ReportsScreen> {
+  late DateTime _formalMonth;
   late DateTime _startDate;
   late DateTime _endDate;
+  DateTime? _selectedExcelMonth;
 
   bool _isGeneratingFormal = false;
   bool _isGeneratingExcel = false;
   bool _isDownloadingLatest = false;
-  String? _lastGeneratedPath;
+  String? _lastFormalReportPath;
+  String? _lastExcelReportPath;
   String? _statusMessage;
 
   final DateFormat _displayFormat = DateFormat('MMM d, yyyy');
+  final DateFormat _monthFormat = DateFormat('MMMM yyyy');
 
   @override
   void initState() {
     super.initState();
     final now = DateTime.now();
+    _formalMonth = DateTime(now.year, now.month, 1);
+    _selectedExcelMonth = DateTime(now.year, now.month, 1);
     _startDate = DateTime(now.year, now.month, 1);
-    _endDate = now;
+    _endDate = DateTime(now.year, now.month + 1, 0);
   }
 
-  void _setThisMonth() {
+  List<DateTime> _getLast6Months() {
     final now = DateTime.now();
-    setState(() {
-      _startDate = DateTime(now.year, now.month, 1);
-      _endDate = now;
-    });
-  }
-
-  void _setLastMonth() {
-    final now = DateTime.now();
-    setState(() {
-      _startDate = DateTime(now.year, now.month - 1, 1);
-      _endDate = DateTime(now.year, now.month, 0);
+    return List.generate(6, (index) {
+      return DateTime(now.year, now.month - index, 1);
     });
   }
 
@@ -60,6 +57,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         if (_endDate.isBefore(_startDate)) {
           _endDate = _startDate;
         }
+        _selectedExcelMonth = null;
       });
     }
   }
@@ -74,23 +72,31 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     if (picked != null) {
       setState(() {
         _endDate = picked;
+        _selectedExcelMonth = null;
       });
     }
   }
 
   Future<void> _promptAndGenerateFormalReport() async {
-    final clockState = ref.read(currentStatusProvider).value;
-    final recordedMinutes = (clockState?.monthSeconds ?? 0) ~/ 60;
+    final now = DateTime.now();
+    final isCurrentMonth =
+        _formalMonth.year == now.year && _formalMonth.month == now.month;
 
-    final plannedShifts = await showDialog<List<Map<String, dynamic>>>(
-      context: context,
-      builder: (ctx) => PlanFutureShiftsDialog(
-        now: DateTime.now(),
-        recordedMonthMinutes: recordedMinutes,
-      ),
-    );
+    List<Map<String, dynamic>>? plannedShifts;
+    if (isCurrentMonth) {
+      final clockState = ref.read(currentStatusProvider).value;
+      final recordedMinutes = (clockState?.monthSeconds ?? 0) ~/ 60;
 
-    if (plannedShifts == null || !mounted) return;
+      plannedShifts = await showDialog<List<Map<String, dynamic>>>(
+        context: context,
+        builder: (ctx) => PlanFutureShiftsDialog(
+          now: now,
+          recordedMonthMinutes: recordedMinutes,
+        ),
+      );
+
+      if (plannedShifts == null || !mounted) return;
+    }
 
     setState(() {
       _isGeneratingFormal = true;
@@ -99,24 +105,30 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
 
     try {
       final apiClient = ref.read(apiClientProvider);
+      final formalStart = DateTime(_formalMonth.year, _formalMonth.month, 1);
+      final formalEnd = DateTime(_formalMonth.year, _formalMonth.month + 1, 0);
+
       final result = await apiClient.generateReport(
+        startDate: formalStart,
+        endDate: formalEnd,
         format: 'docx',
         preset: 'formal',
         plannedShifts: plannedShifts,
       );
 
       final path = await ref.read(reportFileServiceProvider).saveAndOpenReport(
-        bytes: result.bytes,
-        filename: result.filename,
-      );
+            bytes: result.bytes,
+            filename: result.filename,
+          );
 
       final totalMinutes = (result.totalHours * 60).round();
       final h = totalMinutes ~/ 60;
       final m = totalMinutes % 60;
 
       setState(() {
-        _lastGeneratedPath = path;
-        _statusMessage = 'Generated formal report: ${h}h ${m}m (${result.totalShifts} days)';
+        _lastFormalReportPath = path;
+        _statusMessage =
+            'Generated formal report: ${h}h ${m}m (${result.totalShifts} days)';
       });
 
       if (mounted) {
@@ -159,17 +171,18 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       );
 
       final path = await ref.read(reportFileServiceProvider).saveAndOpenReport(
-        bytes: result.bytes,
-        filename: result.filename,
-      );
+            bytes: result.bytes,
+            filename: result.filename,
+          );
 
       final totalMinutes = (result.totalHours * 60).round();
       final h = totalMinutes ~/ 60;
       final m = totalMinutes % 60;
 
       setState(() {
-        _lastGeneratedPath = path;
-        _statusMessage = 'Generated Excel report: ${h}h ${m}m (${result.totalShifts} shifts)';
+        _lastExcelReportPath = path;
+        _statusMessage =
+            'Generated Excel report: ${h}h ${m}m (${result.totalShifts} shifts)';
       });
 
       if (mounted) {
@@ -196,21 +209,19 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     }
   }
 
-  Future<void> _openLastReport() async {
-    if (_lastGeneratedPath != null) {
-      final opened =
-          await ref.read(reportFileServiceProvider).openReportFile(_lastGeneratedPath!);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(opened
-                ? 'Opening report...'
-                : 'Could not open report file.'),
-            backgroundColor: opened ? const Color(0xFF0F766E) : Colors.amber[800],
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
+  Future<void> _openReport(String path) async {
+    final opened =
+        await ref.read(reportFileServiceProvider).openReportFile(path);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text(opened ? 'Opening report...' : 'Could not open report file.'),
+          backgroundColor:
+              opened ? const Color(0xFF0F766E) : Colors.amber[800],
+          duration: const Duration(seconds: 2),
+        ),
+      );
     }
   }
 
@@ -228,7 +239,8 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('No automated monthly report available in storage yet.'),
+              content:
+                  Text('No automated monthly report available in storage yet.'),
               backgroundColor: Colors.amber,
             ),
           );
@@ -241,13 +253,14 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
 
       final cleanName = filename.split('/').last;
       final path = await ref.read(reportFileServiceProvider).saveAndOpenReport(
-        bytes: bytes,
-        filename: cleanName,
-      );
+            bytes: bytes,
+            filename: cleanName,
+          );
 
       setState(() {
-        _lastGeneratedPath = path;
-        _statusMessage = 'Downloaded automated archive: ${latest['month'] ?? cleanName}';
+        _lastExcelReportPath = path;
+        _statusMessage =
+            'Downloaded automated archive: ${latest['month'] ?? cleanName}';
       });
 
       if (mounted) {
@@ -276,381 +289,616 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const activeColor = Color(0xFF10B981); // Emerald
-    const indigoAccent = Color(0xFF6366F1); // Indigo for Formal .docx
+    const activeColor = Color(0xFF10B981);
     const slateDark = Color(0xFF1E293B);
     const slateBackground = Color(0xFF0F172A);
 
-    final now = DateTime.now();
-    final monthFirstDay = DateTime(now.year, now.month, 1);
-    final monthLastDay = DateTime(now.year, now.month + 1, 0);
-    final lockedMonthLabel =
-        '${_displayFormat.format(monthFirstDay)} – ${_displayFormat.format(monthLastDay)}';
-    final isBusy = _isGeneratingFormal || _isGeneratingExcel;
-
-    return Scaffold(
-      backgroundColor: slateBackground,
-      appBar: AppBar(
-        backgroundColor: slateDark,
-        elevation: 0,
-        title: const Text(
-          'Work Hours Reports',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: slateBackground,
+        appBar: AppBar(
+          backgroundColor: slateDark,
+          elevation: 0,
+          title: const Text(
+            'Work Hours Reports',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          ),
+          bottom: const TabBar(
+            indicatorColor: activeColor,
+            indicatorWeight: 3,
+            labelColor: Colors.white,
+            unselectedLabelColor: Color(0xFF94A3B8),
+            tabs: [
+              Tab(
+                icon: Icon(Icons.description_outlined, size: 20),
+                text: 'Formal Report',
+              ),
+              Tab(
+                icon: Icon(Icons.table_chart_outlined, size: 20),
+                text: 'Excel Report',
+              ),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            _buildFormalReportTab(context),
+            _buildExcelReportTab(context),
+          ],
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // 1. Formal Monthly Contract Report (.docx) Card
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: slateDark,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFF334155)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.description_outlined, size: 18, color: indigoAccent),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Text(
-                          'FORMAL CONTRACT REPORT (.DOCX)',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF94A3B8),
-                            letterSpacing: 1.1,
-                          ),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: indigoAccent.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Text(
-                          'Umowa Zlecenie',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFFA5B4FC),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Populates the contract annex & invoice with your signature, recorded shifts, and planned shifts for the rest of the month.',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8), height: 1.4),
-                  ),
-                  const SizedBox(height: 12),
+    );
+  }
 
-                  // Locked full-current-month indicator
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0F172A),
+  Widget _buildFormalReportTab(BuildContext context) {
+    const indigoAccent = Color(0xFF6366F1);
+    const slateDark = Color(0xFF1E293B);
+    final isBusy = _isGeneratingFormal || _isGeneratingExcel;
+
+    final formalStart = DateTime(_formalMonth.year, _formalMonth.month, 1);
+    final formalEnd = DateTime(_formalMonth.year, _formalMonth.month + 1, 0);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 620),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: slateDark,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF334155)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.description_outlined,
+                        size: 20, color: indigoAccent),
+                    SizedBox(width: 8),
+                    Text(
+                      'FORMAL CONTRACT REPORT',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF94A3B8),
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Populates the contract annex & invoice with your signature, recorded shifts, and planned shifts for the rest of the month.',
+                  style: TextStyle(
+                      fontSize: 13, color: Color(0xFF94A3B8), height: 1.4),
+                ),
+                const SizedBox(height: 20),
+
+                // Month Dropdown
+                DropdownButtonFormField<DateTime>(
+                  key: const Key('formal_month_dropdown'),
+                  initialValue: _formalMonth,
+                  decoration: InputDecoration(
+                    labelText: 'Select Month',
+                    labelStyle: const TextStyle(
+                        color: Color(0xFF94A3B8), fontSize: 13),
+                    prefixIcon: const Icon(Icons.calendar_month,
+                        size: 18, color: indigoAccent),
+                    filled: true,
+                    fillColor: const Color(0xFF0F172A),
+                    border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFF334155)),
+                      borderSide: const BorderSide(color: Color(0xFF334155)),
                     ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.lock_outline, size: 15, color: Color(0xFF94A3B8)),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Full Month:',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF94A3B8),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            lockedMonthLabel,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFFF8FAFC),
-                            ),
-                          ),
-                        ),
-                      ],
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFF334155)),
                     ),
                   ),
-                  const SizedBox(height: 14),
+                  dropdownColor: const Color(0xFF1E293B),
+                  items: _getLast6Months().map((m) {
+                    return DropdownMenuItem<DateTime>(
+                      value: m,
+                      child: Text(
+                        _monthFormat.format(m),
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 14),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: isBusy
+                      ? null
+                      : (val) {
+                          if (val != null) {
+                            setState(() {
+                              _formalMonth = val;
+                            });
+                          }
+                        },
+                ),
+                const SizedBox(height: 16),
 
-                  SizedBox(
-                    width: double.infinity,
+                // Consistent Side-by-side Start & End Date Display (Locked)
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F172A),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFF334155)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.calendar_today,
+                                    size: 14, color: indigoAccent),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Start Date',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xFF94A3B8),
+                                  ),
+                                ),
+                                Spacer(),
+                                Icon(Icons.lock_outline,
+                                    size: 13, color: Color(0xFF64748B)),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _displayFormat.format(formalStart),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFFF8FAFC),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F172A),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFF334155)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.event,
+                                    size: 14, color: indigoAccent),
+                                SizedBox(width: 6),
+                                Text(
+                                  'End Date',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xFF94A3B8),
+                                  ),
+                                ),
+                                Spacer(),
+                                Icon(Icons.lock_outline,
+                                    size: 13, color: Color(0xFF64748B)),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _displayFormat.format(formalEnd),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFFF8FAFC),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                // Reasonably Sized Generate Button Centered
+                Center(
+                  child: SizedBox(
+                    width: 280,
                     child: ElevatedButton.icon(
+                      key: const Key('generate_formal_report_button'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: indigoAccent,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                       ),
                       onPressed: isBusy ? null : _promptAndGenerateFormalReport,
                       icon: _isGeneratingFormal
                           ? const SizedBox(
                               width: 18,
                               height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
                             )
-                          : const Icon(Icons.assignment_turned_in_outlined, size: 20),
+                          : const Icon(Icons.assignment_turned_in_outlined,
+                              size: 20),
                       label: const Text(
-                        'Generate Formal Report (.docx)',
-                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                        'Generate Formal Report',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 14),
+                      ),
+                    ),
+                  ),
+                ),
+
+                if (_lastFormalReportPath != null) ...[
+                  const SizedBox(height: 12),
+                  Center(
+                    child: SizedBox(
+                      width: 280,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: indigoAccent,
+                          side:
+                              const BorderSide(color: indigoAccent, width: 1.5),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () => _openReport(_lastFormalReportPath!),
+                        icon: const Icon(Icons.open_in_new, size: 18),
+                        label: const Text(
+                          'Open Last Report',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 13),
+                        ),
                       ),
                     ),
                   ),
                 ],
-              ),
+
+                if (_statusMessage != null && _lastFormalReportPath != null) ...[
+                  const SizedBox(height: 14),
+                  Center(
+                    child: Text(
+                      _statusMessage!,
+                      style: const TextStyle(
+                          fontSize: 12, color: Color(0xFF94A3B8)),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
 
-            const SizedBox(height: 16),
+  Widget _buildExcelReportTab(BuildContext context) {
+    const activeColor = Color(0xFF10B981);
+    const slateDark = Color(0xFF1E293B);
+    final isBusy = _isGeneratingFormal || _isGeneratingExcel;
 
-            // 2. Personal Excel Data Report (.xlsx) Card
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: slateDark,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFF334155)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Expanded(
-                        child: Row(
-                          children: [
-                            Icon(Icons.table_chart_outlined, size: 18, color: activeColor),
-                            SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                'EXCEL DATA REPORT (.XLSX)',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF94A3B8),
-                                  letterSpacing: 1.1,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 620),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: slateDark,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF334155)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.table_chart_outlined,
+                        size: 20, color: activeColor),
+                    SizedBox(width: 8),
+                    Text(
+                      'EXCEL DATA REPORT',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF94A3B8),
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Full breakdown with timestamps, durations, locations, sources, shift notes & summary statistics.',
+                  style: TextStyle(
+                      fontSize: 13, color: Color(0xFF94A3B8), height: 1.4),
+                ),
+                const SizedBox(height: 20),
+
+                // Month Dropdown
+                DropdownButtonFormField<DateTime>(
+                  key: const Key('excel_month_dropdown'),
+                  initialValue: _selectedExcelMonth,
+                  decoration: InputDecoration(
+                    labelText: 'Quick Select Month',
+                    labelStyle: const TextStyle(
+                        color: Color(0xFF94A3B8), fontSize: 13),
+                    prefixIcon: const Icon(Icons.calendar_month,
+                        size: 18, color: activeColor),
+                    filled: true,
+                    fillColor: const Color(0xFF0F172A),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFF334155)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFF334155)),
+                    ),
+                  ),
+                  dropdownColor: const Color(0xFF1E293B),
+                  items: _getLast6Months().map((m) {
+                    return DropdownMenuItem<DateTime>(
+                      value: m,
+                      child: Text(
+                        _monthFormat.format(m),
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 14),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: isBusy
+                      ? null
+                      : (val) {
+                          if (val != null) {
+                            setState(() {
+                              _selectedExcelMonth = val;
+                              _startDate = DateTime(val.year, val.month, 1);
+                              _endDate = DateTime(val.year, val.month + 1, 0);
+                            });
+                          }
+                        },
+                ),
+                const SizedBox(height: 16),
+
+                // Side-by-side Start & End Date Pickers
+                Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: isBusy ? null : _selectStartDate,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F172A),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFF334155)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Row(
+                                children: [
+                                  Icon(Icons.calendar_today,
+                                      size: 14, color: activeColor),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'Start Date',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      color: Color(0xFF94A3B8),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _displayFormat.format(_startDate),
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFFF8FAFC),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          ActionChip(
-                            visualDensity: VisualDensity.compact,
-                            label: const Text('This Month'),
-                            backgroundColor: const Color(0xFF0F172A),
-                            side: const BorderSide(color: Color(0xFF334155)),
-                            labelStyle: const TextStyle(fontSize: 11, color: Colors.white),
-                            onPressed: _setThisMonth,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: isBusy ? null : _selectEndDate,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F172A),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFF334155)),
                           ),
-                          ActionChip(
-                            visualDensity: VisualDensity.compact,
-                            label: const Text('Last Month'),
-                            backgroundColor: const Color(0xFF0F172A),
-                            side: const BorderSide(color: Color(0xFF334155)),
-                            labelStyle: const TextStyle(fontSize: 11, color: Colors.white),
-                            onPressed: _setLastMonth,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Full breakdown with timestamps, durations, locations, sources, shift notes & summary statistics.',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Side-by-side Start and End Date Pickers
-                  Row(
-                    children: [
-                      Expanded(
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(10),
-                          onTap: _selectStartDate,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF0F172A),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: const Color(0xFF334155)),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Row(
-                                  children: [
-                                    Icon(Icons.calendar_today, size: 14, color: activeColor),
-                                    SizedBox(width: 6),
-                                    Text(
-                                      'Start Date',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w500,
-                                        color: Color(0xFF94A3B8),
-                                      ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Row(
+                                children: [
+                                  Icon(Icons.event,
+                                      size: 14, color: activeColor),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'End Date',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      color: Color(0xFF94A3B8),
                                     ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  _displayFormat.format(_startDate),
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFFF8FAFC),
                                   ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _displayFormat.format(_endDate),
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFFF8FAFC),
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(10),
-                          onTap: _selectEndDate,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF0F172A),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: const Color(0xFF334155)),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Row(
-                                  children: [
-                                    Icon(Icons.event, size: 14, color: activeColor),
-                                    SizedBox(width: 6),
-                                    Text(
-                                      'End Date',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w500,
-                                        color: Color(0xFF94A3B8),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  _displayFormat.format(_endDate),
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFFF8FAFC),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
 
-                  SizedBox(
-                    width: double.infinity,
+                // Reasonably Sized Generate Button Centered
+                Center(
+                  child: SizedBox(
+                    width: 280,
                     child: ElevatedButton.icon(
+                      key: const Key('generate_excel_report_button'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: activeColor,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                       ),
                       onPressed: isBusy ? null : _generateExcelReport,
                       icon: _isGeneratingExcel
                           ? const SizedBox(
                               width: 18,
                               height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
                             )
                           : const Icon(Icons.table_view, size: 20),
                       label: const Text(
-                        'Generate Excel Report (.xlsx)',
-                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                        'Generate Excel Report',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 14),
+                      ),
+                    ),
+                  ),
+                ),
+
+                if (_lastExcelReportPath != null) ...[
+                  const SizedBox(height: 12),
+                  Center(
+                    child: SizedBox(
+                      width: 280,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: activeColor,
+                          side:
+                              const BorderSide(color: activeColor, width: 1.5),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () => _openReport(_lastExcelReportPath!),
+                        icon: const Icon(Icons.open_in_new, size: 18),
+                        label: const Text(
+                          'Open Last Report',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 13),
+                        ),
                       ),
                     ),
                   ),
                 ],
-              ),
+
+                if (_statusMessage != null && _lastExcelReportPath != null) ...[
+                  const SizedBox(height: 14),
+                  Center(
+                    child: Text(
+                      _statusMessage!,
+                      style: const TextStyle(
+                          fontSize: 12, color: Color(0xFF94A3B8)),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: 24),
+                const Divider(color: Color(0xFF334155)),
+                const SizedBox(height: 16),
+
+                // Automated Storage Archive section
+                Center(
+                  child: Column(
+                    children: [
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF38BDF8),
+                          side: const BorderSide(
+                              color: Color(0xFF38BDF8), width: 1.2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 18, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed:
+                            _isDownloadingLatest ? null : _downloadLatestMonth,
+                        icon: _isDownloadingLatest
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Color(0xFF38BDF8)),
+                              )
+                            : const Icon(Icons.cloud_download_outlined,
+                                size: 18, color: Color(0xFF38BDF8)),
+                        label: const Text(
+                          'Download Latest Automated Report',
+                          style: TextStyle(
+                            color: Color(0xFF38BDF8),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Retrieve the scheduled monthly archive automatically generated on the 1st of the month',
+                        style:
+                            TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-
-            if (_lastGeneratedPath != null) ...[
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: activeColor,
-                  side: const BorderSide(color: activeColor, width: 1.5),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                onPressed: _openLastReport,
-                icon: const Icon(Icons.open_in_new, size: 18),
-                label: const Text(
-                  'Open Last Report',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                ),
-              ),
-            ],
-
-            if (_statusMessage != null) ...[
-              const SizedBox(height: 12),
-              Center(
-                child: Text(
-                  _statusMessage!,
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
-                ),
-              ),
-            ],
-
-            const SizedBox(height: 20),
-            const Divider(color: Color(0xFF334155)),
-            const SizedBox(height: 8),
-
-            // Automated Storage Archive section
-            Center(
-              child: TextButton.icon(
-                onPressed: _isDownloadingLatest ? null : _downloadLatestMonth,
-                icon: _isDownloadingLatest
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: activeColor),
-                      )
-                    : const Icon(Icons.cloud_download_outlined, color: activeColor),
-                label: const Text(
-                  'Download Latest Month (.xlsx)',
-                  style: TextStyle(color: activeColor, fontWeight: FontWeight.w600),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -658,7 +906,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
 }
 
 /// Dialog for planning remaining shifts in the current month before generating
-/// the formal `.docx` contract report.
+/// the formal contract report.
 class PlanFutureShiftsDialog extends StatefulWidget {
   final DateTime now;
   final int recordedMonthMinutes;
@@ -808,7 +1056,8 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
 
               // Live Totals Bar
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   color: slateBg,
                   borderRadius: BorderRadius.circular(10),
@@ -822,13 +1071,17 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
                       value: _formatHoursMinutes(widget.recordedMonthMinutes),
                       color: const Color(0xFF94A3B8),
                     ),
-                    const Text('+', style: TextStyle(color: Color(0xFF64748B))),
+                    const Text('+',
+                        style:
+                            TextStyle(color: Color(0xFF64748B), fontSize: 14)),
                     _buildStatColumn(
                       label: 'Planned',
                       value: _formatHoursMinutes(plannedMins),
-                      color: const Color(0xFFA5B4FC),
+                      color: indigoAccent,
                     ),
-                    const Text('=', style: TextStyle(color: Color(0xFF64748B))),
+                    const Text('=',
+                        style:
+                            TextStyle(color: Color(0xFF64748B), fontSize: 14)),
                     _buildStatColumn(
                       label: 'Projected Total',
                       value: _formatHoursMinutes(projectedMins),
@@ -837,42 +1090,52 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
                   ],
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
 
-              // Quick fill presets
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
+              // Bulk Action Buttons
+              Row(
                 children: [
-                  ActionChip(
-                    visualDensity: VisualDensity.compact,
-                    label: const Text('Weekdays 8h'),
-                    backgroundColor: slateBg,
-                    side: const BorderSide(color: Color(0xFF334155)),
-                    labelStyle: const TextStyle(fontSize: 11, color: Colors.white),
-                    onPressed: () => _fillWeekdays(480),
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: indigoAccent,
+                        side: const BorderSide(color: Color(0xFF334155)),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: () => _fillWeekdays(480),
+                      child: const Text('Weekdays 8h',
+                          style: TextStyle(fontSize: 11)),
+                    ),
                   ),
-                  ActionChip(
-                    visualDensity: VisualDensity.compact,
-                    label: const Text('Weekdays 6h'),
-                    backgroundColor: slateBg,
-                    side: const BorderSide(color: Color(0xFF334155)),
-                    labelStyle: const TextStyle(fontSize: 11, color: Colors.white),
-                    onPressed: () => _fillWeekdays(360),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: indigoAccent,
+                        side: const BorderSide(color: Color(0xFF334155)),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: () => _fillWeekdays(360),
+                      child: const Text('Weekdays 6h',
+                          style: TextStyle(fontSize: 11)),
+                    ),
                   ),
-                  ActionChip(
-                    visualDensity: VisualDensity.compact,
-                    label: const Text('Clear All'),
-                    backgroundColor: slateBg,
-                    side: const BorderSide(color: Color(0xFF334155)),
-                    labelStyle: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                  const SizedBox(width: 6),
+                  TextButton(
                     onPressed: _clearAll,
+                    child: const Text('Clear',
+                        style: TextStyle(
+                            fontSize: 11, color: Color(0xFF94A3B8))),
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
 
-              // Day list
+              // Scrollable list of days
               Flexible(
                 child: ListView.separated(
                   shrinkWrap: true,
@@ -886,12 +1149,15 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
                         day.weekday == DateTime.sunday;
 
                     return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 8),
                       decoration: BoxDecoration(
                         color: slateBg,
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: mins > 0 ? indigoAccent : const Color(0xFF334155),
+                          color: mins > 0
+                              ? indigoAccent
+                              : const Color(0xFF334155),
                         ),
                       ),
                       child: Row(
@@ -934,16 +1200,20 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
                           IconButton(
                             visualDensity: VisualDensity.compact,
                             padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                            constraints: const BoxConstraints(
+                                minWidth: 26, minHeight: 26),
                             icon: const Icon(Icons.remove_circle_outline,
                                 size: 18, color: Color(0xFF94A3B8)),
                             tooltip: '-30m',
-                            onPressed: mins > 0 ? () => _adjustDayMinutes(key, -30) : null,
+                            onPressed: mins > 0
+                                ? () => _adjustDayMinutes(key, -30)
+                                : null,
                           ),
                           IconButton(
                             visualDensity: VisualDensity.compact,
                             padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                            constraints: const BoxConstraints(
+                                minWidth: 26, minHeight: 26),
                             icon: const Icon(Icons.add_circle_outline,
                                 size: 18, color: Color(0xFF94A3B8)),
                             tooltip: '+30m',
@@ -972,13 +1242,15 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: indigoAccent,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
                     onPressed: _submit,
                     icon: const Icon(Icons.check, size: 18),
                     label: const Text(
-                      'Generate .docx',
+                      'Generate Report',
                       style: TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ),
@@ -1016,7 +1288,8 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
     );
   }
 
-  Widget _buildDurationChip(String key, String label, int minutes, bool selected) {
+  Widget _buildDurationChip(
+      String key, String label, int minutes, bool selected) {
     const indigoAccent = Color(0xFF6366F1);
     return InkWell(
       borderRadius: BorderRadius.circular(6),

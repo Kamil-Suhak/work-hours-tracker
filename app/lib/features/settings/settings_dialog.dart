@@ -243,67 +243,159 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                       _switchEnvironment(selectedSet.first),
                 ),
                 const SizedBox(height: 16),
-                TextFormField(
-                  controller: _urlController,
-                  decoration: InputDecoration(
-                    labelText: 'Worker Base URL',
-                    hintText: 'https://work-hours-api.<subdomain>.workers.dev',
-                    border: const OutlineInputBorder(),
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.content_paste),
-                      tooltip: 'Paste from clipboard',
-                      onPressed: () => _pasteTo(_urlController),
-                    ),
-                  ),
-                  keyboardType: TextInputType.url,
-                  validator: (val) {
-                    if (val == null || val.trim().isEmpty) {
-                      return 'Base URL is required';
-                    }
-                    final uri = Uri.tryParse(val.trim());
-                    if (uri == null || !uri.hasScheme || !uri.hasAuthority) {
-                      return 'Enter a valid URL (e.g. https://...)';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _tokenController,
-                  obscureText: _obscureToken,
-                  decoration: InputDecoration(
-                    labelText: 'Device Bearer Token',
-                    hintText: '64-character hex token from provision script',
-                    helperText:
-                        'Paste the raw Bearer Token (do NOT paste the token_hash)',
-                    helperMaxLines: 2,
-                    border: const OutlineInputBorder(),
-                    suffixIcon: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: Icon(
-                            _obscureToken
-                                ? Icons.visibility
-                                : Icons.visibility_off,
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 250),
+                  transitionBuilder: (Widget child, Animation<double> animation) {
+                    final isStaging =
+                        (child.key as ValueKey<String>?)?.value == 'staging';
+                    final offsetTween = Tween<Offset>(
+                      begin: isStaging
+                          ? const Offset(0.2, 0.0)
+                          : const Offset(-0.2, 0.0),
+                      end: Offset.zero,
+                    );
+                    return FadeTransition(
+                      opacity: animation,
+                      child: SlideTransition(
+                        position: offsetTween.animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOutCubic,
                           ),
-                          onPressed: () =>
-                              setState(() => _obscureToken = !_obscureToken),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.content_paste),
-                          tooltip: 'Paste from clipboard',
-                          onPressed: () => _pasteTo(_tokenController),
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: KeyedSubtree(
+                    key: ValueKey(_environment),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (_environment == 'staging') ...[
+                          InkWell(
+                            key: const Key('staging_web_link'),
+                            borderRadius: BorderRadius.circular(8),
+                            onTap: () {
+                              final targetUrl = _urlController.text.trim().isNotEmpty
+                                  ? _urlController.text.trim()
+                                  : AppConfig.stagingApiBaseUrl;
+                              final uri = Uri.tryParse(targetUrl);
+                              if (uri != null) {
+                                launchUrl(uri,
+                                    mode: LaunchMode.externalApplication);
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0F766E)
+                                    .withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: const Color(0xFF0F766E)
+                                      .withValues(alpha: 0.4),
+                                ),
+                              ),
+                              child: const Row(
+                                children: [
+                                  Icon(Icons.open_in_browser,
+                                      size: 18, color: Color(0xFF14B8A6)),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Open Staging Web in Browser',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF14B8A6),
+                                        fontWeight: FontWeight.w600,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                  ),
+                                  Icon(Icons.chevron_right,
+                                      size: 16, color: Color(0xFF14B8A6)),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                        ],
+                        TextFormField(
+                          controller: _urlController,
+                          decoration: InputDecoration(
+                            labelText: _environment == 'staging'
+                                ? 'Staging Worker Base URL'
+                                : 'Worker Base URL',
+                            hintText:
+                                'https://work-hours-api.<subdomain>.workers.dev',
+                            border: const OutlineInputBorder(),
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.content_paste),
+                              tooltip: 'Paste from clipboard',
+                              onPressed: () => _pasteTo(_urlController),
+                            ),
+                          ),
+                          keyboardType: TextInputType.url,
+                          validator: (val) {
+                            if (val == null || val.trim().isEmpty) {
+                              return 'Base URL is required';
+                            }
+                            final uri = Uri.tryParse(val.trim());
+                            if (uri == null ||
+                                !uri.hasScheme ||
+                                !uri.hasAuthority) {
+                              return 'Enter a valid URL (e.g. https://...)';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _tokenController,
+                          obscureText: _obscureToken,
+                          decoration: InputDecoration(
+                            labelText: _environment == 'staging'
+                                ? 'Staging Device Bearer Token'
+                                : 'Device Bearer Token',
+                            hintText:
+                                '64-character hex token from provision script',
+                            helperText:
+                                'Paste the raw Bearer Token (do NOT paste the token_hash)',
+                            helperMaxLines: 2,
+                            border: const OutlineInputBorder(),
+                            suffixIcon: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: Icon(
+                                    _obscureToken
+                                        ? Icons.visibility
+                                        : Icons.visibility_off,
+                                  ),
+                                  onPressed: () => setState(
+                                      () => _obscureToken = !_obscureToken),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.content_paste),
+                                  tooltip: 'Paste from clipboard',
+                                  onPressed: () => _pasteTo(_tokenController),
+                                ),
+                              ],
+                            ),
+                          ),
+                          validator: (val) {
+                            if (val == null || val.trim().isEmpty) {
+                              return 'Bearer token is required';
+                            }
+                            return null;
+                          },
                         ),
                       ],
                     ),
                   ),
-                  validator: (val) {
-                    if (val == null || val.trim().isEmpty) {
-                      return 'Bearer token is required';
-                    }
-                    return null;
-                  },
                 ),
                 const SizedBox(height: 16),
                 TextFormField(

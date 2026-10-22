@@ -181,6 +181,14 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining('work-hours-api-staging'), findsOneWidget);
+      expect(find.byKey(const Key('staging_web_link')), findsOneWidget);
+      expect(find.text('Open Staging Web in Browser'), findsOneWidget);
+
+      // Select Production back
+      await tester.tap(find.text('Production'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('staging_web_link')), findsNothing);
     });
   });
 }

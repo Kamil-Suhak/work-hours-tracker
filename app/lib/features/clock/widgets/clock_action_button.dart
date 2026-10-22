@@ -341,13 +341,14 @@ class _ClockActionButtonState extends State<ClockActionButton> {
     return SizedBox(
       width: widget.width,
       child: Tooltip(
-        message: 'Tap to ${widget.isClockIn ? "clock in" : "clock out"} • Long-press for time options (-5m, +5m, custom)',
+        message:
+            'Tap to ${widget.isClockIn ? "clock in" : "clock out"} • Tap arrow or long-press for time options (-5m, +5m, custom)',
         child: ElevatedButton(
           key: Key(keyName),
           style: ElevatedButton.styleFrom(
             backgroundColor: color,
             foregroundColor: Colors.white,
-            padding: widget.padding ?? const EdgeInsets.symmetric(vertical: 12),
+            padding: EdgeInsets.zero,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
             ),
@@ -358,33 +359,70 @@ class _ClockActionButtonState extends State<ClockActionButton> {
           onLongPress: widget.isEnabled && !widget.isLoading
               ? () => _showOptionsMenu()
               : null,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (widget.isLoading)
-                const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
+          child: IntrinsicHeight(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.max,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: widget.padding ??
+                        const EdgeInsets.symmetric(vertical: 12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (widget.isLoading)
+                          const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        else
+                          Icon(
+                            widget.isClockIn ? Icons.play_arrow : Icons.stop,
+                            size: 20,
+                          ),
+                        const SizedBox(width: 6),
+                        Text(
+                          widget.isClockIn ? 'CLOCK IN' : 'CLOCK OUT',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                )
-              else
-                Icon(widget.isClockIn ? Icons.play_arrow : Icons.stop, size: 20),
-              const SizedBox(width: 6),
-              Text(
-                widget.isClockIn ? 'CLOCK IN' : 'CLOCK OUT',
-                style: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.5),
-              ),
-              const SizedBox(width: 4),
-              Icon(
-                Icons.arrow_drop_down,
-                size: 16,
-                color: Colors.white.withValues(alpha: 0.8),
-              ),
-            ],
+                ),
+                Container(
+                  width: 1,
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  color: Colors.white.withValues(alpha: 0.25),
+                ),
+                GestureDetector(
+                  key: Key('${keyName}_options'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: widget.isEnabled && !widget.isLoading
+                      ? () => _showOptionsMenu()
+                      : null,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Center(
+                      child: Icon(
+                        Icons.arrow_drop_down,
+                        size: 20,
+                        color: Colors.white.withValues(alpha: 0.9),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

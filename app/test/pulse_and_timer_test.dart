@@ -61,7 +61,8 @@ void main() {
       expect(find.text('CURRENT SHIFT TIMER'), findsOneWidget);
       expect(find.textContaining('01:23:45'), findsOneWidget);
       expect(find.textContaining('Started at'), findsOneWidget);
-      expect(find.textContaining('Month to date: 10h 0m'), findsOneWidget);
+      expect(find.text('MONTH TO DATE'), findsOneWidget);
+      expect(find.text('10h 0m'), findsOneWidget);
     });
 
     testWidgets('shows greyed out timer when clocked out',
@@ -82,7 +83,8 @@ void main() {
 
       expect(find.text('--:--:--'), findsOneWidget);
       expect(find.textContaining("Today's total: 0h 0m"), findsOneWidget);
-      expect(find.textContaining('Month to date: 2h 0m'), findsOneWidget);
+      expect(find.text('MONTH TO DATE'), findsOneWidget);
+      expect(find.text('2h 0m'), findsOneWidget);
     });
   });
 }

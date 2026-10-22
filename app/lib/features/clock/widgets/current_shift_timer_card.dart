@@ -13,6 +13,7 @@ class CurrentShiftTimerCard extends StatefulWidget {
   final bool enablePeriodicTimer;
   final VoidCallback? onViewHistory;
   final Duration? plannedDuration;
+  final bool showHistoryButton;
 
   const CurrentShiftTimerCard({
     super.key,
@@ -24,6 +25,7 @@ class CurrentShiftTimerCard extends StatefulWidget {
     this.enablePeriodicTimer = true,
     this.onViewHistory,
     this.plannedDuration,
+    this.showHistoryButton = true,
   });
 
   @override
@@ -253,78 +255,93 @@ class _CurrentShiftTimerCardState extends State<CurrentShiftTimerCard> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.calendar_month_outlined,
+                        size: 13,
+                        color: Color(0xFF64748B),
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        'MONTH TO DATE',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.1,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
                   FittedBox(
                     fit: BoxFit.scaleDown,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.calendar_month_outlined,
-                          size: 13,
-                          color: Color(0xFF64748B),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Month to date: $monthFormatted',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF94A3B8),
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+                    child: Text(
+                      monthFormatted,
+                      style: TextStyle(
+                        fontSize: widget.showHistoryButton ? 18 : 22,
+                        fontWeight: FontWeight.w800,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                        letterSpacing: 0.8,
+                        color: Colors.white,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        key: const Key('timer_card_history_button'),
-                        borderRadius: BorderRadius.circular(10),
-                        onTap: widget.onViewHistory,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: activeColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: activeColor.withValues(alpha: 0.35),
-                              width: 1.2,
-                            ),
-                          ),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.history,
-                                size: 15,
-                                color: activeColor,
+                  if (widget.showHistoryButton && widget.onViewHistory != null) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          key: const Key('timer_card_history_button'),
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: widget.onViewHistory,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: activeColor.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: activeColor.withValues(alpha: 0.35),
+                                width: 1.2,
                               ),
-                              SizedBox(width: 5),
-                              Text(
-                                'History',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.3,
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.history,
+                                  size: 14,
                                   color: activeColor,
                                 ),
-                              ),
-                              SizedBox(width: 2),
-                              Icon(
-                                Icons.chevron_right,
-                                size: 15,
-                                color: activeColor,
-                              ),
-                            ],
+                                SizedBox(width: 4),
+                                Text(
+                                  'History',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.3,
+                                    color: activeColor,
+                                  ),
+                                ),
+                                SizedBox(width: 2),
+                                Icon(
+                                  Icons.chevron_right,
+                                  size: 14,
+                                  color: activeColor,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),

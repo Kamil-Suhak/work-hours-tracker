@@ -77,7 +77,7 @@ void main() {
   });
 
   group('ReportsScreen Widget Tests', () {
-    testWidgets('renders separated Formal (.docx) and Excel (.xlsx) report cards',
+    testWidgets('renders separated Formal and Excel tabs without format extensions',
         (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 2.0;
@@ -98,15 +98,24 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Work Hours Reports'), findsOneWidget);
-      expect(find.text('FORMAL CONTRACT REPORT (.DOCX)'), findsOneWidget);
-      expect(find.text('Generate Formal Report (.docx)'), findsOneWidget);
-      expect(find.text('EXCEL DATA REPORT (.XLSX)'), findsOneWidget);
-      expect(find.text('This Month'), findsOneWidget);
-      expect(find.text('Last Month'), findsOneWidget);
+      expect(find.text('Formal Report'), findsOneWidget);
+      expect(find.text('Excel Report'), findsOneWidget);
+
+      // Formal Tab contents (initial)
+      expect(find.text('FORMAL CONTRACT REPORT'), findsOneWidget);
+      expect(find.byKey(const Key('formal_month_dropdown')), findsOneWidget);
       expect(find.text('Start Date'), findsOneWidget);
       expect(find.text('End Date'), findsOneWidget);
-      expect(find.text('Generate Excel Report (.xlsx)'), findsOneWidget);
-      expect(find.text('Download Latest Month (.xlsx)'), findsOneWidget);
+      expect(find.text('Generate Formal Report'), findsOneWidget);
+
+      // Switch to Excel Tab
+      await tester.tap(find.text('Excel Report'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('EXCEL DATA REPORT'), findsOneWidget);
+      expect(find.byKey(const Key('excel_month_dropdown')), findsOneWidget);
+      expect(find.text('Generate Excel Report'), findsOneWidget);
+      expect(find.text('Download Latest Automated Report'), findsOneWidget);
     });
 
     testWidgets('generates full Excel report with custom date range and opens file',
@@ -129,8 +138,12 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.ensureVisible(find.text('Generate Excel Report (.xlsx)'));
-      await tester.tap(find.text('Generate Excel Report (.xlsx)'));
+      // Switch to Excel Tab
+      await tester.tap(find.text('Excel Report'));
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('Generate Excel Report'));
+      await tester.tap(find.text('Generate Excel Report'));
       await tester.pumpAndSettle();
 
       expect(mockClient.generateCallCount, equals(1));
@@ -147,7 +160,7 @@ void main() {
       expect(channelCalls.any((c) => c.method == 'openReportFile'), isTrue);
     });
 
-    testWidgets('opens PlanFutureShiftsDialog and sends plannedShifts for Formal .docx report',
+    testWidgets('opens PlanFutureShiftsDialog and sends plannedShifts for Formal report',
         (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 2.0;
@@ -167,7 +180,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Generate Formal Report (.docx)'));
+      await tester.tap(find.text('Generate Formal Report'));
       await tester.pumpAndSettle();
 
       expect(find.text('Plan Remaining Shifts'), findsOneWidget);
@@ -177,7 +190,7 @@ void main() {
       await tester.tap(find.byTooltip('+30m').first);
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Generate .docx'));
+      await tester.tap(find.text('Generate Report'));
       await tester.pumpAndSettle();
 
       expect(mockClient.generateCallCount, equals(1));
