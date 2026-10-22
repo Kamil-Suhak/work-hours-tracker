@@ -77,10 +77,10 @@ void main() {
   });
 
   group('ReportsScreen Widget Tests', () {
-    testWidgets('renders separated Formal and Excel tabs without format extensions',
+    testWidgets('renders side-by-side Formal and Excel report cards visible at once',
         (WidgetTester tester) async {
-      tester.view.physicalSize = const Size(1080, 2400);
-      tester.view.devicePixelRatio = 2.0;
+      tester.view.physicalSize = const Size(1600, 1200);
+      tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
 
       final mockClient = _MockApiClient();
@@ -98,30 +98,27 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Work Hours Reports'), findsOneWidget);
-      expect(find.text('Formal Report'), findsOneWidget);
-      expect(find.text('Excel Report'), findsOneWidget);
 
-      // Formal Tab contents (initial)
+      // Both Formal and Excel Report panels are visible simultaneously
       expect(find.text('FORMAL CONTRACT REPORT'), findsOneWidget);
       expect(find.byKey(const Key('formal_month_dropdown')), findsOneWidget);
-      expect(find.text('Start Date'), findsOneWidget);
-      expect(find.text('End Date'), findsOneWidget);
       expect(find.text('Generate Formal Report'), findsOneWidget);
-
-      // Switch to Excel Tab
-      await tester.tap(find.text('Excel Report'));
-      await tester.pumpAndSettle();
 
       expect(find.text('EXCEL DATA REPORT'), findsOneWidget);
       expect(find.byKey(const Key('excel_month_dropdown')), findsOneWidget);
       expect(find.text('Generate Excel Report'), findsOneWidget);
       expect(find.text('Download Latest Automated Report'), findsOneWidget);
+
+      // Verify side-by-side position: Formal card is to the left of Excel card
+      final formalPos = tester.getTopLeft(find.text('FORMAL CONTRACT REPORT'));
+      final excelPos = tester.getTopLeft(find.text('EXCEL DATA REPORT'));
+      expect(formalPos.dx, lessThan(excelPos.dx));
     });
 
     testWidgets('generates full Excel report with custom date range and opens file',
         (WidgetTester tester) async {
-      tester.view.physicalSize = const Size(1080, 2400);
-      tester.view.devicePixelRatio = 2.0;
+      tester.view.physicalSize = const Size(1600, 1200);
+      tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
 
       final mockClient = _MockApiClient();
@@ -138,10 +135,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Switch to Excel Tab
-      await tester.tap(find.text('Excel Report'));
-      await tester.pumpAndSettle();
-
+      // Excel Report is directly visible on screen (no tab switching needed)
       await tester.ensureVisible(find.text('Generate Excel Report'));
       await tester.tap(find.text('Generate Excel Report'));
       await tester.pumpAndSettle();

@@ -289,49 +289,55 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const activeColor = Color(0xFF10B981);
     const slateDark = Color(0xFF1E293B);
     const slateBackground = Color(0xFF0F172A);
 
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        backgroundColor: slateBackground,
-        appBar: AppBar(
-          backgroundColor: slateDark,
-          elevation: 0,
-          title: const Text(
-            'Work Hours Reports',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-          ),
-          bottom: const TabBar(
-            indicatorColor: activeColor,
-            indicatorWeight: 3,
-            labelColor: Colors.white,
-            unselectedLabelColor: Color(0xFF94A3B8),
-            tabs: [
-              Tab(
-                icon: Icon(Icons.description_outlined, size: 20),
-                text: 'Formal Report',
-              ),
-              Tab(
-                icon: Icon(Icons.table_chart_outlined, size: 20),
-                text: 'Excel Report',
-              ),
-            ],
-          ),
+    return Scaffold(
+      backgroundColor: slateBackground,
+      appBar: AppBar(
+        backgroundColor: slateDark,
+        elevation: 0,
+        title: const Text(
+          'Work Hours Reports',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
-        body: TabBarView(
-          children: [
-            _buildFormalReportTab(context),
-            _buildExcelReportTab(context),
-          ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1300),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth >= 768;
+                if (isWide) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: _buildFormalReportCard(context)),
+                      const SizedBox(width: 20),
+                      Expanded(child: _buildExcelReportCard(context)),
+                    ],
+                  );
+                } else {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildFormalReportCard(context),
+                      const SizedBox(height: 20),
+                      _buildExcelReportCard(context),
+                    ],
+                  );
+                }
+              },
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildFormalReportTab(BuildContext context) {
+  Widget _buildFormalReportCard(BuildContext context) {
     const indigoAccent = Color(0xFF6366F1);
     const slateDark = Color(0xFF1E293B);
     final isBusy = _isGeneratingFormal || _isGeneratingExcel;
@@ -339,567 +345,551 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     final formalStart = DateTime(_formalMonth.year, _formalMonth.month, 1);
     final formalEnd = DateTime(_formalMonth.year, _formalMonth.month + 1, 0);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 620),
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: slateDark,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF334155)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    Icon(Icons.description_outlined,
-                        size: 20, color: indigoAccent),
-                    SizedBox(width: 8),
-                    Text(
-                      'FORMAL CONTRACT REPORT',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF94A3B8),
-                        letterSpacing: 1.1,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Populates the contract annex & invoice with your signature, recorded shifts, and planned shifts for the rest of the month.',
-                  style: TextStyle(
-                      fontSize: 13, color: Color(0xFF94A3B8), height: 1.4),
-                ),
-                const SizedBox(height: 20),
-
-                // Month Dropdown
-                DropdownButtonFormField<DateTime>(
-                  key: const Key('formal_month_dropdown'),
-                  initialValue: _formalMonth,
-                  decoration: InputDecoration(
-                    labelText: 'Select Month',
-                    labelStyle: const TextStyle(
-                        color: Color(0xFF94A3B8), fontSize: 13),
-                    prefixIcon: const Icon(Icons.calendar_month,
-                        size: 18, color: indigoAccent),
-                    filled: true,
-                    fillColor: const Color(0xFF0F172A),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: Color(0xFF334155)),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: Color(0xFF334155)),
-                    ),
-                  ),
-                  dropdownColor: const Color(0xFF1E293B),
-                  items: _getLast6Months().map((m) {
-                    return DropdownMenuItem<DateTime>(
-                      value: m,
-                      child: Text(
-                        _monthFormat.format(m),
-                        style:
-                            const TextStyle(color: Colors.white, fontSize: 14),
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: isBusy
-                      ? null
-                      : (val) {
-                          if (val != null) {
-                            setState(() {
-                              _formalMonth = val;
-                            });
-                          }
-                        },
-                ),
-                const SizedBox(height: 16),
-
-                // Consistent Side-by-side Start & End Date Display (Locked)
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0F172A),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFF334155)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Row(
-                              children: [
-                                Icon(Icons.calendar_today,
-                                    size: 14, color: indigoAccent),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Start Date',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
-                                    color: Color(0xFF94A3B8),
-                                  ),
-                                ),
-                                Spacer(),
-                                Icon(Icons.lock_outline,
-                                    size: 13, color: Color(0xFF64748B)),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              _displayFormat.format(formalStart),
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFFF8FAFC),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0F172A),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFF334155)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Row(
-                              children: [
-                                Icon(Icons.event,
-                                    size: 14, color: indigoAccent),
-                                SizedBox(width: 6),
-                                Text(
-                                  'End Date',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
-                                    color: Color(0xFF94A3B8),
-                                  ),
-                                ),
-                                Spacer(),
-                                Icon(Icons.lock_outline,
-                                    size: 13, color: Color(0xFF64748B)),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              _displayFormat.format(formalEnd),
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFFF8FAFC),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-
-                // Reasonably Sized Generate Button Centered
-                Center(
-                  child: SizedBox(
-                    width: 280,
-                    child: ElevatedButton.icon(
-                      key: const Key('generate_formal_report_button'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: indigoAccent,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                      ),
-                      onPressed: isBusy ? null : _promptAndGenerateFormalReport,
-                      icon: _isGeneratingFormal
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white),
-                            )
-                          : const Icon(Icons.assignment_turned_in_outlined,
-                              size: 20),
-                      label: const Text(
-                        'Generate Formal Report',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 14),
-                      ),
-                    ),
-                  ),
-                ),
-
-                if (_lastFormalReportPath != null) ...[
-                  const SizedBox(height: 12),
-                  Center(
-                    child: SizedBox(
-                      width: 280,
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: indigoAccent,
-                          side:
-                              const BorderSide(color: indigoAccent, width: 1.5),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                        ),
-                        onPressed: () => _openReport(_lastFormalReportPath!),
-                        icon: const Icon(Icons.open_in_new, size: 18),
-                        label: const Text(
-                          'Open Last Report',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w700, fontSize: 13),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-
-                if (_statusMessage != null && _lastFormalReportPath != null) ...[
-                  const SizedBox(height: 14),
-                  Center(
-                    child: Text(
-                      _statusMessage!,
-                      style: const TextStyle(
-                          fontSize: 12, color: Color(0xFF94A3B8)),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: slateDark,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF334155)),
       ),
-    );
-  }
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.description_outlined,
+                  size: 20, color: indigoAccent),
+              SizedBox(width: 8),
+              Text(
+                'FORMAL CONTRACT REPORT',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF94A3B8),
+                  letterSpacing: 1.1,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Populates the contract annex & invoice with your signature, recorded shifts, and planned shifts for the rest of the month.',
+            style: TextStyle(
+                fontSize: 13, color: Color(0xFF94A3B8), height: 1.4),
+          ),
+          const SizedBox(height: 20),
 
-  Widget _buildExcelReportTab(BuildContext context) {
-    const activeColor = Color(0xFF10B981);
-    const slateDark = Color(0xFF1E293B);
-    final isBusy = _isGeneratingFormal || _isGeneratingExcel;
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 620),
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: slateDark,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF334155)),
+          // Month Dropdown
+          DropdownButtonFormField<DateTime>(
+            key: const Key('formal_month_dropdown'),
+            initialValue: _formalMonth,
+            decoration: InputDecoration(
+              labelText: 'Select Month',
+              labelStyle: const TextStyle(
+                  color: Color(0xFF94A3B8), fontSize: 13),
+              prefixIcon: const Icon(Icons.calendar_month,
+                  size: 18, color: indigoAccent),
+              filled: true,
+              fillColor: const Color(0xFF0F172A),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: Color(0xFF334155)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: Color(0xFF334155)),
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    Icon(Icons.table_chart_outlined,
-                        size: 20, color: activeColor),
-                    SizedBox(width: 8),
-                    Text(
-                      'EXCEL DATA REPORT',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF94A3B8),
-                        letterSpacing: 1.1,
-                      ),
-                    ),
-                  ],
+            dropdownColor: const Color(0xFF1E293B),
+            items: _getLast6Months().map((m) {
+              return DropdownMenuItem<DateTime>(
+                value: m,
+                child: Text(
+                  _monthFormat.format(m),
+                  style:
+                      const TextStyle(color: Colors.white, fontSize: 14),
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Full breakdown with timestamps, durations, locations, sources, shift notes & summary statistics.',
-                  style: TextStyle(
-                      fontSize: 13, color: Color(0xFF94A3B8), height: 1.4),
-                ),
-                const SizedBox(height: 20),
+              );
+            }).toList(),
+            onChanged: isBusy
+                ? null
+                : (val) {
+                    if (val != null) {
+                      setState(() {
+                        _formalMonth = val;
+                      });
+                    }
+                  },
+          ),
+          const SizedBox(height: 16),
 
-                // Month Dropdown
-                DropdownButtonFormField<DateTime>(
-                  key: const Key('excel_month_dropdown'),
-                  initialValue: _selectedExcelMonth,
-                  decoration: InputDecoration(
-                    labelText: 'Quick Select Month',
-                    labelStyle: const TextStyle(
-                        color: Color(0xFF94A3B8), fontSize: 13),
-                    prefixIcon: const Icon(Icons.calendar_month,
-                        size: 18, color: activeColor),
-                    filled: true,
-                    fillColor: const Color(0xFF0F172A),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: Color(0xFF334155)),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: Color(0xFF334155)),
-                    ),
+          // Consistent Side-by-side Start & End Date Display (Locked)
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F172A),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFF334155)),
                   ),
-                  dropdownColor: const Color(0xFF1E293B),
-                  items: _getLast6Months().map((m) {
-                    return DropdownMenuItem<DateTime>(
-                      value: m,
-                      child: Text(
-                        _monthFormat.format(m),
-                        style:
-                            const TextStyle(color: Colors.white, fontSize: 14),
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: isBusy
-                      ? null
-                      : (val) {
-                          if (val != null) {
-                            setState(() {
-                              _selectedExcelMonth = val;
-                              _startDate = DateTime(val.year, val.month, 1);
-                              _endDate = DateTime(val.year, val.month + 1, 0);
-                            });
-                          }
-                        },
-                ),
-                const SizedBox(height: 16),
-
-                // Side-by-side Start & End Date Pickers
-                Row(
-                  children: [
-                    Expanded(
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(10),
-                        onTap: isBusy ? null : _selectStartDate,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF0F172A),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFF334155)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Row(
-                                children: [
-                                  Icon(Icons.calendar_today,
-                                      size: 14, color: activeColor),
-                                  SizedBox(width: 6),
-                                  Text(
-                                    'Start Date',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w500,
-                                      color: Color(0xFF94A3B8),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                _displayFormat.format(_startDate),
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFFF8FAFC),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(10),
-                        onTap: isBusy ? null : _selectEndDate,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF0F172A),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFF334155)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Row(
-                                children: [
-                                  Icon(Icons.event,
-                                      size: 14, color: activeColor),
-                                  SizedBox(width: 6),
-                                  Text(
-                                    'End Date',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w500,
-                                      color: Color(0xFF94A3B8),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                _displayFormat.format(_endDate),
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFFF8FAFC),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-
-                // Reasonably Sized Generate Button Centered
-                Center(
-                  child: SizedBox(
-                    width: 280,
-                    child: ElevatedButton.icon(
-                      key: const Key('generate_excel_report_button'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: activeColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                      ),
-                      onPressed: isBusy ? null : _generateExcelReport,
-                      icon: _isGeneratingExcel
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white),
-                            )
-                          : const Icon(Icons.table_view, size: 20),
-                      label: const Text(
-                        'Generate Excel Report',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 14),
-                      ),
-                    ),
-                  ),
-                ),
-
-                if (_lastExcelReportPath != null) ...[
-                  const SizedBox(height: 12),
-                  Center(
-                    child: SizedBox(
-                      width: 280,
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: activeColor,
-                          side:
-                              const BorderSide(color: activeColor, width: 1.5),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                        ),
-                        onPressed: () => _openReport(_lastExcelReportPath!),
-                        icon: const Icon(Icons.open_in_new, size: 18),
-                        label: const Text(
-                          'Open Last Report',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w700, fontSize: 13),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-
-                if (_statusMessage != null && _lastExcelReportPath != null) ...[
-                  const SizedBox(height: 14),
-                  Center(
-                    child: Text(
-                      _statusMessage!,
-                      style: const TextStyle(
-                          fontSize: 12, color: Color(0xFF94A3B8)),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ],
-
-                const SizedBox(height: 24),
-                const Divider(color: Color(0xFF334155)),
-                const SizedBox(height: 16),
-
-                // Automated Storage Archive section
-                Center(
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF38BDF8),
-                          side: const BorderSide(
-                              color: Color(0xFF38BDF8), width: 1.2),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 18, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10)),
-                        ),
-                        onPressed:
-                            _isDownloadingLatest ? null : _downloadLatestMonth,
-                        icon: _isDownloadingLatest
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: Color(0xFF38BDF8)),
-                              )
-                            : const Icon(Icons.cloud_download_outlined,
-                                size: 18, color: Color(0xFF38BDF8)),
-                        label: const Text(
-                          'Download Latest Automated Report',
-                          style: TextStyle(
-                            color: Color(0xFF38BDF8),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
+                      const Row(
+                        children: [
+                          Icon(Icons.calendar_today,
+                              size: 14, color: indigoAccent),
+                          SizedBox(width: 6),
+                          Text(
+                            'Start Date',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF94A3B8),
+                            ),
                           ),
-                        ),
+                          Spacer(),
+                          Icon(Icons.lock_outline,
+                              size: 13, color: Color(0xFF64748B)),
+                        ],
                       ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Retrieve the scheduled monthly archive automatically generated on the 1st of the month',
-                        style:
-                            TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                        textAlign: TextAlign.center,
+                      const SizedBox(height: 8),
+                      Text(
+                        _displayFormat.format(formalStart),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFF8FAFC),
+                        ),
                       ),
                     ],
                   ),
                 ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F172A),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFF334155)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.event,
+                              size: 14, color: indigoAccent),
+                          SizedBox(width: 6),
+                          Text(
+                            'End Date',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF94A3B8),
+                            ),
+                          ),
+                          Spacer(),
+                          Icon(Icons.lock_outline,
+                              size: 13, color: Color(0xFF64748B)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _displayFormat.format(formalEnd),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFF8FAFC),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Reasonably Sized Generate Button Centered
+          Center(
+            child: SizedBox(
+              width: 280,
+              child: ElevatedButton.icon(
+                key: const Key('generate_formal_report_button'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: indigoAccent,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: isBusy ? null : _promptAndGenerateFormalReport,
+                icon: _isGeneratingFormal
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.assignment_turned_in_outlined,
+                        size: 20),
+                label: const Text(
+                  'Generate Formal Report',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 14),
+                ),
+              ),
+            ),
+          ),
+
+          if (_lastFormalReportPath != null) ...[
+            const SizedBox(height: 12),
+            Center(
+              child: SizedBox(
+                width: 280,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: indigoAccent,
+                    side:
+                        const BorderSide(color: indigoAccent, width: 1.5),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () => _openReport(_lastFormalReportPath!),
+                  icon: const Icon(Icons.open_in_new, size: 18),
+                  label: const Text(
+                    'Open Last Report',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 13),
+                  ),
+                ),
+              ),
+            ),
+          ],
+
+          if (_statusMessage != null && _lastFormalReportPath != null) ...[
+            const SizedBox(height: 14),
+            Center(
+              child: Text(
+                _statusMessage!,
+                style: const TextStyle(
+                    fontSize: 12, color: Color(0xFF94A3B8)),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExcelReportCard(BuildContext context) {
+    const activeColor = Color(0xFF10B981);
+    const slateDark = Color(0xFF1E293B);
+    final isBusy = _isGeneratingFormal || _isGeneratingExcel;
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: slateDark,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF334155)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.table_chart_outlined,
+                  size: 20, color: activeColor),
+              SizedBox(width: 8),
+              Text(
+                'EXCEL DATA REPORT',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF94A3B8),
+                  letterSpacing: 1.1,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Full breakdown with timestamps, durations, locations, sources, shift notes & summary statistics.',
+            style: TextStyle(
+                fontSize: 13, color: Color(0xFF94A3B8), height: 1.4),
+          ),
+          const SizedBox(height: 20),
+
+          // Month Dropdown
+          DropdownButtonFormField<DateTime>(
+            key: const Key('excel_month_dropdown'),
+            initialValue: _selectedExcelMonth,
+            decoration: InputDecoration(
+              labelText: 'Quick Select Month',
+              labelStyle: const TextStyle(
+                  color: Color(0xFF94A3B8), fontSize: 13),
+              prefixIcon: const Icon(Icons.calendar_month,
+                  size: 18, color: activeColor),
+              filled: true,
+              fillColor: const Color(0xFF0F172A),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: Color(0xFF334155)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: Color(0xFF334155)),
+              ),
+            ),
+            dropdownColor: const Color(0xFF1E293B),
+            items: _getLast6Months().map((m) {
+              return DropdownMenuItem<DateTime>(
+                value: m,
+                child: Text(
+                  _monthFormat.format(m),
+                  style:
+                      const TextStyle(color: Colors.white, fontSize: 14),
+                ),
+              );
+            }).toList(),
+            onChanged: isBusy
+                ? null
+                : (val) {
+                    if (val != null) {
+                      setState(() {
+                        _selectedExcelMonth = val;
+                        _startDate = DateTime(val.year, val.month, 1);
+                        _endDate = DateTime(val.year, val.month + 1, 0);
+                      });
+                    }
+                  },
+          ),
+          const SizedBox(height: 16),
+
+          // Side-by-side Start & End Date Pickers
+          Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: isBusy ? null : _selectStartDate,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F172A),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFF334155)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.calendar_today,
+                                size: 14, color: activeColor),
+                            SizedBox(width: 6),
+                            Text(
+                              'Start Date',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF94A3B8),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _displayFormat.format(_startDate),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFFF8FAFC),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: isBusy ? null : _selectEndDate,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F172A),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFF334155)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.event,
+                                size: 14, color: activeColor),
+                            SizedBox(width: 6),
+                            Text(
+                              'End Date',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF94A3B8),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _displayFormat.format(_endDate),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFFF8FAFC),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Reasonably Sized Generate Button Centered
+          Center(
+            child: SizedBox(
+              width: 280,
+              child: ElevatedButton.icon(
+                key: const Key('generate_excel_report_button'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: activeColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: isBusy ? null : _generateExcelReport,
+                icon: _isGeneratingExcel
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.table_view, size: 20),
+                label: const Text(
+                  'Generate Excel Report',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 14),
+                ),
+              ),
+            ),
+          ),
+
+          if (_lastExcelReportPath != null) ...[
+            const SizedBox(height: 12),
+            Center(
+              child: SizedBox(
+                width: 280,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: activeColor,
+                    side:
+                        const BorderSide(color: activeColor, width: 1.5),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () => _openReport(_lastExcelReportPath!),
+                  icon: const Icon(Icons.open_in_new, size: 18),
+                  label: const Text(
+                    'Open Last Report',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 13),
+                  ),
+                ),
+              ),
+            ),
+          ],
+
+          if (_statusMessage != null && _lastExcelReportPath != null) ...[
+            const SizedBox(height: 14),
+            Center(
+              child: Text(
+                _statusMessage!,
+                style: const TextStyle(
+                    fontSize: 12, color: Color(0xFF94A3B8)),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 24),
+          const Divider(color: Color(0xFF334155)),
+          const SizedBox(height: 16),
+
+          // Automated Storage Archive section
+          Center(
+            child: Column(
+              children: [
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF38BDF8),
+                    side: const BorderSide(
+                        color: Color(0xFF38BDF8), width: 1.2),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 18, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed:
+                      _isDownloadingLatest ? null : _downloadLatestMonth,
+                  icon: _isDownloadingLatest
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Color(0xFF38BDF8)),
+                        )
+                      : const Icon(Icons.cloud_download_outlined,
+                          size: 18, color: Color(0xFF38BDF8)),
+                  label: const Text(
+                    'Download Latest Automated Report',
+                    style: TextStyle(
+                      color: Color(0xFF38BDF8),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Retrieve the scheduled monthly archive automatically generated on the 1st of the month',
+                  style:
+                      TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                  textAlign: TextAlign.center,
+                ),
               ],
             ),
           ),
-        ),
+        ],
       ),
     );
   }
