@@ -8,8 +8,8 @@ This document provides the authoritative reference for the Work Hours Tracker AP
 
 - **Base URL:** `https://<your-worker>.<subdomain>.workers.dev` (or same-origin on Web).
 - **Protocol:** HTTPS only.
-- **Timestamps:** ISO 8601 strings in UTC with millisecond precision (e.g. `2026-10-04T08:00:00.000Z`).
-- **Timezone for Durations:** All daily boundaries and month-to-date totals are computed using `Europe/Warsaw`.
+- **Timestamps:** ISO 8601 strings in UTC. Shift timestamps (`occurredAtUtc`, `activeSince`) are normalized to minute precision (e.g. `2026-10-04T08:00:00.000Z`), while `serverTime` and `createdAtUtc` retain full server precision.
+- **Timezone for Durations:** All daily boundaries and month-to-date totals are computed using `Europe/Warsaw` at minute precision.
 - **Request Tracing:** Every response includes `X-Correlation-ID` for diagnostics.
 
 ---
@@ -78,10 +78,13 @@ Transitions state from `clocked_out` to `clocked_in` and records an event.
 {
   "requestId": "c1f2b3a4-1234-5678-9abc-def012345678",
   "source": "flutter_app",
+  "location": "remote",
+  "offsetMinutes": -5,
   "note": "Optional initial shift note"
 }
 ```
 - **Allowed Sources:** `flutter_app`, `android_widget`, `admin_manual`, `web_dashboard`
+- **Allowed Locations:** `remote`, `in-office` (optional, defaults to `remote`)
 - **Response (200 OK):**
 ```json
 {
@@ -181,6 +184,7 @@ Queries raw clock events within a date range (maximum range: 93 days).
     "source": "flutter_app",
     "occurredAtUtc": "2026-10-04T08:00:00.000Z",
     "createdAtUtc": "2026-10-04T08:00:00.000Z",
+    "location": "remote",
     "note": null
   }
 ]
@@ -197,6 +201,7 @@ Inserts a historical matched shift pair (clock-in + clock-out) with validation a
   "clockInAt": "2026-10-03T08:00:00.000Z",
   "clockOutAt": "2026-10-03T16:30:00.000Z",
   "reason": "Forgot phone at home",
+  "location": "in-office",
   "note": "Worked on Q3 planning"
 }
 ```
@@ -285,6 +290,7 @@ Errors return standardized JSON with HTTP 4xx or 5xx status codes:
 | `VALIDATION_ERROR` | 400 | Malformed JSON or invalid parameter format. |
 | `INVALID_REQUEST_ID` | 400 | Missing or overly long `requestId` (> 128 chars). |
 | `INVALID_SOURCE` | 400 | `source` not in allowlist. |
+| `INVALID_LOCATION` | 400 | `location` is not `'remote'` or `'in-office'`. |
 | `INVALID_DATE_RANGE` | 400 | `endDate` is before `startDate` or range exceeds 93 days. |
 | `OVERLAPPING_SHIFT` | 400 | Manual shift overlaps with existing recorded shifts. |
 | `UNDO_WINDOW_EXPIRED`| 400 | More than 5 minutes elapsed since event occurrence. |

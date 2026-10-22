@@ -253,3 +253,22 @@ The system is considered ready for `v1.0` when:
 5. All mutations in clocking and undo execute atomically in D1 transactions.
 6. Documentation is clean, aligned, and separated into `README.md`, `DESIGN.md`, `docs/API.md`, `docs/DEPLOYMENT.md`, and `CHANGELOG.md`.
 7. All automated test suites (`vitest` and `flutter test`) pass with 100% success.
+
+---
+
+## 10. Planned for v1.2 — Private R2 Template & Contract `.docx` Automation
+
+### 10.1 Goal & Privacy Model
+- Automate filling the monthly `Załączniki do umowy zlecenia.docx` document (both `Załącznik nr 2 — Ewidencja godzin` and `Rachunek do umowy zlecenia`) directly from the Cloudflare Worker while keeping the repository 100% public and free of personal/financial data.
+- Store private assets exclusively in the existing Cloudflare R2 bucket (`REPORTS_BUCKET`) under a restricted `templates/` prefix:
+  - `templates/umowa-zlecenie.docx` — base Word document template.
+  - `templates/contract-profile.json` — private personal/contract metadata (full name, contract number/date, hourly rate).
+  - `templates/signature.png` — transparent PNG of handwritten signature.
+
+### 10.2 Table & Document Population Rules
+- **Attendance Table (`Załącznik nr 2`, 23 shift rows):**
+  - Group or list shifts chronologically and populate each row's 5 columns as:
+    `date | 0h0m | <embedded signature.png> | empty | empty`
+  - Populate the `RAZEM` total row with the summed hours/minutes and embed `signature.png` in the contractor signature box (`Podpis Zleceniobiorcy`).
+- **Invoice Page (`Rachunek do umowy zlecenia`):**
+  - Fill contract number, billing period (`MM/YYYY`), total hours × hourly rate, and embed `signature.png` above `podpis Zleceniobiorcy`.

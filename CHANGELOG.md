@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.3] - 2026-10-22
+
+### Added
+- **Shift Work Location (`remote` | `in-office`):** Added work location selection on every shift when clocking in (`PlannedShiftDialog`) or backfilling manually (`ManualShiftDialog`), displayed as a `Remote` / `In-Office` badge in `RecentShiftsView`, and backed by D1 migration `0003_add_location_to_events.sql` (defaulting historical rows to `'remote'`).
+
+### Changed
+- **Minute-Precision Time Standardization:** Standardized timestamp recording and duration calculation across the Cloudflare Worker, Excel report generator, and Flutter client to operate at 1-minute precision (`YYYY-MM-DDTHH:MM:00.000Z`), keeping seconds exclusively on the live `CURRENT SHIFT TIMER` readout.
+- **Consistent Shift & Summary Totals:** Unified shift pairing (`pairShifts`, `pairEventsIntoReportShifts`, `pairEventsIntoShifts`) and duration formatting (`formatDuration`, `formatSeconds`) so that a shift starting at `17:00` and ending at `21:00` always evaluates to `4h 0m` across the Recent Shifts view, Today's total, Month-to-date total, and `.xlsx` reports.
+- **Live Today & Month-to-Date Sync:** Updated `CurrentShiftTimerCard` to advance `Today` and `Month to date` totals in lockstep with minute boundaries while clocked in, and trimmed seconds from progress bar overtime/remaining indicators and the Undo confirmation dialog.
+- **Custom Clock Offset Dialog Refinement:** Simplified offset preset chips to `±5m`, `±15m`, and `±30m` (removing `±10m`), added inline min/max range helper and live validation (`-120` to `+120` min / `±2h`), and fixed preset chip selection state when typing out-of-range values manually.
+
+---
+
+## [1.1.2] - 2026-10-12
+
+### Added
+- **Multi-Environment Support (Prod & Staging):** Added staging D1 database (`work-hours-staging`), R2 bucket (`work-hours-reports-staging`), and in-app Environment Switcher with isolated credential storage.
+- **Planned Shift Duration & Reminders:** Added `PlannedShiftDialog` (4h, 6h, 8h, custom), glowing progress/overtime bar in `CurrentShiftTimerCard`, and configurable Android shift-end reminder notifications.
+- **Clock Time Offset Support:** Added `-5m`, `+5m`, and custom (`-120m` to `+120m`) offset options on long-press of Clock In / Clock Out buttons.
+
+### Fixed
+- **Undo Window Calculation:** Evaluated the 5-minute undo grace period against transaction creation time (`created_at_utc`) rather than offset occurrence time (`occurred_at_utc`).
+- **Environment Switch Cache & Error Surfacing:** Cleared cached status on environment switch and surfaced API/connection errors in `ClockScreen` and `SettingsDialog`.
+
+---
+
 ## [1.0.1] - 2026-10-05
 
 ### Added

@@ -6,7 +6,7 @@ A low-friction, single-user work hours tracking platform with authoritative serv
 
 ## Project Status
 
-- **Current Version:** `v1.1.1` (see [CHANGELOG.md](CHANGELOG.md))
+- **Current Version:** `v1.1.3` (see [CHANGELOG.md](CHANGELOG.md))
 - **Status:** Personal production, actively used
 - **Supported Platforms:** Android (App + Native Widget), Web (Desktop/Mobile browser), Cloudflare Workers (Backend + Static Assets)
 
@@ -65,6 +65,7 @@ Detailed specifications, runbooks, and contracts have been separated into dedica
 
 ### Authoritative Server Time & State Engine
 - **Server Authority:** The server generates all authoritative timestamps in UTC ISO 8601. Client clocks are never trusted for state transitions.
+- **Minute-Precision Shift Accounting:** Shift start/end timestamps (`occurred_at_utc`, `active_since_utc`) and all derived durations are normalized to minute precision (`YYYY-MM-DDTHH:MM:00.000Z`), ensuring displayed `HH:mm` shift bounds, shift badges, daily/monthly totals, and Excel reports are always identical.
 - **Explicit Transitions:** Separate `POST /api/v1/clock-in` and `POST /api/v1/clock-out` endpoints prevent toggle race conditions.
 - **Time Offset Support:** Clock actions support retroactive or anticipated adjustments (`offsetMinutes: -5` or `+5`) for accurate timekeeping when clocking slightly late or early.
 - **Strict Idempotency:** Duplicate or replayed network requests with the same `requestId` return cached results without inserting duplicate events.

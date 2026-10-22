@@ -62,5 +62,20 @@
 
 ---
 
+### Phase 7: v1.1.3 Minute-Precision Time Standardization & Shift Work Location
+- [x] **Worker Minute Truncation**: Added `truncateToMinute` in `status.ts` and normalized recorded shift timestamps (`occurred_at_utc`, `active_since_utc`) and derived durations across `clock.ts`, `events.ts`, `status.ts`, and `excel_generator.ts`.
+- [x] **Excel Generator Unification**: Refactored `pairEventsIntoReportShifts` and `computeReportStats` to reuse `pairShifts`, `truncateToMinute`, and `formatDuration` from `status.ts`.
+- [x] **Flutter Client Standardization**: Added `truncateToMinute` in `models.dart`, unified `ShiftRecord` pairing and formatting in `shift_model.dart`, updated `CurrentShiftTimerCard` to keep `Today` and `Month to date` live-synced on minute boundaries, and trimmed seconds from progress bar and undo dialog labels while preserving `HH:MM:SS` on the active shift stopwatch.
+- [x] **Custom Offset Dialog Polish**: Streamlined preset chips to `±5m`, `±15m`, `±30m`, fixed stale chip highlight on manual out-of-range input, and added inline `-120` to `+120` min (`±2h`) range helper/error feedback.
+- [x] **Shift Work Location (`remote` | `in-office`)**: Added `0003_add_location_to_events.sql` migration defaulting historical events to `'remote'`, updated `POST /api/v1/clock-in` and `POST /api/v1/admin/events/manual` validation/persistence, added `Remote` / `In-Office` selectors in `PlannedShiftDialog` and `ManualShiftDialog`, and displayed location badges in `RecentShiftsView`.
+
+---
+
+### Phase 8: v1.2 Planned — Contract `.docx` Report Automation (Deferred)
+- [ ] **Private R2 Templates (`templates/`)**: Store `templates/umowa-zlecenie.docx`, `templates/contract-profile.json`, and `templates/signature.png` in Cloudflare R2 (`REPORTS_BUCKET`) so private personal/contract details and signature stay out of the public git repository.
+- [ ] **OpenXML `.docx` Generator**: Fill the 23-row `Załącznik nr 2` attendance table with `date | 0h0m | signature PNG | empty | empty` and populate `Rachunek do umowy zlecenia` fields automatically.
+
+---
+
 ## Status Summary
-All v1.2 implementation plan items are complete, tested, and atomically committed locally. Live staging worker is verified and operational.
+All v1.1.3 implementation items are complete, tested (67 Vitest tests + 71 Flutter tests), and atomically committed locally.

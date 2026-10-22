@@ -50,7 +50,7 @@ Android Widget (Kotlin)         Flutter App (Riverpod: Mobile & Web)
 - **Reporting Generator:** Pure TypeScript OpenXML (.xlsx) engine running directly in Worker (zero external dependencies)
 - **Deployment:** Wrangler via GitHub Actions CI/CD
 - **Time zone for display/reporting:** `Europe/Warsaw`
-- **Time storage:** UTC ISO 8601 strings, for example `2026-10-03T13:42:17.000Z`
+- **Time storage:** UTC ISO 8601 strings; shift event timestamps (`occurred_at_utc`, `active_since_utc`) are truncated to minute precision (`2026-10-03T13:42:00.000Z`), while transaction creation times (`created_at_utc`) keep full precision for audit and undo grace window checks
 
 ### Explicit non-goals
 
@@ -246,7 +246,7 @@ Same request body and retry rules as clock-in.
 {
   "state": "clocked_in",
   "changed": true,
-  "activeSince": "2026-10-03T06:13:42.000Z",
+  "activeSince": "2026-10-03T06:13:00.000Z",
   "serverTime": "2026-10-03T06:13:42.000Z",
   "todaySeconds": 0,
   "monthSeconds": 231480
@@ -345,6 +345,8 @@ CREATE TABLE events (
     occurred_at_utc TEXT NOT NULL,
     created_at_utc TEXT NOT NULL,
     reason TEXT,
+    note TEXT,
+    location TEXT NOT NULL DEFAULT 'remote' CHECK (location IN ('remote', 'in-office')),
     FOREIGN KEY (device_id) REFERENCES devices(id)
 );
 
@@ -368,7 +370,7 @@ For a single-user v0.1, use a constant internal user ID such as `default-user`; 
 
 1. Sort raw events by `occurred_at_utc`, then by ID as a deterministic tiebreaker.
 2. Pair each `clock_in` with the following valid `clock_out`.
-3. Calculate duration from UTC timestamps.
+3. Calculate duration from minute-truncated UTC timestamps so shift durations always match displayed `HH:mm` start and end times.
 4. Convert timestamps to `Europe/Warsaw` only for display and report grouping.
 5. Flag unmatched or invalid sequences. Do not silently invent missing times.
 
