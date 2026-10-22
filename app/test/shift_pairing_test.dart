@@ -33,6 +33,37 @@ void main() {
       expect(shifts[0].durationFormatted, equals('8h 30m'));
     });
 
+    test('ignores seconds so 17:00:45 to 21:00:12 is exactly 4h 0m', () {
+      final events = [
+        TrackingEvent(
+          id: 'evt-1',
+          requestId: 'req-1',
+          userId: 'user-1',
+          eventType: 'clock_in',
+          source: 'flutter_app',
+          occurredAtUtc: DateTime.parse('2026-10-01T17:00:45.123Z'),
+          createdAtUtc: DateTime.parse('2026-10-01T17:00:45.123Z'),
+        ),
+        TrackingEvent(
+          id: 'evt-2',
+          requestId: 'req-2',
+          userId: 'user-1',
+          eventType: 'clock_out',
+          source: 'flutter_app',
+          occurredAtUtc: DateTime.parse('2026-10-01T21:00:12.987Z'),
+          createdAtUtc: DateTime.parse('2026-10-01T21:00:12.987Z'),
+        ),
+      ];
+
+      final shifts = pairEventsIntoShifts(events);
+
+      expect(shifts.length, equals(1));
+      expect(shifts[0].duration, equals(const Duration(hours: 4)));
+      expect(shifts[0].durationFormatted, equals('4h 0m'));
+      expect(shifts[0].startTime.second, equals(0));
+      expect(shifts[0].endTime.second, equals(0));
+    });
+
     test('ignores trailing clock_in without clock_out', () {
       final events = [
         TrackingEvent(

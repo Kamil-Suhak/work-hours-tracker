@@ -1,3 +1,9 @@
+DateTime truncateToMinute(DateTime dt) {
+  return dt.isUtc
+      ? DateTime.utc(dt.year, dt.month, dt.day, dt.hour, dt.minute)
+      : DateTime(dt.year, dt.month, dt.day, dt.hour, dt.minute);
+}
+
 enum WorkState {
   clockedIn,
   clockedOut;

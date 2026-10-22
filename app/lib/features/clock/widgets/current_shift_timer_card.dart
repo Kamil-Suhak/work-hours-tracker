@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../../api/models.dart';
 import '../clock_notifier.dart';
 
 class CurrentShiftTimerCard extends StatefulWidget {
   final bool isClockedIn;
   final DateTime? activeSince;
+  final DateTime? serverTime;
   final int todaySeconds;
   final int monthSeconds;
   final bool enablePeriodicTimer;
@@ -16,6 +18,7 @@ class CurrentShiftTimerCard extends StatefulWidget {
     super.key,
     required this.isClockedIn,
     this.activeSince,
+    this.serverTime,
     required this.todaySeconds,
     required this.monthSeconds,
     this.enablePeriodicTimer = true,
@@ -92,15 +95,46 @@ class _CurrentShiftTimerCardState extends State<CurrentShiftTimerCard> {
     return '$hours:$minutes:$seconds';
   }
 
+  int _liveAdditionalSeconds() {
+    if (!widget.isClockedIn ||
+        widget.activeSince == null ||
+        widget.serverTime == null) {
+      return 0;
+    }
+    final startMinute = truncateToMinute(widget.activeSince!.toUtc());
+    final fetchMinute = truncateToMinute(widget.serverTime!.toUtc());
+    final nowMinute = truncateToMinute(DateTime.now().toUtc());
+
+    final fetchElapsedMinutes =
+        fetchMinute.difference(startMinute).inMinutes.clamp(0, 1 << 30);
+    final currentElapsedMinutes =
+        nowMinute.difference(startMinute).inMinutes.clamp(0, 1 << 30);
+    final deltaMinutes = currentElapsedMinutes - fetchElapsedMinutes;
+    return deltaMinutes > 0 ? deltaMinutes * 60 : 0;
+  }
+
   @override
   Widget build(BuildContext context) {
     const activeColor = Color(0xFF10B981); // Emerald
     const inactiveColor = Color(0xFF64748B); // Slate
     final timeFormat = DateFormat('HH:mm');
 
+    final activeLocal = widget.activeSince?.toLocal();
+    final nowLocal = DateTime.now();
+    final startedToday = activeLocal != null &&
+        activeLocal.year == nowLocal.year &&
+        activeLocal.month == nowLocal.month &&
+        activeLocal.day == nowLocal.day;
+    final startedThisMonth = activeLocal != null &&
+        activeLocal.year == nowLocal.year &&
+        activeLocal.month == nowLocal.month;
+
+    final liveDelta = _liveAdditionalSeconds();
     final timerDisplay = widget.isClockedIn ? _formatDuration(_elapsed) : '--:--:--';
-    final todayFormatted = formatSeconds(widget.todaySeconds);
-    final monthFormatted = formatSeconds(widget.monthSeconds);
+    final todayFormatted =
+        formatSeconds(widget.todaySeconds + (startedToday ? liveDelta : 0));
+    final monthFormatted =
+        formatSeconds(widget.monthSeconds + (startedThisMonth ? liveDelta : 0));
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -305,11 +339,12 @@ class _CurrentShiftTimerCardState extends State<CurrentShiftTimerCard> {
     required Duration target,
     required Duration elapsed,
   }) {
+    final elapsedMinutes = Duration(minutes: elapsed.inMinutes);
     final isOvertime = elapsed >= target;
     final fraction = isOvertime
         ? 1.0
         : (elapsed.inMilliseconds / target.inMilliseconds).clamp(0.0, 1.0);
-    final remaining = isOvertime ? Duration.zero : target - elapsed;
+    final remaining = isOvertime ? Duration.zero : target - elapsedMinutes;
 
     final barColor = isOvertime ? const Color(0xFFF59E0B) : const Color(0xFF10B981);
     final glowColor = isOvertime
@@ -372,7 +407,7 @@ class _CurrentShiftTimerCardState extends State<CurrentShiftTimerCard> {
               const SizedBox(width: 4),
               Text(
                 isOvertime
-                    ? 'Target reached • Overtime: +${_formatDuration(elapsed - target)}'
+                    ? 'Target reached • Overtime: +${_formatHoursMinutes(elapsedMinutes - target)}'
                     : 'Target: ${_formatHoursMinutes(target)} • Remaining: ${_formatHoursMinutes(remaining)}',
                 style: TextStyle(
                   fontSize: 10,

@@ -1,4 +1,5 @@
 import '../../api/models.dart';
+import '../clock/clock_notifier.dart';
 
 class ShiftRecord {
   final TrackingEvent clockIn;
@@ -11,14 +12,10 @@ class ShiftRecord {
     required this.duration,
   });
 
-  DateTime get startTime => clockIn.occurredAtUtc.toLocal();
-  DateTime get endTime => clockOut.occurredAtUtc.toLocal();
+  DateTime get startTime => truncateToMinute(clockIn.occurredAtUtc.toLocal());
+  DateTime get endTime => truncateToMinute(clockOut.occurredAtUtc.toLocal());
 
-  String get durationFormatted {
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes % 60;
-    return '${hours}h ${minutes}m';
-  }
+  String get durationFormatted => formatSeconds(duration.inSeconds);
 
   String? get note {
     if (clockOut.note?.trim().isNotEmpty == true) return clockOut.note!.trim();
@@ -40,8 +37,8 @@ List<ShiftRecord> pairEventsIntoShifts(List<TrackingEvent> events) {
     if (event.eventType == 'clock_in') {
       pendingClockIn = event;
     } else if (event.eventType == 'clock_out' && pendingClockIn != null) {
-      final inTime = pendingClockIn.occurredAtUtc;
-      final outTime = event.occurredAtUtc;
+      final inTime = truncateToMinute(pendingClockIn.occurredAtUtc);
+      final outTime = truncateToMinute(event.occurredAtUtc);
       final diff = outTime.difference(inTime);
       final duration = diff.isNegative ? Duration.zero : diff;
 

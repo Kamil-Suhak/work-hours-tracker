@@ -113,6 +113,7 @@ class CurrentTrackerQuadrant extends StatelessWidget {
                           CurrentShiftTimerCard(
                             isClockedIn: isClockedIn,
                             activeSince: status.activeSince,
+                            serverTime: status.serverTime,
                             todaySeconds: status.todaySeconds,
                             monthSeconds: status.monthSeconds,
                             enablePeriodicTimer: enableAnimations,

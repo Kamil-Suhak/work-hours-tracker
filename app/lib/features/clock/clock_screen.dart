@@ -344,6 +344,7 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
         CurrentShiftTimerCard(
           isClockedIn: isClockedIn,
           activeSince: status.activeSince,
+          serverTime: status.serverTime,
           todaySeconds: status.todaySeconds,
           monthSeconds: status.monthSeconds,
           enablePeriodicTimer: widget.enableAnimations,
@@ -473,7 +474,7 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
     final settingsAsync = ref.read(settingsProvider);
     final reminderMinutes = settingsAsync.value?.shiftReminderMinutes ?? 0;
     if (reminderMinutes > 0) {
-      final now = DateTime.now();
+      final now = truncateToMinute(DateTime.now());
       final effectiveStart = now.add(Duration(minutes: offsetMinutes ?? 0));
       final targetEndTime = effectiveStart.add(plannedDuration);
       await ref.read(notificationServiceProvider).scheduleShiftReminder(
@@ -490,7 +491,7 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
     final eventTypeLabel =
         event.eventType == 'clock_in' ? 'Clock In' : 'Clock Out';
     final timeStr =
-        DateFormat('HH:mm:ss').format(event.occurredAtUtc.toLocal());
+        DateFormat('HH:mm').format(event.occurredAtUtc.toLocal());
 
     final messenger = ScaffoldMessenger.of(context);
     final confirmed = await showDialog<bool>(
