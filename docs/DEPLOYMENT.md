@@ -125,20 +125,49 @@ The script outputs:
 
 ## 6. Build & Deployment
 
-The system is deployed as a **Unified Cloudflare Worker** that serves both the API and the compiled Flutter Web frontend via Cloudflare Workers Static Assets.
+The system is deployed as a **Unified Cloudflare Worker** that serves both the API and the compiled Flutter Web frontend via Cloudflare Workers Static Assets (`app/build/web/`).
 
-### 6.1 Build Flutter Web Assets
+### 6.1 Mandatory Pre-Deployment Verification Gate (Local Checks)
+
+> [!IMPORTANT]
+> Passing `npm run typecheck` and `flutter analyze` is **mandatory** before pushing to remote or deploying. GitHub Actions CI strictly enforces these checks and will immediately fail both the CI and Deployment workflows if any TypeScript compilation errors or Flutter analyzer warnings are detected.
+
+Always run these verification commands locally before deploying or pushing commits:
+
 ```powershell
+# 1. Verify Worker backend (TypeScript typecheck & full test suite)
+cd worker
+npm run typecheck
+npm test
+
+# 2. Verify Flutter client (Static analysis with zero warnings & test suite)
+cd ../app
+flutter analyze
+flutter test
+```
+
+### 6.2 Manual Staging Deployment
+When deploying to staging from your local machine, you must compile the Flutter Web frontend first so that Wrangler uploads the latest web UI assets:
+
+```powershell
+# Step 1: Compile the Flutter Web release bundle into app/build/web/
+cd app
 flutter build web --release
-```
-Assets are output to `app/build/web/`.
 
-### 6.2 Deploy Worker & Static Assets
-```powershell
-npx wrangler deploy
+# Step 2: Deploy Worker API + static web assets to Staging
+cd ../worker
+npx wrangler deploy --env staging
 ```
+> **Note:** After deploying, perform a hard refresh in your browser with `Ctrl + Shift + R` (or `Ctrl + F5`) to clear the aggressive Flutter service worker cache.
 
-Wrangler uploads the compiled TypeScript Worker and synchronizes `app/build/web` to Cloudflare's global edge network.
+### 6.3 Automated Production Deployment (CI/CD)
+Production deployment is fully automated by GitHub Actions ([`.github/workflows/deploy-worker.yml`](../.github/workflows/deploy-worker.yml)).
+
+Whenever commits are pushed to `main` (or a release tag `v*`):
+1. CI runs `npm run typecheck`, `npm test`, `flutter analyze`, and `flutter test`.
+2. CI builds the web assets (`flutter build web --release`).
+3. CI automatically applies pending D1 migrations to `work-hours-prod`.
+4. CI deploys the unified Worker and static web frontend to Cloudflare Production.
 
 ---
 

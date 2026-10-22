@@ -140,20 +140,23 @@ work-hours-tracker/
 
 ---
 
-## Quick Start & Verification
+## Quick Start & Mandatory Verification
+
+Before deploying or pushing changes to remote, both `npm run typecheck` and `flutter analyze` must pass with zero errors and zero warnings:
 
 ### Worker Verification
 ```bash
-# Typecheck and run backend test suite
+# Typecheck and run backend test suite (mandatory before deploy)
 npm --prefix worker run typecheck
 npm --prefix worker test
 ```
 
 ### App Verification
 ```bash
-# Analyze and run client test suite
-flutter --prefix app analyze
-flutter --prefix app test
+# Analyze and run client test suite (mandatory before deploy)
+cd app
+flutter analyze
+flutter test
 ```
 
 For full deployment, D1 migration, R2 setup, and device provisioning instructions, refer to **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
