@@ -60,6 +60,43 @@ describe('Reports Engine Unit Tests', () => {
     expect(shifts[0].source).toBe('flutter_app');
   });
 
+  it('pairEventsIntoReportShifts ignores seconds so 17:00:50 to 21:00:10 is 4h 0m', () => {
+    const mockEvents: EventRow[] = [
+      {
+        id: 'evt-1',
+        request_id: 'req-1',
+        user_id: 'default_user',
+        device_id: 'dev-1',
+        event_type: 'clock_in',
+        source: 'flutter_app',
+        occurred_at_utc: '2026-10-01T15:00:50.123Z',
+        created_at_utc: '2026-10-01T15:00:50.123Z',
+        reason: null,
+        note: null,
+      },
+      {
+        id: 'evt-2',
+        request_id: 'req-2',
+        user_id: 'default_user',
+        device_id: 'dev-1',
+        event_type: 'clock_out',
+        source: 'flutter_app',
+        occurred_at_utc: '2026-10-01T19:00:10.999Z',
+        created_at_utc: '2026-10-01T19:00:10.999Z',
+        reason: null,
+        note: null,
+      },
+    ];
+
+    const shifts = pairEventsIntoReportShifts(mockEvents);
+    expect(shifts).toHaveLength(1);
+    expect(shifts[0].startTimeLocal).toBe('17:00');
+    expect(shifts[0].endTimeLocal).toBe('21:00');
+    expect(shifts[0].durationMinutes).toBe(240);
+    expect(shifts[0].durationHoursDecimal).toBe(4);
+    expect(shifts[0].durationFormatted).toBe('4h 0m');
+  });
+
   it('computeReportStats computes totals and averages across shifts', () => {
     const mockShifts = [
       {

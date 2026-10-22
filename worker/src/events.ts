@@ -9,7 +9,7 @@ import type {
 } from './types';
 import { AppError } from './errors';
 import { DEFAULT_USER_ID } from './clock';
-import { pairShifts, formatDuration } from './status';
+import { pairShifts, formatDuration, truncateToMinute } from './status';
 
 const MAX_QUERY_RANGE_DAYS = 93;
 const MAX_SHIFT_DURATION_SECONDS = 24 * 60 * 60; // 24 hours
@@ -99,8 +99,8 @@ export function validateManualEventRequest(body: unknown): ManualEventRequestBod
     );
   }
 
-  const inDate = validateIsoDate(clockInAt, 'clockInAt');
-  const outDate = validateIsoDate(clockOutAt, 'clockOutAt');
+  const inDate = truncateToMinute(validateIsoDate(clockInAt, 'clockInAt'));
+  const outDate = truncateToMinute(validateIsoDate(clockOutAt, 'clockOutAt'));
 
   if (outDate.getTime() <= inDate.getTime()) {
     throw new AppError(
@@ -176,12 +176,12 @@ export async function handleAdminManualEvent(
     .all<EventRow>();
 
   const existingShifts = pairShifts(existingEvents ?? []);
-  const proposedIn = new Date(clockInAt).getTime();
-  const proposedOut = new Date(clockOutAt).getTime();
+  const proposedIn = truncateToMinute(clockInAt).getTime();
+  const proposedOut = truncateToMinute(clockOutAt).getTime();
 
   for (const shift of existingShifts) {
-    const shiftIn = new Date(shift.clockIn.occurred_at_utc).getTime();
-    const shiftOut = new Date(shift.clockOut.occurred_at_utc).getTime();
+    const shiftIn = truncateToMinute(shift.clockIn.occurred_at_utc).getTime();
+    const shiftOut = truncateToMinute(shift.clockOut.occurred_at_utc).getTime();
     if (Math.max(proposedIn, shiftIn) < Math.min(proposedOut, shiftOut)) {
       throw new AppError(
         'OVERLAPPING_SHIFT',

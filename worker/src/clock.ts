@@ -11,7 +11,7 @@ import type {
   ProcessedRequestRow,
 } from './types';
 import { AppError } from './errors';
-import { calculateDurations, getWarsawDateComponents } from './status';
+import { calculateDurations, getWarsawDateComponents, truncateToMinute } from './status';
 
 export const DEFAULT_USER_ID = 'default-user';
 
@@ -146,7 +146,7 @@ export async function handleClockIn(
   const nextVersion = (stateRow?.version ?? 0) + 1;
 
   const offsetMs = (req.offsetMinutes ?? 0) * 60 * 1000;
-  const effectiveTime = new Date(now.getTime() + offsetMs);
+  const effectiveTime = truncateToMinute(new Date(now.getTime() + offsetMs));
   const effectiveTimeIso = effectiveTime.toISOString();
 
   const { todaySeconds, monthSeconds } = await calculateDurations(
@@ -268,9 +268,9 @@ export async function handleClockOut(
 
   // Calculate shift duration and cumulative totals with this shift included
   const offsetMs = (req.offsetMinutes ?? 0) * 60 * 1000;
-  let effectiveTime = new Date(now.getTime() + offsetMs);
+  let effectiveTime = truncateToMinute(new Date(now.getTime() + offsetMs));
   const activeSince = stateRow?.active_since_utc ?? nowIso;
-  const activeStartDate = new Date(activeSince);
+  const activeStartDate = truncateToMinute(activeSince);
 
   if (effectiveTime.getTime() < activeStartDate.getTime()) {
     effectiveTime = activeStartDate;

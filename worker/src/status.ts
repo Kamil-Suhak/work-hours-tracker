@@ -3,6 +3,14 @@ import type { EventRow, EventType, StatusResponse, WorkState } from './types';
 
 const WARSAW_TZ = 'Europe/Warsaw';
 
+/**
+ * Truncates a Date or ISO timestamp string to minute precision (zeroes out seconds and milliseconds).
+ */
+export function truncateToMinute(date: Date | string): Date {
+  const ms = typeof date === 'string' ? new Date(date).getTime() : date.getTime();
+  return new Date(Math.floor(ms / 60_000) * 60_000);
+}
+
 export function getWarsawDateComponents(date: Date): {
   dateString: string;
   monthString: string;
@@ -112,8 +120,8 @@ export function pairShifts(events: EventRow[]): {
     if (event.event_type === 'clock_in') {
       pendingClockIn = event;
     } else if (event.event_type === 'clock_out' && pendingClockIn) {
-      const inTime = new Date(pendingClockIn.occurred_at_utc).getTime();
-      const outTime = new Date(event.occurred_at_utc).getTime();
+      const inTime = truncateToMinute(pendingClockIn.occurred_at_utc).getTime();
+      const outTime = truncateToMinute(event.occurred_at_utc).getTime();
       const durationSeconds = Math.max(0, Math.floor((outTime - inTime) / 1000));
       shifts.push({
         clockIn: pendingClockIn,
@@ -162,7 +170,7 @@ export async function calculateDurations(
   let monthSeconds = 0;
 
   for (const shift of shifts) {
-    const shiftStartDate = new Date(shift.clockIn.occurred_at_utc);
+    const shiftStartDate = truncateToMinute(shift.clockIn.occurred_at_utc);
     const { dateString, monthString } = getWarsawDateComponents(shiftStartDate);
 
     if (monthString === currentMonthString) {
@@ -173,12 +181,13 @@ export async function calculateDurations(
     }
   }
 
-  // If currently clocked in, include the ongoing active shift duration
+  // If currently clocked in, include the ongoing active shift duration at minute precision
   if (currentState === 'clocked_in' && activeSinceUtc) {
-    const activeStartDate = new Date(activeSinceUtc);
+    const activeStartDate = truncateToMinute(activeSinceUtc);
+    const nowMinute = truncateToMinute(now);
     const activeDuration = Math.max(
       0,
-      Math.floor((now.getTime() - activeStartDate.getTime()) / 1000)
+      Math.floor((nowMinute.getTime() - activeStartDate.getTime()) / 1000)
     );
     const { dateString, monthString } = getWarsawDateComponents(activeStartDate);
 

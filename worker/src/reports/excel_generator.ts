@@ -7,6 +7,7 @@ import type {
   ReportStats,
   ShiftSummaryItem,
 } from '../types';
+import { formatDuration, pairShifts, truncateToMinute } from '../status';
 
 // ==========================================
 // 1. Shift Pairing & Aggregation
@@ -69,45 +70,31 @@ export function pairEventsIntoReportShifts(events: EventRow[]): ShiftSummaryItem
     (a, b) => new Date(a.occurred_at_utc).getTime() - new Date(b.occurred_at_utc).getTime()
   );
 
-  const shifts: ShiftSummaryItem[] = [];
-  let pendingClockIn: EventRow | null = null;
+  return pairShifts(sorted).map(({ clockIn, clockOut, durationSeconds }) => {
+    const inDate = truncateToMinute(clockIn.occurred_at_utc);
+    const outDate = truncateToMinute(clockOut.occurred_at_utc);
+    const durationMinutes = Math.floor(durationSeconds / 60);
+    const hoursDecimal = Math.round((durationMinutes / 60) * 100) / 100;
 
-  for (const event of sorted) {
-    if (event.event_type === 'clock_in') {
-      pendingClockIn = event;
-    } else if (event.event_type === 'clock_out' && pendingClockIn !== null) {
-      const inDate = new Date(pendingClockIn.occurred_at_utc);
-      const outDate = new Date(event.occurred_at_utc);
-      const diffMs = Math.max(0, outDate.getTime() - inDate.getTime());
-      const durationMinutes = Math.round(diffMs / (1000 * 60));
-      const hours = Math.floor(durationMinutes / 60);
-      const mins = durationMinutes % 60;
-      const hoursDecimal = Math.round((durationMinutes / 60) * 100) / 100;
+    const dateStr = formatWarsawDate(inDate);
+    const startTimeLocal = formatWarsawTime(inDate);
+    const endTimeLocal = formatWarsawTime(outDate);
 
-      const dateStr = formatWarsawDate(inDate);
-      const startTimeLocal = formatWarsawTime(inDate);
-      const endTimeLocal = formatWarsawTime(outDate);
+    const note = cleanMarkdownForExcel(clockOut.note ?? clockIn.note);
 
-      const note = cleanMarkdownForExcel(event.note ?? pendingClockIn.note);
-
-      shifts.push({
-        date: dateStr,
-        clockInUtc: pendingClockIn.occurred_at_utc,
-        clockOutUtc: event.occurred_at_utc,
-        startTimeLocal,
-        endTimeLocal,
-        durationMinutes,
-        durationHoursDecimal: hoursDecimal,
-        durationFormatted: `${hours}h ${mins}m`,
-        note: note.length > 0 ? note : undefined,
-        source: event.source as EventSource,
-      });
-
-      pendingClockIn = null;
-    }
-  }
-
-  return shifts;
+    return {
+      date: dateStr,
+      clockInUtc: inDate.toISOString(),
+      clockOutUtc: outDate.toISOString(),
+      startTimeLocal,
+      endTimeLocal,
+      durationMinutes,
+      durationHoursDecimal: hoursDecimal,
+      durationFormatted: formatDuration(durationSeconds),
+      note: note.length > 0 ? note : undefined,
+      source: clockOut.source as EventSource,
+    };
+  });
 }
 
 export function computeReportStats(shifts: ShiftSummaryItem[]): ReportStats {
@@ -130,22 +117,15 @@ export function computeReportStats(shifts: ShiftSummaryItem[]): ReportStats {
   const avgMinutes = Math.round(totalMinutes / shifts.length);
   const longestMinutes = Math.max(...shifts.map((s) => s.durationMinutes));
 
-  const totalH = Math.floor(totalMinutes / 60);
-  const totalM = totalMinutes % 60;
-  const avgH = Math.floor(avgMinutes / 60);
-  const avgM = avgMinutes % 60;
-  const longH = Math.floor(longestMinutes / 60);
-  const longM = longestMinutes % 60;
-
   return {
     totalHours,
-    totalHoursFormatted: `${totalH}h ${totalM}m`,
+    totalHoursFormatted: formatDuration(totalMinutes * 60),
     totalShifts: shifts.length,
     totalDays: uniqueDays,
     averageShiftMinutes: avgMinutes,
-    averageShiftFormatted: `${avgH}h ${avgM}m`,
+    averageShiftFormatted: formatDuration(avgMinutes * 60),
     longestShiftMinutes: longestMinutes,
-    longestShiftFormatted: `${longH}h ${longM}m`,
+    longestShiftFormatted: formatDuration(longestMinutes * 60),
   };
 }
 

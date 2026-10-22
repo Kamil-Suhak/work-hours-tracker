@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { validateClockRequest } from '../src/clock';
-import { pairShifts, getWarsawDateComponents, formatDuration } from '../src/status';
+import { pairShifts, getWarsawDateComponents, formatDuration, truncateToMinute } from '../src/status';
 import type { EventRow } from '../src/types';
 
 describe('State Transitions & Duration Rules', () => {
@@ -79,6 +79,40 @@ describe('State Transitions & Duration Rules', () => {
     const shifts = pairShifts(events);
     expect(shifts).toHaveLength(1);
     expect(shifts[0].durationSeconds).toBe(8.5 * 3600);
+  });
+
+  it('ignores seconds and milliseconds so 17:00:45 to 21:00:12 is exactly 4h', () => {
+    expect(truncateToMinute('2026-10-03T17:00:45.987Z').toISOString()).toBe('2026-10-03T17:00:00.000Z');
+
+    const events: EventRow[] = [
+      {
+        id: '1',
+        request_id: 'r1',
+        user_id: 'default-user',
+        device_id: 'd1',
+        event_type: 'clock_in',
+        source: 'flutter_app',
+        occurred_at_utc: '2026-10-03T17:00:45.123Z',
+        created_at_utc: '2026-10-03T17:00:45.123Z',
+        reason: null,
+      },
+      {
+        id: '2',
+        request_id: 'r2',
+        user_id: 'default-user',
+        device_id: 'd1',
+        event_type: 'clock_out',
+        source: 'flutter_app',
+        occurred_at_utc: '2026-10-03T21:00:12.456Z',
+        created_at_utc: '2026-10-03T21:00:12.456Z',
+        reason: null,
+      },
+    ];
+
+    const shifts = pairShifts(events);
+    expect(shifts).toHaveLength(1);
+    expect(shifts[0].durationSeconds).toBe(4 * 3600);
+    expect(formatDuration(shifts[0].durationSeconds)).toBe('4h 0m');
   });
 
   it('skips unmatched consecutive clock-in events without failing', () => {
