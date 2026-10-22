@@ -701,6 +701,113 @@ describe('Worker End-to-End Integration Suite', () => {
       expect(bytes[3]).toBe(0x04);
     });
 
+    it('generates formal docx contract report for current month with plannedShifts', async () => {
+      const { createZipBuffer } = await import('../src/reports/excel_generator');
+      const { getCurrentWarsawMonthRangeUtc } = await import('../src/status');
+      const currentMonth = getCurrentWarsawMonthRangeUtc(new Date());
+
+      // Seed a recorded shift in the current Warsaw month
+      mockDb.events.push(
+        {
+          id: 'ev-docx-in',
+          request_id: 'r-docx-in',
+          user_id: 'default-user',
+          device_id: 'dev-1',
+          event_type: 'clock_in',
+          source: 'flutter_app',
+          occurred_at_utc: `${currentMonth.monthString}-05T08:00:00.000Z`,
+          created_at_utc: `${currentMonth.monthString}-05T08:00:00.000Z`,
+          reason: null,
+          note: null,
+        },
+        {
+          id: 'ev-docx-out',
+          request_id: 'r-docx-out',
+          user_id: 'default-user',
+          device_id: 'dev-1',
+          event_type: 'clock_out',
+          source: 'flutter_app',
+          occurred_at_utc: `${currentMonth.monthString}-05T12:00:00.000Z`,
+          created_at_utc: `${currentMonth.monthString}-05T12:00:00.000Z`,
+          reason: null,
+          note: null,
+        }
+      );
+
+      const enc = new TextEncoder();
+      const docXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>…………………………………………………………. r.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Nazwisko i imię Zleceniobiorcy: ………………………………………………………………………………………</w:t></w:r></w:p>
+    <w:tbl>
+      <w:tr><w:tc><w:p><w:r><w:t>Data</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Godziny</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Podpis</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Uwagi</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Zleceniodawca</w:t></w:r></w:p></w:tc></w:tr>
+      <w:tr><w:tc><w:p/></w:tc><w:tc><w:p/></w:tc><w:tc><w:p/></w:tc><w:tc><w:p/></w:tc><w:tc><w:p/></w:tc></w:tr>
+      <w:tr><w:tc><w:p/></w:tc><w:tc><w:p/></w:tc><w:tc><w:p/></w:tc><w:tc><w:p/></w:tc><w:tc><w:p/></w:tc></w:tr>
+    </w:tbl>
+  </w:body>
+</w:document>`;
+      const templateZip = createZipBuffer([
+        { name: '[Content_Types].xml', data: enc.encode('<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"></Types>') },
+        { name: 'word/document.xml', data: enc.encode(docXml) },
+        { name: 'word/_rels/document.xml.rels', data: enc.encode('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>') },
+      ]);
+      const fakePng = new Uint8Array(24);
+      fakePng.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+      new DataView(fakePng.buffer).setUint32(16, 200, false);
+      new DataView(fakePng.buffer).setUint32(20, 60, false);
+      const profileJson = JSON.stringify({
+        contractorName: 'Jan Testowy',
+        contractDate: '01.01.2026',
+        hourlyRatePln: 50,
+        monthlyHours: 80,
+        grossAmountPln: 4000,
+        issuePlace: 'Wrocław',
+      });
+
+      const docxEnv: Env = {
+        ...env,
+        REPORTS_BUCKET: {
+          get: async (key: string) => {
+            if (key === 'templates/umowa-zlecenie.docx') {
+              return { arrayBuffer: async () => templateZip.buffer } as any;
+            }
+            if (key === 'templates/contract-profile.json') {
+              return { text: async () => profileJson } as any;
+            }
+            if (key === 'templates/signature.png') {
+              return { arrayBuffer: async () => fakePng.buffer } as any;
+            }
+            return null;
+          },
+        } as any,
+      };
+
+      const res = await worker.fetch(
+        createRequest('/api/v1/reports/generate', {
+          method: 'POST',
+          body: {
+            format: 'docx',
+            plannedShifts: [
+              { date: `${currentMonth.monthString}-28`, durationMinutes: 360 },
+            ],
+          },
+        }),
+        docxEnv
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get('Content-Type')).toBe(
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      );
+      expect(res.headers.get('Content-Disposition')).toBe(
+        `attachment; filename="zalaczniki-umowa-zlecenie-${currentMonth.monthString}.docx"`
+      );
+      // 4h recorded + 6h planned = 10h across 2 working days
+      expect(res.headers.get('X-Total-Hours')).toBe('10');
+      expect(res.headers.get('X-Total-Shifts')).toBe('2');
+    });
+
     it('returns 404 for latest report when bucket has no reports', async () => {
       const res = await worker.fetch(createRequest('/api/v1/reports/latest'), env);
       expect(res.status).toBe(404);

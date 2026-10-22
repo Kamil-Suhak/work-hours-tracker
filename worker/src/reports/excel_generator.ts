@@ -226,15 +226,10 @@ function getColLetter(colIdx: number): string {
 export function buildWorksheetXml(
   shifts: ShiftSummaryItem[],
   stats: ReportStats,
-  preset: ReportPreset,
-  options: ReportOptions = {}
+  _preset: ReportPreset = 'full',
+  _options: ReportOptions = {}
 ): string {
-  const isFull = preset === 'full';
-  const includeNotes = isFull || options.includeNotes === true;
-  const includeSource = isFull || options.includeSource === true;
-  const includeStats = isFull || options.includeStats === true;
-
-  // Build Table 1 column headers with dynamic widths
+  // Excel reports always include all fields and summary statistics
   const table1Cols: { label: string; width: number }[] = [
     {
       label: 'Date',
@@ -246,20 +241,19 @@ export function buildWorksheetXml(
       label: 'Duration',
       width: Math.max(12, ...shifts.map((s) => s.durationFormatted.length), stats.totalHoursFormatted.length, 8) + 4,
     },
-  ];
-
-  if (includeSource) {
-    table1Cols.push({
+    {
+      label: 'Location',
+      width: 14,
+    },
+    {
       label: 'Source',
       width: Math.max(12, ...shifts.map((s) => s.source.length), 6) + 4,
-    });
-  }
-  if (includeNotes) {
-    table1Cols.push({
+    },
+    {
       label: 'Shift Notes',
       width: Math.min(60, Math.max(16, ...shifts.map((s) => (s.note || '').length), 11)) + 4,
-    });
-  }
+    },
+  ];
 
   const numTable1Cols = table1Cols.length;
   const gapColIdx = numTable1Cols;
@@ -284,13 +278,9 @@ export function buildWorksheetXml(
   });
 
   // Table 2 (side-by-side summary statistics)
-  if (includeStats) {
-    // Gap column
-    xml += `\n    <col min="${gapColIdx + 1}" max="${gapColIdx + 1}" width="4" customWidth="1"/>`;
-    // Stat columns
-    xml += `\n    <col min="${statCol1Idx + 1}" max="${statCol1Idx + 1}" width="26" customWidth="1"/>`;
-    xml += `\n    <col min="${statCol2Idx + 1}" max="${statCol2Idx + 1}" width="16" customWidth="1"/>`;
-  }
+  xml += `\n    <col min="${gapColIdx + 1}" max="${gapColIdx + 1}" width="4" customWidth="1"/>`;
+  xml += `\n    <col min="${statCol1Idx + 1}" max="${statCol1Idx + 1}" width="26" customWidth="1"/>`;
+  xml += `\n    <col min="${statCol2Idx + 1}" max="${statCol2Idx + 1}" width="16" customWidth="1"/>`;
 
   xml += `\n  </cols>\n  <sheetData>`;
 
@@ -299,14 +289,12 @@ export function buildWorksheetXml(
   table1Cols.forEach((col, idx) => {
     xml += `\n      <c r="${getColLetter(idx)}1" s="1" t="inlineStr"><is><t>${escapeXml(col.label)}</t></is></c>`;
   });
-  if (includeStats) {
-    xml += `\n      <c r="${getColLetter(statCol1Idx)}1" s="1" t="inlineStr"><is><t>SUMMARY STATISTIC</t></is></c>`;
-    xml += `\n      <c r="${getColLetter(statCol2Idx)}1" s="1" t="inlineStr"><is><t>VALUE</t></is></c>`;
-  }
+  xml += `\n      <c r="${getColLetter(statCol1Idx)}1" s="1" t="inlineStr"><is><t>SUMMARY STATISTIC</t></is></c>`;
+  xml += `\n      <c r="${getColLetter(statCol2Idx)}1" s="1" t="inlineStr"><is><t>VALUE</t></is></c>`;
   xml += `\n    </row>`;
 
   // Data rows (rendered side-by-side)
-  const numDataRows = Math.max(shifts.length + 1, includeStats ? statRows.length : 0);
+  const numDataRows = Math.max(shifts.length + 1, statRows.length);
 
   for (let i = 0; i < numDataRows; i++) {
     const rowNum = i + 2;
@@ -320,12 +308,9 @@ export function buildWorksheetXml(
       xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(shift.startTimeLocal))}</t></is></c>`;
       xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(shift.endTimeLocal))}</t></is></c>`;
       xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(shift.durationFormatted))}</t></is></c>`;
-      if (includeSource) {
-        xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(shift.source))}</t></is></c>`;
-      }
-      if (includeNotes) {
-        xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="0" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(shift.note ?? ''))}</t></is></c>`;
-      }
+      xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(shift.location ?? 'remote'))}</t></is></c>`;
+      xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(shift.source))}</t></is></c>`;
+      xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="0" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(shift.note ?? ''))}</t></is></c>`;
     } else if (i === shifts.length) {
       // Left Table: TOTAL row
       let c = 0;
@@ -339,7 +324,7 @@ export function buildWorksheetXml(
     }
 
     // Right Table: side-by-side Summary Statistics
-    if (includeStats && i < statRows.length) {
+    if (i < statRows.length) {
       xml += `\n      <c r="${getColLetter(statCol1Idx)}${rowNum}" s="0" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(statRows[i].label))}</t></is></c>`;
       xml += `\n      <c r="${getColLetter(statCol2Idx)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(statRows[i].val))}</t></is></c>`;
     }
@@ -484,9 +469,17 @@ export function createZipBuffer(entries: ZipEntry[]): Uint8Array {
 
 export function generateExcelWorkbook(
   events: EventRow[],
-  request: GenerateReportRequestBody
+  request: GenerateReportRequestBody,
+  dateFilter?: { startDay?: string; endDay?: string; monthString?: string }
 ): { buffer: Uint8Array; shifts: ShiftSummaryItem[]; stats: ReportStats } {
-  const shifts = pairEventsIntoReportShifts(events);
+  let shifts = pairEventsIntoReportShifts(events);
+  if (dateFilter?.monthString) {
+    shifts = shifts.filter((s) => s.date.slice(0, 7) === dateFilter.monthString);
+  } else if (dateFilter?.startDay && dateFilter?.endDay) {
+    shifts = shifts.filter(
+      (s) => s.date >= dateFilter.startDay! && s.date <= dateFilter.endDay!
+    );
+  }
   const stats = computeReportStats(shifts);
 
   const encoder = new TextEncoder();

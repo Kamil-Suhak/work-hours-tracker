@@ -270,16 +270,22 @@ export default {
         const { deviceId } = await authenticateDevice(request, env);
         const rawBody = await parseJsonBody(request, correlationId);
         const reportReq = validateReportRequest(rawBody);
-        const reportResult = await generateReport(env.DB, DEFAULT_USER_ID, reportReq);
+        const reportResult = await generateReport(
+          env.DB,
+          DEFAULT_USER_ID,
+          reportReq,
+          env.REPORTS_BUCKET
+        );
 
         console.log(
           JSON.stringify({
             correlationId,
             operation: 'generate-report',
             deviceId,
+            format: reportReq.format ?? 'xlsx',
             preset: reportReq.preset,
             totalHours: reportResult.stats.totalHours,
-            shiftsCount: reportResult.shifts.length,
+            shiftsCount: reportResult.stats.totalShifts,
             latencyMs: Date.now() - startTime,
             result: 'ok',
           })
@@ -289,7 +295,7 @@ export default {
           status: 200,
           headers: {
             ...standardHeaders,
-            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Type': reportResult.contentType,
             'Content-Disposition': `attachment; filename="${reportResult.filename}"`,
             'X-Total-Hours': reportResult.stats.totalHours.toString(),
             'X-Total-Shifts': reportResult.stats.totalShifts.toString(),

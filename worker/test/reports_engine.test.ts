@@ -8,9 +8,20 @@ import {
   computeCrc32,
   sanitizeFormulaCell,
   buildWorksheetXml,
+  createZipBuffer,
 } from '../src/reports/excel_generator';
+import {
+  aggregateDailyContractHours,
+  formatCompactDuration,
+  generateContractDocx,
+  unzipBuffer,
+} from '../src/reports/docx_generator';
 import { validateReportRequest } from '../src/reports/report_service';
-import { getPreviousWarsawMonthRangeUtc, warsawWallClockToUtc } from '../src/status';
+import {
+  getCurrentWarsawMonthRangeUtc,
+  getPreviousWarsawMonthRangeUtc,
+  warsawWallClockToUtc,
+} from '../src/status';
 
 describe('Reports Engine Unit Tests', () => {
   it('cleanMarkdownForExcel strips headings, bullet markers, and formatting', () => {
@@ -404,6 +415,194 @@ describe('Reports Engine Unit Tests', () => {
     expect(paired[1].date).toBe('2026-03-30');
     expect(paired[1].startTimeLocal).toBe('09:00');
     expect(paired[1].endTimeLocal).toBe('17:00');
+  });
+
+  it('aggregates daily contract hours across recorded shifts and planned future shifts for current month', () => {
+    expect(formatCompactDuration(480)).toBe('8h0m');
+    expect(formatCompactDuration(270)).toBe('4h30m');
+
+    const events: EventRow[] = [
+      // Two shifts on 2026-10-01 (4h + 4h = 8h0m)
+      {
+        id: 'e1',
+        request_id: 'r1',
+        user_id: 'default-user',
+        device_id: 'd1',
+        event_type: 'clock_in',
+        source: 'flutter_app',
+        occurred_at_utc: '2026-10-01T07:00:00.000Z',
+        created_at_utc: '2026-10-01T07:00:00.000Z',
+        reason: null,
+      },
+      {
+        id: 'e2',
+        request_id: 'r2',
+        user_id: 'default-user',
+        device_id: 'd1',
+        event_type: 'clock_out',
+        source: 'flutter_app',
+        occurred_at_utc: '2026-10-01T11:00:00.000Z',
+        created_at_utc: '2026-10-01T11:00:00.000Z',
+        reason: null,
+      },
+      {
+        id: 'e3',
+        request_id: 'r3',
+        user_id: 'default-user',
+        device_id: 'd1',
+        event_type: 'clock_in',
+        source: 'flutter_app',
+        occurred_at_utc: '2026-10-01T12:00:00.000Z',
+        created_at_utc: '2026-10-01T12:00:00.000Z',
+        reason: null,
+      },
+      {
+        id: 'e4',
+        request_id: 'r4',
+        user_id: 'default-user',
+        device_id: 'd1',
+        event_type: 'clock_out',
+        source: 'flutter_app',
+        occurred_at_utc: '2026-10-01T16:00:00.000Z',
+        created_at_utc: '2026-10-01T16:00:00.000Z',
+        reason: null,
+      },
+      // Shift from September (should be excluded from 2026-10)
+      {
+        id: 'e0-in',
+        request_id: 'r0-in',
+        user_id: 'default-user',
+        device_id: 'd1',
+        event_type: 'clock_in',
+        source: 'flutter_app',
+        occurred_at_utc: '2026-09-30T10:00:00.000Z',
+        created_at_utc: '2026-09-30T10:00:00.000Z',
+        reason: null,
+      },
+      {
+        id: 'e0-out',
+        request_id: 'r0-out',
+        user_id: 'default-user',
+        device_id: 'd1',
+        event_type: 'clock_out',
+        source: 'flutter_app',
+        occurred_at_utc: '2026-09-30T14:00:00.000Z',
+        created_at_utc: '2026-09-30T14:00:00.000Z',
+        reason: null,
+      },
+    ];
+
+    const planned = [
+      { date: '2026-10-27', durationMinutes: 480 },
+      { date: '2026-10-28', durationMinutes: 360 },
+      { date: '2026-11-01', durationMinutes: 480 }, // Different month, excluded
+    ];
+
+    const rows = aggregateDailyContractHours(events, planned, '2026-10');
+    expect(rows).toEqual([
+      { date: '2026-10-01', durationMinutes: 480, durationCompact: '8h0m' },
+      { date: '2026-10-27', durationMinutes: 480, durationCompact: '8h0m' },
+      { date: '2026-10-28', durationMinutes: 360, durationCompact: '6h0m' },
+    ]);
+  });
+
+  it('generates filled contract .docx with date | 0h0m | signature PNG and Rachunek fields', async () => {
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
+
+    const sampleDocXml = `<?xml version="1.0" encoding="utf-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
+  <w:body>
+    <w:p><w:r><w:t>Ewidencja godzin wykonywania umowy zlecenia zawartej w dniu</w:t></w:r></w:p>
+    <w:p><w:r><w:t>…………………………………………………………. r.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Nazwisko i imię Zleceniobiorcy: ………………………………………………………………………………………</w:t></w:r></w:p>
+    <w:tbl>
+      <w:tr><w:tc><w:p><w:r><w:t>Data</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Liczba godzin</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Podpis</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Uwagi</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Zleceniodawca</w:t></w:r></w:p></w:tc></w:tr>
+      <w:tr><w:tc><w:p></w:p></w:tc><w:tc><w:p></w:p></w:tc><w:tc><w:p></w:p></w:tc><w:tc><w:p></w:p></w:tc><w:tc><w:p></w:p></w:tc></w:tr>
+      <w:tr><w:tc><w:p></w:p></w:tc><w:tc><w:p></w:p></w:tc><w:tc><w:p></w:p></w:tc><w:tc><w:p></w:p></w:tc><w:tc><w:p></w:p></w:tc></w:tr>
+    </w:tbl>
+    <w:p><w:r><w:t>Wystawiony przez: ……………………………………………….…………………………………………</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Za wykonanie prac wyszczególnionych w umowie zlecenia z dnia ………………………………………………</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Liczba godzin wykonywania zlecenia: ……………………………………………………</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Stawka godzinowa: ……………………………………………………</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Wnioskuję o wypłatę wynagrodzenia w kwocie brutto:  …………………………………………… PLN</w:t></w:r></w:p>
+    <w:p><w:r><w:t>……………………………………………………</w:t></w:r><w:r><w:tab /></w:r><w:r><w:t>……………………………………………………</w:t></w:r></w:p>
+  </w:body>
+</w:document>`;
+
+    const templateZip = createZipBuffer([
+      {
+        path: '[Content_Types].xml',
+        data: encoder.encode(
+          `<?xml version="1.0" encoding="utf-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml" /></Types>`
+        ),
+      },
+      {
+        path: 'word/_rels/document.xml.rels',
+        data: encoder.encode(
+          `<?xml version="1.0" encoding="utf-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>`
+        ),
+      },
+      {
+        path: 'word/document.xml',
+        data: encoder.encode(sampleDocXml),
+      },
+    ]);
+
+    // Minimal valid 1x1 PNG header bytes
+    const dummyPng = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+      0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+      0x00, 0x00, 0x01, 0x2c, 0x00, 0x00, 0x00, 0x64,
+    ]);
+
+    const docxOut = await generateContractDocx({
+      templateDocxBytes: templateZip,
+      signaturePngBytes: dummyPng,
+      profile: {
+        contractorName: 'Kowalski Jan',
+        contractDate: '01.10.2026',
+        hourlyRatePln: 50,
+        monthlyHours: 80,
+        grossAmountPln: 4000,
+        issuePlace: 'Mielec',
+      },
+      dailyRows: [
+        { date: '2026-10-01', durationMinutes: 480, durationCompact: '8h0m' },
+        { date: '2026-10-27', durationMinutes: 240, durationCompact: '4h0m' },
+      ],
+      issueDateWarsaw: '2026-10-26',
+    });
+
+    const unpacked = await unzipBuffer(docxOut);
+    const updatedDocXml = decoder.decode(
+      unpacked.find((e) => e.path === 'word/document.xml')!.data
+    );
+    const sigEntry = unpacked.find((e) => e.path === 'word/media/signature.png');
+
+    expect(sigEntry).toBeDefined();
+    expect(updatedDocXml).toContain('01.10.2026 r.');
+    expect(updatedDocXml).toContain('Nazwisko i imię Zleceniobiorcy: Kowalski Jan');
+    expect(updatedDocXml).toContain('2026-10-01');
+    expect(updatedDocXml).toContain('8h0m');
+    expect(updatedDocXml).toContain('2026-10-27');
+    expect(updatedDocXml).toContain('4h0m');
+    expect(updatedDocXml).toContain('rIdSignatureImg');
+    expect(updatedDocXml).toContain('80h 0m');
+    expect(updatedDocXml).toContain('50 PLN');
+    expect(updatedDocXml).toContain('4000 PLN');
+    expect(updatedDocXml).toContain('Mielec, 2026-10-26');
+  });
+
+  it('getCurrentWarsawMonthRangeUtc computes exact current month boundaries in Warsaw', () => {
+    const oct26 = new Date('2026-10-26T12:00:00.000Z');
+    const range = getCurrentWarsawMonthRangeUtc(oct26);
+    expect(range.monthString).toBe('2026-10');
+    expect(range.daysInMonth).toBe(31);
+    // 2026-10-01 00:00 CEST (UTC+2) -> 2026-09-30T22:00:00.000Z
+    expect(range.startIso).toBe('2026-09-30T22:00:00.000Z');
+    // 2026-11-01 00:00 CET (UTC+1) -> 2026-10-31T23:00:00.000Z
+    expect(range.endIso).toBe('2026-10-31T23:00:00.000Z');
   });
 });
 

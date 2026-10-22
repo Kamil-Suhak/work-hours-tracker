@@ -103,6 +103,70 @@ export function getPreviousWarsawMonthRangeUtc(now: Date = new Date()): {
   };
 }
 
+/**
+ * Returns the exact UTC start and end bounds for the current calendar month in Europe/Warsaw.
+ * Uses half-open interval [startIso, endIso) so the 1st 00:00 and last day 23:59 Warsaw time are exact.
+ */
+export function getCurrentWarsawMonthRangeUtc(now: Date = new Date()): {
+  startIso: string;
+  endIso: string;
+  monthString: string;
+  year: number;
+  month: number;
+  daysInMonth: number;
+} {
+  const { monthString } = getWarsawDateComponents(now);
+  const year = parseInt(monthString.slice(0, 4), 10);
+  const month = parseInt(monthString.slice(5, 7), 10);
+
+  let nextYear = year;
+  let nextMonth = month + 1;
+  if (nextMonth === 13) {
+    nextMonth = 1;
+    nextYear += 1;
+  }
+
+  const startUtc = warsawWallClockToUtc(year, month, 1, 0, 0, 0);
+  const endUtc = warsawWallClockToUtc(nextYear, nextMonth, 1, 0, 0, 0);
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+
+  return {
+    startIso: startUtc.toISOString(),
+    endIso: endUtc.toISOString(),
+    monthString,
+    year,
+    month,
+    daysInMonth,
+  };
+}
+
+/**
+ * Converts YYYY-MM-DD start and end dates in Europe/Warsaw into a half-open UTC interval [startIso, endIso).
+ */
+export function warsawDateRangeToUtc(
+  startDateYmd: string,
+  endDateYmd: string
+): { startIso: string; endIso: string } {
+  const [sYear, sMonth, sDay] = startDateYmd.slice(0, 10).split('-').map((n) => parseInt(n, 10));
+  const [eYear, eMonth, eDay] = endDateYmd.slice(0, 10).split('-').map((n) => parseInt(n, 10));
+
+  const startUtc = warsawWallClockToUtc(sYear, sMonth, sDay, 0, 0, 0);
+  const nextDayUtcDate = new Date(Date.UTC(eYear, eMonth - 1, eDay + 1));
+  const endUtc = warsawWallClockToUtc(
+    nextDayUtcDate.getUTCFullYear(),
+    nextDayUtcDate.getUTCMonth() + 1,
+    nextDayUtcDate.getUTCDate(),
+    0,
+    0,
+    0
+  );
+
+  return {
+    startIso: startUtc.toISOString(),
+    endIso: endUtc.toISOString(),
+  };
+}
+
 export function pairShifts(events: EventRow[]): {
   clockIn: EventRow;
   clockOut: EventRow;

@@ -145,6 +145,22 @@ export interface ApiErrorResponse {
 
 export type ReportPreset = 'formal' | 'full';
 
+export type ReportFormat = 'xlsx' | 'docx';
+
+export interface PlannedShiftItem {
+  date: string;
+  durationMinutes: number;
+}
+
+export interface ContractProfile {
+  contractorName: string;
+  contractDate: string;
+  hourlyRatePln: number;
+  monthlyHours: number;
+  grossAmountPln?: number;
+  issuePlace?: string;
+}
+
 export interface ReportOptions {
   includeNotes?: boolean;
   includeStats?: boolean;
@@ -152,10 +168,12 @@ export interface ReportOptions {
 }
 
 export interface GenerateReportRequestBody {
+  format?: ReportFormat;
   startDate: string;
   endDate: string;
   preset: ReportPreset;
   options?: ReportOptions;
+  plannedShifts?: PlannedShiftItem[];
 }
 
 export interface ShiftSummaryItem {
