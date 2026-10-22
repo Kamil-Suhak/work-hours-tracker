@@ -215,32 +215,48 @@ class ApiClient {
     _handleError(response);
   }
 
+  static String _formatDateYmd(DateTime date) {
+    final y = date.year.toString().padLeft(4, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    final d = date.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
+
   Future<({Uint8List bytes, String filename, double totalHours, int totalShifts})> generateReport({
-    required DateTime startDate,
-    required DateTime endDate,
-    required String preset,
-    bool includeNotes = false,
-    bool includeStats = false,
-    bool includeSource = false,
+    DateTime? startDate,
+    DateTime? endDate,
+    String format = 'xlsx',
+    String preset = 'full',
+    List<Map<String, dynamic>>? plannedShifts,
   }) async {
     final uri = Uri.parse('$baseUrl/api/v1/reports/generate');
     final headers = await _buildHeaders();
-    final body = jsonEncode({
-      'startDate': startDate.toUtc().toIso8601String(),
-      'endDate': endDate.toUtc().toIso8601String(),
+    final Map<String, dynamic> payload = {
+      'format': format,
       'preset': preset,
-      'options': {
-        'includeNotes': includeNotes,
-        'includeStats': includeStats,
-        'includeSource': includeSource,
-      },
-    });
+    };
+    if (startDate != null) {
+      payload['startDate'] = _formatDateYmd(startDate);
+    }
+    if (endDate != null) {
+      payload['endDate'] = _formatDateYmd(endDate);
+    }
+    if (plannedShifts != null) {
+      payload['plannedShifts'] = plannedShifts;
+    }
 
-    final response = await _httpClient.post(uri, headers: headers, body: body);
+    final response = await _httpClient.post(
+      uri,
+      headers: headers,
+      body: jsonEncode(payload),
+    );
     if (response.statusCode == 200) {
       final cd = response.headers['content-disposition'] ?? '';
       final fnMatch = RegExp(r'filename="([^"]+)"').firstMatch(cd);
-      final filename = fnMatch != null ? fnMatch.group(1)! : 'work-hours-report.xlsx';
+      final defaultName = format == 'docx'
+          ? 'zalaczniki-umowa-zlecenie.docx'
+          : 'work-hours-report.xlsx';
+      final filename = fnMatch != null ? fnMatch.group(1)! : defaultName;
       final totalHours = double.tryParse(response.headers['x-total-hours'] ?? '0') ?? 0.0;
       final totalShifts = int.tryParse(response.headers['x-total-shifts'] ?? '0') ?? 0;
 

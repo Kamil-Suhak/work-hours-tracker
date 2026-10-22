@@ -44,6 +44,14 @@ class AppConfig {
   static const String defaultReportFilename = 'work-hours-report.xlsx';
   static const String reportMimeType =
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  static const String docxMimeType =
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+  static String mimeTypeForFilename(String filename) {
+    return filename.toLowerCase().endsWith('.docx')
+        ? docxMimeType
+        : reportMimeType;
+  }
 
   // --- UX & Timing Defaults ---
   static const Duration undoGracePeriod = Duration(minutes: 5);

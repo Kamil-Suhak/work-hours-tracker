@@ -146,8 +146,14 @@ class MainActivity: FlutterActivity() {
                             file
                         )
 
+                        val mimeType = if (file.name.endsWith(".docx", ignoreCase = true)) {
+                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        } else {
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        }
+
                         val intent = Intent(Intent.ACTION_VIEW).apply {
-                            setDataAndType(uri, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                            setDataAndType(uri, mimeType)
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         }
@@ -175,8 +181,13 @@ class MainActivity: FlutterActivity() {
                             "${applicationContext.packageName}.fileprovider",
                             file
                         )
+                        val mimeType = if (file.name.endsWith(".docx", ignoreCase = true)) {
+                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        } else {
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        }
                         val intent = Intent(Intent.ACTION_VIEW).apply {
-                            setDataAndType(uri, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                            setDataAndType(uri, mimeType)
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         }

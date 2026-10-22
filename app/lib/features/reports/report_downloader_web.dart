@@ -6,7 +6,7 @@ import '../../config/app_config.dart';
 void triggerBrowserDownload(Uint8List bytes, String filename) {
   final blob = html.Blob(
     [bytes],
-    AppConfig.reportMimeType,
+    AppConfig.mimeTypeForFilename(filename),
   );
   final url = html.Url.createObjectUrlFromBlob(blob);
   html.AnchorElement(href: url)
@@ -19,7 +19,7 @@ bool openReportInBrowser(Uint8List bytes, String filename) {
   try {
     final blob = html.Blob(
       [bytes],
-      AppConfig.reportMimeType,
+      AppConfig.mimeTypeForFilename(filename),
     );
     final url = html.Url.createObjectUrlFromBlob(blob);
     html.window.open(url, '_blank');
