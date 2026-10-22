@@ -464,7 +464,7 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
         // Last synced info
         Center(
           child: Text(
-            'Authoritative server time: ${timeFormat.format(status.serverTime.toLocal())}',
+            'Last synced: ${timeFormat.format(status.serverTime.toLocal())}',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Colors.grey[500],
                 ),
