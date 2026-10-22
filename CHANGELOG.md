@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.1] - 2026-10-22
+
+### Added
+- **Reports Screen Split Tabs & Layout Overhaul:** Redesigned `ReportsScreen` into a clean 2-tab view (`Formal Report` and `Excel Report`), properly utilizing vertical space on desktop with centered, constrained cards and reasonably sized generate buttons (`280px`).
+- **Last 6 Months Quick-Select Dropdown:** Replaced quick pills with a dedicated month-name dropdown (e.g. *October 2026*, *September 2026*) on both the Formal and Excel report tabs.
+- **Visual Split-Button for Clock Controls:** Added a subtle vertical divider inside `ClockActionButton` separating the primary action label from the dropdown arrow. Left target triggers regular clock in/out; right arrow target opens offset options (`-5m`, `Now`, `+5m`, `Custom...`) with a single click/tap on desktop or phone.
+- **Settings Dialog Transitions & Staging Web Link:** Added an animated horizontal slide/fade transition (`AnimatedSwitcher`) when toggling between Production and Staging environments, along with a direct action button to open the Staging web client in the browser.
+- **CI / CD Pipeline Staging Gate:** Structured GitHub Actions workflow to run full Worker & Flutter CI first, build and deploy to Staging, and only then proceed with Production deployment.
+
+### Changed
+- **Removed File Extensions & Redundant Badges:** Stripped `.DOCX` and `.XLSX` from all headers, buttons, dialogs, and snackbars, removed the `Umowa Zlecenie` badge, and clarified automated archive downloads as `"Download Latest Automated Report"`.
+- **Symmetrical Formal Date Range:** Rendered side-by-side Start Date and End Date cards on the Formal Report tab to match the Excel Report layout, secured with subtle lock icons.
+- **Desktop & Mobile Timer Card Typography:** Removed redundant History button from the desktop quadrant view (`CurrentTrackerQuadrant`), enlarging the Month-to-date total in its place (`22px`), and separated the Month to Date label and value onto centered individual lines for mobile.
+
+---
+
 ## [1.2.0] - 2026-10-22
 
 ### Added

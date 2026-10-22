@@ -79,5 +79,15 @@
 
 ---
 
+### Phase 9: v1.2.1 UI & Layout Refinements, Split Controls, & Sequential CI Pipeline
+- [x] **Reports Screen Split Tabs & Layout**: Redesigned `ReportsScreen` into 2 side-by-side tabs (`Formal Report` and `Excel Report`), constrained card widths (`620px`), centered generate buttons (`280px`), and removed `.DOCX` / `.XLSX` extensions and Umowa Zlecenie badge.
+- [x] **Last 6 Months Dropdown & Symmetrical Dates**: Quick month selector dropdown added to both report tabs; symmetrical side-by-side locked date tiles on the Formal Report.
+- [x] **Split Clock Action Button**: Split `ClockActionButton` into main action target and dropdown arrow target with subtle vertical divider. Single-click opens offset options directly.
+- [x] **Desktop Quadrant & Timer Polish**: Removed redundant History button from `CurrentShiftTimerCard` on desktop quadrant; enlarged Month-to-date typography (`22px`); centered label and value on separate lines for mobile.
+- [x] **Settings Dialog Transitions & Staging Web Link**: Added slide/fade `AnimatedSwitcher` when toggling environments; direct action link to launch Staging Web in browser.
+- [x] **Sequential CI / CD Pipeline**: GitHub Actions workflow restructured to run tests, build & deploy Staging, and then deploy Production. Mandatory pre-deployment checks (`npm run typecheck` + `flutter analyze`) verified.
+
+---
+
 ## Status Summary
-All v1.1.3 and v1.2.0 implementation items are complete, tested (71 Vitest tests + 71 Flutter tests), and atomically committed locally.
+All v1.1.3, v1.2.0, and v1.2.1 implementation items are complete, tested (71 Vitest tests + 72 Flutter tests), and atomically committed locally.

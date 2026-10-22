@@ -7,7 +7,7 @@ class AppConfig {
 
   // --- App Metadata ---
   static const String appName = 'Work Hours Tracker';
-  static const String appVersion = '1.2.0';
+  static const String appVersion = '1.2.1';
 
   // --- API Configuration ---
   /// Default base URL for API communication.
