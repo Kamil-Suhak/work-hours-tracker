@@ -256,19 +256,21 @@ The system is considered ready for `v1.0` when:
 
 ---
 
-## 10. Planned for v1.2 — Private R2 Template & Contract `.docx` Automation
+## 10. Completed in v1.2 — Private R2 Template & Contract `.docx` Automation
 
 ### 10.1 Goal & Privacy Model
-- Automate filling the monthly `Załączniki do umowy zlecenia.docx` document (both `Załącznik nr 2 — Ewidencja godzin` and `Rachunek do umowy zlecenia`) directly from the Cloudflare Worker while keeping the repository 100% public and free of personal/financial data.
-- Store private assets exclusively in the existing Cloudflare R2 bucket (`REPORTS_BUCKET`) under a restricted `templates/` prefix:
+- [x] Automate filling the monthly `Załączniki do umowy zlecenia.docx` document (both `Załącznik nr 2 — Ewidencja godzin` and `Rachunek do umowy zlecenia`) directly from the Cloudflare Worker while keeping the repository 100% public and free of personal/financial data.
+- [x] Store private assets exclusively in the existing Cloudflare R2 bucket (`REPORTS_BUCKET`) under a restricted `templates/` prefix:
   - `templates/umowa-zlecenie.docx` — base Word document template.
-  - `templates/contract-profile.json` — private personal/contract metadata (full name, contract number/date, hourly rate).
+  - `templates/contract-profile.json` — private personal/contract metadata (`contractorName`, `contractDate`, `hourlyRatePln`, `monthlyHours`, `grossAmountPln`, `issuePlace`).
   - `templates/signature.png` — transparent PNG of handwritten signature.
 
 ### 10.2 Table & Document Population Rules
-- **Attendance Table (`Załącznik nr 2`, 23 shift rows):**
-  - Group or list shifts chronologically and populate each row's 5 columns as:
+- [x] **Attendance Table (`Załącznik nr 2`, 23 shift rows):**
+  - Sum recorded shifts and planned future shifts (`plannedShifts`) by `Europe/Warsaw` calendar day for the full current month and populate each row's 5 columns as:
     `date | 0h0m | <embedded signature.png> | empty | empty`
-  - Populate the `RAZEM` total row with the summed hours/minutes and embed `signature.png` in the contractor signature box (`Podpis Zleceniobiorcy`).
-- **Invoice Page (`Rachunek do umowy zlecenia`):**
-  - Fill contract number, billing period (`MM/YYYY`), total hours × hourly rate, and embed `signature.png` above `podpis Zleceniobiorcy`.
+- [x] **Invoice Page (`Rachunek do umowy zlecenia`):**
+  - Fill contractor name, contract date, constant monthly hours (`80h 0m`), hourly rate (`50 PLN`), gross payout (`4000 PLN`), issue place/date, and embed `signature.png` above `podpis wykonawcy`.
+- [x] **Separated Excel (`.xlsx`) & Formal Word (`.docx`) Workflows:**
+  - Scheduled 1st-of-month cron (`0 0 1 * *`) and manual custom-range `.xlsx` exports always include all shift fields (including `Location`) and summary statistics.
+  - Flutter `ReportsScreen` provides a dedicated Formal Contract Report (`.docx`) card with `PlanFutureShiftsDialog` for end-of-month projections (e.g. submitting on the 26th for the 27th–31st).

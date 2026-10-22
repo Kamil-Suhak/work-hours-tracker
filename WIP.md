@@ -71,11 +71,13 @@
 
 ---
 
-### Phase 8: v1.2 Planned — Contract `.docx` Report Automation (Deferred)
-- [ ] **Private R2 Templates (`templates/`)**: Store `templates/umowa-zlecenie.docx`, `templates/contract-profile.json`, and `templates/signature.png` in Cloudflare R2 (`REPORTS_BUCKET`) so private personal/contract details and signature stay out of the public git repository.
-- [ ] **OpenXML `.docx` Generator**: Fill the 23-row `Załącznik nr 2` attendance table with `date | 0h0m | signature PNG | empty | empty` and populate `Rachunek do umowy zlecenia` fields automatically.
+### Phase 8: v1.2.0 Contract `.docx` Report Automation & Full Excel Reports
+- [x] **Private R2 Templates (`templates/`)**: Load `templates/umowa-zlecenie.docx`, `templates/contract-profile.json`, and `templates/signature.png` from Cloudflare R2 (`REPORTS_BUCKET`) so private personal/contract details and signature stay out of the public git repository.
+- [x] **OpenXML `.docx` Generator (`docx_generator.ts`)**: Native `DecompressionStream('deflate-raw')` ZIP unpacker and OpenXML manipulator that fills the 23-row `Załącznik` attendance table (`date | 0h0m | signature PNG | empty | empty`) aggregated by Warsaw calendar day (combining recorded shifts + `plannedShifts`) and populates all `Rachunek do umowy zlecenia` fields and contractor signature.
+- [x] **Always-Full Excel Reports & Exact Warsaw Date Filtering**: Standardized manual and 1st-of-month cron `.xlsx` reports to always include all columns (`Date`, `Start Time`, `End Time`, `Duration`, `Location`, `Source`, `Shift Notes`) and `Summary Statistics`, with exact `Europe/Warsaw` calendar date range boundaries.
+- [x] **Flutter Formal Report & `PlanFutureShiftsDialog`**: Separated `ReportsScreen` into Formal Contract Report (`.docx`, locked to full current month with `PlanFutureShiftsDialog` for remaining days) and Excel Data Report (`.xlsx`, custom date range), with `.docx` MIME type support on Android and Web.
 
 ---
 
 ## Status Summary
-All v1.1.3 implementation items are complete, tested (67 Vitest tests + 71 Flutter tests), and atomically committed locally.
+All v1.1.3 and v1.2.0 implementation items are complete, tested (71 Vitest tests + 71 Flutter tests), and atomically committed locally.

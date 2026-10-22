@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.0] - 2026-10-22
+
+### Added
+- **Formal Contract `.docx` Report Automation:** Added zero-dependency OpenXML `.docx` generation (`worker/src/reports/docx_generator.ts`) that populates `templates/umowa-zlecenie.docx` from Cloudflare R2 (`Załącznik` 23-row attendance table + `Rachunek do umowy zlecenia`) with daily aggregated hours (`date | 0h0m | signature PNG | empty | empty`), contractor profile metadata (`templates/contract-profile.json`), and embedded handwritten signature (`templates/signature.png`).
+- **Plan Remaining Shifts Dialog (`PlanFutureShiftsDialog`):** Added an interactive dialog in the Flutter app when generating the Formal Contract Report (`.docx`) to plan remaining shifts of the current month (e.g. 26th–31st), displaying live `Recorded + Planned = Projected Total` hours and weekday quick-fill presets.
+- **Exact Warsaw Month & Custom Range Boundaries:** Added `getCurrentWarsawMonthRangeUtc` and `warsawDateRangeToUtc` in `worker/src/status.ts` so formal `.docx` reports lock to the exact current `Europe/Warsaw` month without boundary clipping or cross-month leakage, and `.xlsx` reports filter shifts accurately by Warsaw calendar date.
+
+### Changed
+- **Separated Formal `.docx` & Full Excel `.xlsx` Reports:** Split `ReportsScreen` into a dedicated Formal Contract Report (`.docx`) card (locked to the full current month) and an Excel Data Report (`.xlsx`) card (with custom date range and quick chips).
+- **Full-Featured Excel Reports by Default:** Standardized both manual and scheduled 1st-of-month cron (`0 0 1 * *`) `.xlsx` reports to always include all database fields (`Date`, `Start Time`, `End Time`, `Duration`, `Location`, `Source`, `Shift Notes`) and `Summary Statistics`.
+
+---
+
 ## [1.1.3] - 2026-10-22
 
 ### Added

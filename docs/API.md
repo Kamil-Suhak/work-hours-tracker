@@ -220,27 +220,34 @@ Inserts a historical matched shift pair (clock-in + clock-out) with validation a
 ### 4.4 Reporting & R2 Engine
 
 #### `POST /api/v1/reports/generate`
-Generates an on-demand OpenXML spreadsheet (`.xlsx`) binary report for the specified date range.
+Generates an on-demand Excel data report (`.xlsx`, custom date range) or Formal Contract Report (`.docx`, locked to the full current Warsaw month).
 
 - **Auth:** Device Token
-- **Body:**
+- **Body (`.xlsx` — Personal Excel Data Report):**
 ```json
 {
+  "format": "xlsx",
   "startDate": "2026-09-01",
   "endDate": "2026-09-30",
-  "preset": "formal",
-  "options": {
-    "includeNotes": false,
-    "includeStats": true,
-    "includeSource": false
-  }
+  "preset": "full"
 }
 ```
-- **Presets:**
-  - `formal`: Clean table with Date, Start Time (Warsaw), End Time (Warsaw), Duration, and Summary Statistics.
-  - `full`: Complete log with Shift Notes, Source tags, and all statistics.
-- **Response (200 OK):** Binary stream (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`) with headers:
-  - `Content-Disposition: attachment; filename="work-hours-2026-09-01-to-2026-09-30-formal.xlsx"`
+- **Body (`.docx` — Formal Contract Report for Current Month):**
+```json
+{
+  "format": "docx",
+  "preset": "formal",
+  "plannedShifts": [
+    { "date": "2026-10-27", "durationMinutes": 480 },
+    { "date": "2026-10-28", "durationMinutes": 360 }
+  ]
+}
+```
+- **Formats:**
+  - `xlsx`: Complete shift log with Date, Start Time (Warsaw), End Time (Warsaw), Duration, Location (`Remote` / `In-Office`), Source, Shift Notes, and Summary Statistics.
+  - `docx`: Populates the private `templates/umowa-zlecenie.docx` template from R2 (`Załącznik nr 2` 23-row attendance table + `Rachunek do umowy zlecenia`) for the full current `Europe/Warsaw` month, summing recorded shifts and `plannedShifts` by Warsaw calendar day (`date | 0h0m | signature PNG | empty | empty`).
+- **Response (200 OK):** Binary stream (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` for `.xlsx`, or `application/vnd.openxmlformats-officedocument.wordprocessingml.document` for `.docx`) with headers:
+  - `Content-Disposition: attachment; filename="work-hours-2026-09-01-to-2026-09-30-full.xlsx"` (or `zalaczniki-umowa-zlecenie-2026-10.docx`)
   - `X-Total-Hours: 168`
   - `X-Total-Shifts: 21`
 

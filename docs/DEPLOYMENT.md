@@ -51,6 +51,21 @@ Ensure `worker/wrangler.jsonc` contains the binding:
 ]
 ```
 
+### 2.4 Upload Private Formal Report Templates to R2 (`templates/`)
+To generate formal `.docx` contract reports (`Załączniki do umowy zlecenia.docx`) while keeping personal details and your signature out of the public git repository, upload the 3 private template objects to `REPORTS_BUCKET` under the `templates/` prefix (see [`docs/contract-profile.example.json`](./contract-profile.example.json) for the JSON schema):
+
+```bash
+# 1. Base Word document template
+npx wrangler r2 object put work-hours-reports/templates/umowa-zlecenie.docx --file="C:/Users/kamil/Downloads/Załączniki do umowy zlecenia.docx" --remote
+
+# 2. Private contract metadata JSON (contractorName, contractDate, hourlyRatePln, monthlyHours, grossAmountPln, issuePlace)
+npx wrangler r2 object put work-hours-reports/templates/contract-profile.json --file="./contract-profile.json" --remote
+
+# 3. Transparent PNG of handwritten signature
+npx wrangler r2 object put work-hours-reports/templates/signature.png --file="./signature.png" --remote
+```
+> Note: The public download endpoint (`GET /api/v1/reports/download/:filename`) strictly restricts access to `reports/work-hours-YYYY-MM-(formal|full).xlsx`, so objects under `templates/` can never be downloaded directly.
+
 ---
 
 ## 3. Database Migrations
