@@ -180,8 +180,10 @@ void main() {
       expect(find.text('Plan Remaining Shifts'), findsOneWidget);
       expect(find.text('Projected Total'), findsOneWidget);
 
-      // Tap "+30m" on the first day row to guarantee at least one planned shift even on the 31st
-      await tester.tap(find.byTooltip('+30m').first);
+      // Enter custom duration on the first day row to guarantee at least one planned shift
+      final firstInput = find.byType(TextField).first;
+      await tester.enterText(firstInput, '0h 30m');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Generate Report'));

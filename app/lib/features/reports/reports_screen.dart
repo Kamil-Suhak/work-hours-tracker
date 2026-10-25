@@ -914,6 +914,8 @@ class PlanFutureShiftsDialog extends StatefulWidget {
 class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
   late final List<DateTime> _remainingDays;
   late final Map<String, int> _minutesByDate;
+  late final Map<String, TextEditingController> _controllers;
+  late final Map<String, FocusNode> _focusNodes;
   final DateFormat _dayLabelFormat = DateFormat('EEE, MMM d');
 
   @override
@@ -931,6 +933,33 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
     _minutesByDate = {
       for (final day in _remainingDays) _formatYmd(day): 0,
     };
+    _controllers = {
+      for (final day in _remainingDays)
+        _formatYmd(day): TextEditingController(),
+    };
+    _focusNodes = {
+      for (final day in _remainingDays)
+        _formatYmd(day): FocusNode(),
+    };
+
+    for (final entry in _focusNodes.entries) {
+      entry.value.addListener(() {
+        if (!entry.value.hasFocus) {
+          _commitDayInput(entry.key);
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final node in _focusNodes.values) {
+      node.dispose();
+    }
+    for (final controller in _controllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
   }
 
   static String _formatYmd(DateTime d) {
@@ -946,6 +975,96 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
     return '${h}h ${m}m';
   }
 
+  static int? _parseDurationMinutes(String raw) {
+    final input = raw.trim().toLowerCase().replaceAll(',', '.');
+    if (input.isEmpty) return 0;
+
+    // Exact zero representations
+    if (input == '0' ||
+        input == '0h' ||
+        input == '0m' ||
+        input == '0h 0m' ||
+        input == '0h0m' ||
+        input == '0:00' ||
+        input == '00:00') {
+      return 0;
+    }
+
+    // Colon notation: "H:MM" or "HH:MM" (e.g. "7:30", "08:15")
+    final colonMatch = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(input);
+    if (colonMatch != null) {
+      final h = int.tryParse(colonMatch.group(1)!) ?? 0;
+      final m = int.tryParse(colonMatch.group(2)!) ?? 0;
+      if (m < 60) {
+        return (h * 60 + m).clamp(0, 1440);
+      }
+    }
+
+    // Hours and minutes with units: e.g. "7h 30m", "7h30m", "7h 30", "7h", "30m", "1.5h"
+    final hmMatch = RegExp(
+      r'^(?:(\d+(?:\.\d+)?)\s*h)?\s*(?:(\d+)\s*m?)?$',
+    ).firstMatch(input);
+
+    if (hmMatch != null) {
+      final hStr = hmMatch.group(1);
+      final mStr = hmMatch.group(2);
+
+      if (hStr != null || mStr != null) {
+        if (hStr == null && mStr != null && !input.contains('m')) {
+          // Fall through to numeric fallback
+        } else {
+          double totalMinutes = 0;
+          if (hStr != null) {
+            totalMinutes += (double.tryParse(hStr) ?? 0.0) * 60;
+          }
+          if (mStr != null) {
+            totalMinutes += (int.tryParse(mStr) ?? 0);
+          }
+          return totalMinutes.round().clamp(0, 1440);
+        }
+      }
+    }
+
+    // Numeric fallback: e.g. "8", "6.5", "90"
+    final numVal = double.tryParse(input);
+    if (numVal != null && numVal >= 0) {
+      if (numVal <= 24) {
+        return (numVal * 60).round().clamp(0, 1440);
+      } else {
+        return numVal.round().clamp(0, 1440);
+      }
+    }
+
+    return null;
+  }
+
+  void _commitDayInput(String key) {
+    final text = _controllers[key]?.text.trim() ?? '';
+    if (text.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _minutesByDate[key] = 0;
+          _controllers[key]?.text = '';
+        });
+      }
+      return;
+    }
+    final parsed = _parseDurationMinutes(text);
+    if (parsed != null) {
+      if (mounted) {
+        setState(() {
+          _minutesByDate[key] = parsed;
+          _controllers[key]?.text =
+              parsed > 0 ? _formatHoursMinutes(parsed) : '';
+        });
+      }
+    } else {
+      final current = _minutesByDate[key] ?? 0;
+      _controllers[key]?.text =
+          current > 0 ? _formatHoursMinutes(current) : '';
+    }
+  }
+
   int get _plannedTotalMinutes =>
       _minutesByDate.values.fold(0, (sum, mins) => sum + mins);
 
@@ -955,7 +1074,9 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
         final key = _formatYmd(day);
         final isWeekday =
             day.weekday >= DateTime.monday && day.weekday <= DateTime.friday;
-        _minutesByDate[key] = isWeekday ? minutes : 0;
+        final val = isWeekday ? minutes : 0;
+        _minutesByDate[key] = val;
+        _controllers[key]?.text = val > 0 ? _formatHoursMinutes(val) : '';
       }
     });
   }
@@ -964,24 +1085,30 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
     setState(() {
       for (final key in _minutesByDate.keys.toList()) {
         _minutesByDate[key] = 0;
+        _controllers[key]?.text = '';
       }
-    });
-  }
-
-  void _adjustDayMinutes(String key, int delta) {
-    setState(() {
-      final next = (_minutesByDate[key] ?? 0) + delta;
-      _minutesByDate[key] = next.clamp(0, 1440);
     });
   }
 
   void _setDayMinutes(String key, int minutes) {
     setState(() {
-      _minutesByDate[key] = minutes.clamp(0, 1440);
+      final clamped = minutes.clamp(0, 1440);
+      _minutesByDate[key] = clamped;
+      _controllers[key]?.text =
+          clamped > 0 ? _formatHoursMinutes(clamped) : '';
     });
   }
 
   void _submit() {
+    for (final day in _remainingDays) {
+      final key = _formatYmd(day);
+      final text = _controllers[key]?.text.trim() ?? '';
+      final parsed = _parseDurationMinutes(text);
+      if (parsed != null) {
+        _minutesByDate[key] = parsed;
+      }
+    }
+
     final result = <Map<String, dynamic>>[];
     for (final day in _remainingDays) {
       final key = _formatYmd(day);
@@ -1100,21 +1227,6 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
                     ),
                   ),
                   const SizedBox(width: 6),
-                  Expanded(
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: indigoAccent,
-                        side: const BorderSide(color: Color(0xFF334155)),
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                      ),
-                      onPressed: () => _fillWeekdays(360),
-                      child: const Text('Weekdays 6h',
-                          style: TextStyle(fontSize: 11)),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
                   TextButton(
                     onPressed: _clearAll,
                     child: const Text('Clear',
@@ -1137,6 +1249,7 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
                     final mins = _minutesByDate[key] ?? 0;
                     final isWeekend = day.weekday == DateTime.saturday ||
                         day.weekday == DateTime.sunday;
+                    final isCustom = mins > 0 && mins != 240 && mins != 480;
 
                     return Container(
                       padding: const EdgeInsets.symmetric(
@@ -1183,31 +1296,66 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
                           const SizedBox(width: 4),
                           _buildDurationChip(key, '4h', 240, mins == 240),
                           const SizedBox(width: 4),
-                          _buildDurationChip(key, '6h', 360, mins == 360),
-                          const SizedBox(width: 4),
                           _buildDurationChip(key, '8h', 480, mins == 480),
-                          const SizedBox(width: 4),
-                          IconButton(
-                            visualDensity: VisualDensity.compact,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(
-                                minWidth: 26, minHeight: 26),
-                            icon: const Icon(Icons.remove_circle_outline,
-                                size: 18, color: Color(0xFF94A3B8)),
-                            tooltip: '-30m',
-                            onPressed: mins > 0
-                                ? () => _adjustDayMinutes(key, -30)
-                                : null,
-                          ),
-                          IconButton(
-                            visualDensity: VisualDensity.compact,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(
-                                minWidth: 26, minHeight: 26),
-                            icon: const Icon(Icons.add_circle_outline,
-                                size: 18, color: Color(0xFF94A3B8)),
-                            tooltip: '+30m',
-                            onPressed: () => _adjustDayMinutes(key, 30),
+                          const SizedBox(width: 6),
+                          Tooltip(
+                            message: 'Custom duration (e.g. 2h 30m)',
+                            child: SizedBox(
+                              width: 66,
+                              height: 28,
+                              child: TextField(
+                                controller: _controllers[key],
+                                focusNode: _focusNodes[key],
+                                textAlign: TextAlign.center,
+                                keyboardType: TextInputType.text,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: '0h 0m',
+                                  hintStyle: const TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFF64748B),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  filled: true,
+                                  fillColor: const Color(0xFF1E293B),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 4, vertical: 4),
+                                  isDense: true,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(6),
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFF334155)),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(6),
+                                    borderSide: BorderSide(
+                                      color: isCustom
+                                          ? indigoAccent
+                                          : const Color(0xFF334155),
+                                      width: isCustom ? 1.5 : 1.0,
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(6),
+                                    borderSide: const BorderSide(
+                                        color: indigoAccent, width: 1.5),
+                                  ),
+                                ),
+                                onChanged: (val) {
+                                  final parsed = _parseDurationMinutes(val);
+                                  if (parsed != null) {
+                                    setState(() {
+                                      _minutesByDate[key] = parsed;
+                                    });
+                                  }
+                                },
+                                onSubmitted: (_) => _commitDayInput(key),
+                              ),
+                            ),
                           ),
                         ],
                       ),
