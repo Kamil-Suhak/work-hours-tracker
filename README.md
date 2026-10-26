@@ -6,7 +6,7 @@ A low-friction, single-user work hours tracking platform with authoritative serv
 
 ## Project Status
 
-- **Current Version:** `v1.2.1` (see [CHANGELOG.md](CHANGELOG.md))
+- **Current Version:** `v1.2.2` (see [CHANGELOG.md](CHANGELOG.md))
 - **Status:** Personal production, actively used
 - **Supported Platforms:** Android (App + Native Widget), Web (Desktop/Mobile browser), Cloudflare Workers (Backend + Static Assets)
 

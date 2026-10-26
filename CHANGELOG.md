@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.2] - 2026-10-26
+
+### Added
+- **Custom Duration Text Input for Shift Planning:** Replaced the `+/- 30m` step buttons and 6h pills in `PlanFutureShiftsDialog` with a compact inline text input (`hintText: '0h 0m'`) on each remaining day row. Supports flexible input formats (`0h 0m`, `2h 30m`, `6h`, `45m`, `7:30`, `2.5`, `2,5`), highlights custom durations with an active indigo border, and seamlessly synchronizes with live planned/projected total indicators and duration chips (`Off`, `4h`, `8h`).
+- **Simultaneous Side-by-Side Reports View:** Redesigned the desktop/tablet view of `ReportsScreen` to display both the Formal Contract Report and Excel Data Report simultaneously side-by-side, maximizing horizontal and vertical screen space and allowing immediate configuration and generation of both reports without tab switching.
+- **Application Screenshots in Documentation:** Added rich visual walkthrough screenshots to `README.md` covering the main dashboard, active shift stopwatch, duration & location selection, custom clock offsets, multi-environment settings, and the side-by-side reports layout.
+
+### Changed
+- **Server Sync Label Simplification:** Streamlined the Clock Screen authoritative server time indicator to concise `"Last synced: <time>"` text.
+- **Version Bumps:** Bumped application metadata, Flutter configuration (`1.2.2+10`), and Worker API version to `1.2.2`.
+
+---
+
 ## [1.2.1] - 2026-10-22
 
 ### Added

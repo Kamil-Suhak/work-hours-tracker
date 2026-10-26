@@ -89,5 +89,14 @@
 
 ---
 
+### Phase 10: v1.2.2 Custom Shift Inputs, Simultaneous Reports, & Release Prep
+- [x] **Simultaneous Side-by-Side Reports**: Render Formal Report and Excel Report simultaneously side-by-side on desktop/tablet viewports rather than toggling via tabs.
+- [x] **Custom Duration Shift Input**: Replaced `+/- 30m` buttons and 6h chips in `PlanFutureShiftsDialog` with a compact inline text input (`hintText: '0h 0m'`), flexible format parser (`Xh Ym`, `H:MM`, decimals, hours/minutes), and bidirectional sync with chips and projected totals.
+- [x] **Server Sync Label Polish**: Streamlined clock screen time sync readout to `"Last synced: <time>"`.
+- [x] **Documentation & Screenshots**: Added visual walkthrough screenshots to `README.md`.
+- [x] **v1.2.2 Versioning & Release Prep**: Updated `CHANGELOG.md`, `README.md`, `AppConfig.appVersion` (`1.2.2`), `pubspec.yaml` (`1.2.2+10`), and Worker `package.json` (`1.2.2`).
+
+---
+
 ## Status Summary
-All v1.1.3, v1.2.0, and v1.2.1 implementation items are complete, tested (71 Vitest tests + 72 Flutter tests), and atomically committed locally.
+All v1.1.3, v1.2.0, v1.2.1, and v1.2.2 implementation items are complete, tested (71 Vitest tests + 72 Flutter tests), and atomically committed locally.
