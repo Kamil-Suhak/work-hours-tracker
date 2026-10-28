@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../config/app_config.dart';
+import 'web_notification_service_stub.dart'
+    if (dart.library.html) 'web_notification_service.dart';
 
 abstract class NotificationService {
   Future<void> initialize();
@@ -85,7 +87,7 @@ class NoopNotificationService implements NotificationService {
 
 final notificationServiceProvider = Provider<NotificationService>((ref) {
   if (kIsWeb) {
-    return const NoopNotificationService();
+    return createWebNotificationService();
   }
   switch (defaultTargetPlatform) {
     case TargetPlatform.android:

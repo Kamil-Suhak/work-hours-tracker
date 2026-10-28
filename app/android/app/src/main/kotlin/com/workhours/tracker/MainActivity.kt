@@ -201,8 +201,14 @@ class MainActivity: FlutterActivity() {
             }
         }
 
+        createNotificationChannel()
+
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, NOTIFICATION_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
+                "initialize" -> {
+                    createNotificationChannel()
+                    result.success(true)
+                }
                 "requestPermissions" -> {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         val granted = ContextCompat.checkSelfPermission(
@@ -238,18 +244,42 @@ class MainActivity: FlutterActivity() {
                         )
 
                         if (alarmManager != null && triggerAtMillis > System.currentTimeMillis()) {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                                alarmManager.setExactAndAllowWhileIdle(
-                                    AlarmManager.RTC_WAKEUP,
-                                    triggerAtMillis,
-                                    pendingIntent
-                                )
-                            } else {
-                                alarmManager.setExact(
-                                    AlarmManager.RTC_WAKEUP,
-                                    triggerAtMillis,
-                                    pendingIntent
-                                )
+                            try {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                    if (alarmManager.canScheduleExactAlarms()) {
+                                        alarmManager.setExactAndAllowWhileIdle(
+                                            AlarmManager.RTC_WAKEUP,
+                                            triggerAtMillis,
+                                            pendingIntent
+                                        )
+                                    } else {
+                                        alarmManager.setAndAllowWhileIdle(
+                                            AlarmManager.RTC_WAKEUP,
+                                            triggerAtMillis,
+                                            pendingIntent
+                                        )
+                                    }
+                                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                    alarmManager.setExactAndAllowWhileIdle(
+                                        AlarmManager.RTC_WAKEUP,
+                                        triggerAtMillis,
+                                        pendingIntent
+                                    )
+                                } else {
+                                    alarmManager.setExact(
+                                        AlarmManager.RTC_WAKEUP,
+                                        triggerAtMillis,
+                                        pendingIntent
+                                    )
+                                }
+                            } catch (secEx: SecurityException) {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                    alarmManager.setAndAllowWhileIdle(
+                                        AlarmManager.RTC_WAKEUP,
+                                        triggerAtMillis,
+                                        pendingIntent
+                                    )
+                                }
                             }
                         }
                         result.success(true)
@@ -277,6 +307,22 @@ class MainActivity: FlutterActivity() {
                 }
                 else -> result.notImplemented()
             }
+        }
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
+                ?: return
+            val channel = android.app.NotificationChannel(
+                ShiftReminderReceiver.CHANNEL_ID,
+                "Shift Reminders",
+                android.app.NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Reminders to clock out before planned shift end"
+                enableVibration(true)
+            }
+            notificationManager.createNotificationChannel(channel)
         }
     }
 }
