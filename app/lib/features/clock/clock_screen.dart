@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import '../../api/api_client.dart';
 import '../../api/models.dart';
 import '../history/recent_shifts_sheet.dart';
 import '../history/shift_model.dart';
