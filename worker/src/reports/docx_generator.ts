@@ -229,10 +229,10 @@ export async function generateContractDocx(params: {
   const decoder = new TextDecoder();
 
   const { width, height } = getPngDimensions(signaturePngBytes);
-  // Table cell signature size (~2.3cm x 0.45cm max)
-  const cellSigSize = fitEmuDimensions(width, height, 850_000, 180_000);
-  // Rachunek footer signature size (~3.2cm x 0.8cm max)
-  const footerSigSize = fitEmuDimensions(width, height, 1_150_000, 290_000);
+  // Table cell signature size (~3.45cm x 0.68cm max, scaled 1.5x)
+  const cellSigSize = fitEmuDimensions(width, height, 1_275_000, 270_000);
+  // Rachunek footer signature size (~4.8cm x 1.2cm max, scaled 1.5x)
+  const footerSigSize = fitEmuDimensions(width, height, 1_725_000, 435_000);
 
   const sigRelId = 'rIdSignatureImg';
   const grossPln =
