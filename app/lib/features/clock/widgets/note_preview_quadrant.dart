@@ -4,15 +4,22 @@ import 'markdown_renderer.dart';
 
 class NotePreviewQuadrant extends StatelessWidget {
   final TextEditingController controller;
+  final bool isEditingPastShift;
+  final String? shiftDateLabel;
+  final VoidCallback? onReturnToCurrentShift;
 
   const NotePreviewQuadrant({
     super.key,
     required this.controller,
+    this.isEditingPastShift = false,
+    this.shiftDateLabel,
+    this.onReturnToCurrentShift,
   });
 
   @override
   Widget build(BuildContext context) {
-    const activeColor = Color(0xFF10B981);
+    final activeColor =
+        isEditingPastShift ? const Color(0xFF38BDF8) : const Color(0xFF10B981);
     const slateDark = Color(0xFF1E293B);
 
     return Container(
@@ -32,21 +39,45 @@ class NotePreviewQuadrant extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
-                const Icon(
-                  Icons.preview_outlined,
+                Icon(
+                  isEditingPastShift
+                      ? Icons.history_edu
+                      : Icons.preview_outlined,
                   color: activeColor,
                   size: 22,
                 ),
                 const SizedBox(width: 10),
-                const Text(
-                  'Markdown Preview',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                    color: Color(0xFFF8FAFC),
+                Flexible(
+                  child: Text(
+                    isEditingPastShift && shiftDateLabel != null
+                        ? 'Markdown Preview | Shift on $shiftDateLabel'
+                        : 'Markdown Preview',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      color: Color(0xFFF8FAFC),
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 const Spacer(),
+                if (isEditingPastShift && onReturnToCurrentShift != null) ...[
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      foregroundColor: const Color(0xFF38BDF8),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                    icon: const Icon(Icons.arrow_back, size: 14),
+                    label: const Text(
+                      'Current Shift',
+                      style:
+                          TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
+                    onPressed: onReturnToCurrentShift,
+                  ),
+                  const SizedBox(width: 4),
+                ],
                 ListenableBuilder(
                   listenable: controller,
                   builder: (context, _) {

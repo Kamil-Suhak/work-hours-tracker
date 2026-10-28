@@ -12,6 +12,8 @@ class RecentShiftsView extends ConsumerStatefulWidget {
   final bool showHeader;
   final bool showDragHandle;
   final EdgeInsetsGeometry? padding;
+  final ValueChanged<ShiftRecord>? onShiftSelected;
+  final String? selectedShiftId;
 
   const RecentShiftsView({
     super.key,
@@ -19,6 +21,8 @@ class RecentShiftsView extends ConsumerStatefulWidget {
     this.showHeader = true,
     this.showDragHandle = false,
     this.padding,
+    this.onShiftSelected,
+    this.selectedShiftId,
   });
 
   @override
@@ -220,20 +224,29 @@ class _RecentShiftsViewState extends ConsumerState<RecentShiftsView> {
     final hasNote = shift.hasNote;
     const activeEmerald = Color(0xFF10B981);
 
+    final isSelected = widget.selectedShiftId != null &&
+        (widget.selectedShiftId == shift.clockOut.id ||
+            widget.selectedShiftId == shift.clockIn.id);
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        onTap: () => _showShiftNoteDialog(context, shift),
+        onTap: widget.onShiftSelected != null
+            ? () => widget.onShiftSelected!(shift)
+            : () => _showShiftNoteDialog(context, shift),
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: const Color(0xFF1E293B),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: hasNote
-                  ? activeEmerald.withValues(alpha: 0.35)
-                  : const Color(0xFF334155),
+              color: isSelected
+                  ? const Color(0xFF38BDF8)
+                  : (hasNote
+                      ? activeEmerald.withValues(alpha: 0.35)
+                      : const Color(0xFF334155)),
+              width: isSelected ? 1.8 : 1.0,
             ),
           ),
           child: Column(
@@ -242,13 +255,39 @@ class _RecentShiftsViewState extends ConsumerState<RecentShiftsView> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    dateLabel,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      color: Color(0xFFF8FAFC),
-                    ),
+                  Row(
+                    children: [
+                      Text(
+                        dateLabel,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: Color(0xFFF8FAFC),
+                        ),
+                      ),
+                      if (isSelected) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF38BDF8)
+                                .withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                                color: const Color(0xFF38BDF8), width: 0.8),
+                          ),
+                          child: const Text(
+                            'Editing',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF38BDF8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   Container(
                     padding:
