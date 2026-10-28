@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.3] - 2026-10-28
+
+### Added
+- **Clickable Past Shift Note Editing in Web Quadrants:** In the 4-quadrant desktop web view, clicking any past shift in the Recent Shifts quadrant directly mounts that shift's notes in the left editor and markdown preview quadrants for viewing or editing. Disallows typing if clocked out with no past shift selected while allowing editing/adding notes for past shifts at any time. Automatically persists active shift note drafts, and handles the dual-save edge case if clocking out while editing a past shift note.
+- **Dynamic Note Editor Headers & Relocated Clear Button:** Renamed the active note title to dynamic labels (`Notes | Current Shift` or `Notes | Shift on <Date>`). Moved the "Clear Note" button to the top-right corner of the editor quadrant header.
+- **Environment Isolation & Locked API Base URL:** Removed the editable Worker URL text field from Settings, replacing it with a styled, non-editable API Base URL card displaying compile-time endpoints (`AppConfig.defaultApiBaseUrl` and `AppConfig.stagingApiBaseUrl`) with copy-to-clipboard functionality and lock icon. Isolated device Bearer tokens, admin API tokens, reminder offsets, and vibration preferences in separate secure storage per environment. Enclosed all environment-specific settings collectively within animated transitions (`AnimatedSwitcher`).
+- **Web & Mobile Shift Notifications:** Implemented web notifications using HTML5 Notification API with background timer triggers and permission requests. Resolved mobile exact alarm scheduling crashes on Android 12+ (API 31+) by falling back to `setAndAllowWhileIdle` when exact alarm permission is ungranted, adding `USE_EXACT_ALARM`, and pre-creating the notification channel on startup.
+- **Automated R2 Storage Discovery on Screen Load:** `ReportsScreen` automatically queries Cloudflare R2 on load via `/api/v1/reports/latest`. If automated monthly archives exist in R2, download buttons are prominently rendered on the report cards; if no archives exist, the download buttons are cleanly omitted without false error toasts.
+- **Scaled Contract Report Signature Image:** Scaled the handwritten signature PNG embedded in formal contract `.docx` reports by 1.5x (`1_275_000` x `270_000` EMU for table cells; `1_725_000` x `435_000` EMU for rachunek footer) while strictly preserving aspect ratio.
+- **Emerald Clock Favicon:** Added SVG favicon (`favicon.svg`) with dark slate plate and emerald clock dial for the web client.
+
+### Changed
+- **Quadrant Title Clarifications:** Renamed `'Live Markdown Preview'` to `'Markdown Preview'` and streamlined timer card sync label to `'Last synced'`. Removed character and word counter display from the web markdown note editor.
+- **Version Bumps:** Bumped application configuration, Flutter bundle version (`1.2.3+11`), and Cloudflare Worker API to `1.2.3`.
+
+---
+
 ## [1.2.2] - 2026-10-26
 
 ### Added

@@ -66,7 +66,7 @@ Detailed specifications, runbooks, and contracts have been separated into dedica
 |   - Multi-Environment Support (Production & Staging)      |
 |   - SHA-256 Hashed Device Auth & Idempotency Engine       |
 |   - 5-Minute Undo Grace Window & State Machine Engine     |
-|   - Pure TS OpenXML Generator (.xlsx) & R2 Storage        |
+|   - Pure TS OpenXML Generators (.xlsx / .docx) & R2       |
 |   - Scheduled Monthly Cron Dispatcher (0 0 1 * *)         |
 +----------------------+----------------------+-------------+
                        |                      |
@@ -99,9 +99,9 @@ Detailed specifications, runbooks, and contracts have been separated into dedica
 ### Flutter Client (Android & Responsive Web)
 - **Shared Codebase:** Riverpod state management, domain models, and API clients are 100% shared across mobile and browser.
 - **Planned Shift Lengths & Progress Ring:** Clock in with planned duration pills (4h, 6h, 8h, or custom), displaying a glowing animated progress bar, countdown timer, and overtime indicator.
-- **Shift End Reminders:** Configurable notifications (5m, 10m, 15m lead times) scheduled natively via Android `AlarmManager`.
-- **Environment Switcher:** In-app server settings dialog allows seamless switching between Production and Staging with isolated secure credential storage.
-- **Responsive 4-Quadrant Desktop View:** Viewports `>= 900px` render Clock, Shift Duration, Recents, and Reports side-by-side with full keyboard accessibility.
+- **Shift End Reminders:** Configurable notifications (5m, 10m, 15m lead times) scheduled natively via Android `AlarmManager` and HTML5 Web Notification API.
+- **Environment Switcher:** In-app server settings dialog allows seamless switching between Production and Staging with fully isolated secure storage and locked, non-editable API base URLs.
+- **Responsive 4-Quadrant Desktop View:** Viewports `>= 900px` render Current Tracker, Note Editor, Markdown Preview, and Recent Shifts side-by-side. Clicking past shifts loads their notes directly for retroactive viewing/editing, with auto-drafting and dual-save clock-out protection.
 - **Shift Notes & Inline Editing:** Markdown-capable notes editor with live preview, autosaved drafts, and retroactive editing for past shifts.
 - **Historical Backfill:** Admin dialog to record missed past shifts with date/time pickers and overlap validation.
 
@@ -111,8 +111,9 @@ Detailed specifications, runbooks, and contracts have been separated into dedica
 - **Signaling Bridge:** In-app clock operations request an immediate widget refresh via Android `MethodChannel`, but the widget reconciles independently on every action.
 
 ### OpenXML Reporting & Cloudflare R2
-- **Worker-Compatible Generator:** Custom, zero-dependency pure TypeScript OpenXML builder generating `.xlsx` workbooks directly inside V8 isolate memory.
-- **Automated Monthly Cron:** Fires at midnight UTC on the 1st of every month, generating `formal` and `full` workbooks for the previous calendar month and archiving them to Cloudflare R2 (`work-hours-reports`).
+- **Dual Worker-Compatible Generators:** Pure TypeScript OpenXML builders generating both multi-sheet Excel spreadsheets (`.xlsx`) and formal contract attendance attachments (`.docx` with embedded handwritten signatures, automated table generation, and `Rachunek do umowy zlecenia` aggregation) directly inside V8 isolate memory.
+- **Simultaneous Side-by-Side Reports Dashboard:** Dedicated reports interface displaying Formal Contract and Excel Data report cards side-by-side, complete with future shift projection planning (`PlanFutureShiftsDialog`), live `Recorded + Planned = Projected Total` calculations, and automatic R2 storage discovery on load.
+- **Automated Monthly Cron:** Fires at midnight UTC on the 1st of every month, generating full workbooks for the previous calendar month in `Europe/Warsaw` boundaries and archiving them to Cloudflare R2 (`work-hours-reports`).
 - **Sanitized Downloads:** On-demand report downloads stream directly through the API with strict filename regex validation and formula injection defenses.
 
 ---

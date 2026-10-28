@@ -98,5 +98,17 @@
 
 ---
 
+### Phase 11: v1.2.3 Web Quadrants Past Shift Editing, Notifications, R2 Discovery & Favicon
+- [x] **Clickable Past Shift Note Editing in Web Quadrants**: Click past shifts in Recent Shifts quadrant to load, view, and edit notes in left quadrants with auto-drafting, read-only gating when clocked out, and dual-save clock-out protection.
+- [x] **Dynamic Note Editor Headers & Relocated Clear Button**: Added dynamic headers (`Notes | Current Shift`, `Notes | Shift on <Date>`), top-right Clear button, and removed word/char counter from editor.
+- [x] **Locked API Base URL & Environment Isolation**: Styled non-editable API URL card with lock icon and copy action; isolated credentials, reminders, and haptic preferences separately per environment; animated transitions across all settings fields.
+- [x] **Web & Mobile Shift Notifications**: Native HTML5 web notification service; Android exact alarm fallback (`setAndAllowWhileIdle`), `USE_EXACT_ALARM` permission, and proactive channel initialization.
+- [x] **Automated R2 Storage Discovery on Screen Load**: Automatic query on screen load; prominent download buttons displayed when archives exist, and cleanly hidden when none exist.
+- [x] **Docx Signature Scaling**: Scaled handwritten signature image by 1.5x in formal contract `.docx` reports while preserving aspect ratio.
+- [x] **Emerald Clock Favicon**: Added vector SVG favicon for web client.
+- [x] **v1.2.3 Release & Documentation Drift Resolution**: Synchronized `README.md`, `CHANGELOG.md`, `AppConfig.appVersion` (`1.2.3`), `pubspec.yaml` (`1.2.3+11`), and Worker `package.json` (`1.2.3`).
+
+---
+
 ## Status Summary
-All v1.1.3, v1.2.0, v1.2.1, and v1.2.2 implementation items are complete, tested (71 Vitest tests + 72 Flutter tests), and atomically committed locally.
+All v1.2.3 implementation items are complete, verified with 0 analyzer issues, 100% test pass rate (71 Vitest tests + 77 Flutter tests), and committed locally.
