@@ -73,7 +73,7 @@ class CurrentTrackerQuadrant extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'Server time: ${timeFormat.format(status.serverTime.toLocal())}',
+                  'Last synced: ${timeFormat.format(status.serverTime.toLocal())}',
                   style: const TextStyle(
                     fontSize: 11,
                     color: Color(0xFF94A3B8),

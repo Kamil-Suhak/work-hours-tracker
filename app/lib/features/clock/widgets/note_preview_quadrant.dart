@@ -39,7 +39,7 @@ class NotePreviewQuadrant extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
                 const Text(
-                  'Live Markdown Preview',
+                  'Markdown Preview',
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 15,

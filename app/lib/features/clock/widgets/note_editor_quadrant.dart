@@ -6,10 +6,22 @@ import 'shift_notes_card.dart';
 
 class NoteEditorQuadrant extends StatefulWidget {
   final TextEditingController controller;
+  final String title;
+  final VoidCallback? onReturnToCurrentShift;
+  final bool isEditingPastShift;
+  final bool isReadOnly;
+  final String? syncStatusText;
+  final ValueChanged<String>? onChanged;
 
   const NoteEditorQuadrant({
     super.key,
     required this.controller,
+    this.title = 'Notes | Current Shift',
+    this.onReturnToCurrentShift,
+    this.isEditingPastShift = false,
+    this.isReadOnly = false,
+    this.syncStatusText,
+    this.onChanged,
   });
 
   @override
@@ -48,17 +60,20 @@ class _NoteEditorQuadrantState extends State<NoteEditorQuadrant> {
         widget.controller.selection.baseOffset >= 0) {
       _lastSelection = widget.controller.selection;
     }
-    ShiftNotesCard.saveDraft(widget.controller.text);
-    _syncDebounce?.cancel();
-    _syncDebounce = Timer(const Duration(milliseconds: 500), () {
-      WidgetSyncService.syncActiveNote(widget.controller.text);
-    });
+    if (!widget.isEditingPastShift) {
+      ShiftNotesCard.saveDraft(widget.controller.text);
+      _syncDebounce?.cancel();
+      _syncDebounce = Timer(const Duration(milliseconds: 500), () {
+        WidgetSyncService.syncActiveNote(widget.controller.text);
+      });
+    }
+    widget.onChanged?.call(widget.controller.text);
     if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
-    if (_syncDebounce?.isActive ?? false) {
+    if (!widget.isEditingPastShift && (_syncDebounce?.isActive ?? false)) {
       _syncDebounce?.cancel();
       WidgetSyncService.syncActiveNote(widget.controller.text);
     }
@@ -124,9 +139,6 @@ class _NoteEditorQuadrantState extends State<NoteEditorQuadrant> {
     const slateDark = Color(0xFF1E293B);
     final text = widget.controller.text;
     final hasContent = text.trim().isNotEmpty;
-    final wordCount =
-        hasContent ? text.trim().split(RegExp(r'\s+')).length : 0;
-    final charCount = text.length;
 
     return Container(
       decoration: BoxDecoration(
@@ -147,16 +159,18 @@ class _NoteEditorQuadrantState extends State<NoteEditorQuadrant> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
-                const Icon(
-                  Icons.edit_note,
-                  color: activeColor,
+                Icon(
+                  widget.isEditingPastShift ? Icons.history_edu : Icons.edit_note,
+                  color: widget.isEditingPastShift
+                      ? const Color(0xFF38BDF8)
+                      : activeColor,
                   size: 22,
                 ),
                 const SizedBox(width: 8),
-                const Flexible(
+                Flexible(
                   child: Text(
-                    'Current Shift Note',
-                    style: TextStyle(
+                    widget.title,
+                    style: const TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 15,
                       color: Color(0xFFF8FAFC),
@@ -164,33 +178,53 @@ class _NoteEditorQuadrantState extends State<NoteEditorQuadrant> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const SizedBox(width: 8),
-                if (hasContent)
+                if (widget.syncStatusText != null) ...[
+                  const SizedBox(width: 8),
                   Container(
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: activeColor.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
+                      color: const Color(0xFF334155),
+                      borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      '$wordCount words • $charCount chars',
+                      widget.syncStatusText!,
                       style: const TextStyle(
                         fontSize: 10,
+                        color: Color(0xFF94A3B8),
                         fontWeight: FontWeight.w600,
-                        color: activeColor,
                       ),
                     ),
                   ),
+                ],
                 const Spacer(),
-                if (hasContent)
+                if (widget.isEditingPastShift &&
+                    widget.onReturnToCurrentShift != null) ...[
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      foregroundColor: const Color(0xFF38BDF8),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                    icon: const Icon(Icons.arrow_back, size: 14),
+                    label: const Text(
+                      'Current Shift',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
+                    onPressed: widget.onReturnToCurrentShift,
+                  ),
+                  const SizedBox(width: 4),
+                ],
+                if (hasContent && !widget.isReadOnly)
                   IconButton(
                     icon: const Icon(Icons.clear, size: 18),
                     tooltip: 'Clear Note',
                     color: const Color(0xFF94A3B8),
                     onPressed: () {
                       widget.controller.clear();
-                      ShiftNotesCard.clearDraft();
+                      if (!widget.isEditingPastShift) {
+                        ShiftNotesCard.clearDraft();
+                      }
                     },
                   ),
               ],
@@ -210,38 +244,52 @@ class _NoteEditorQuadrantState extends State<NoteEditorQuadrant> {
                     label: 'B',
                     tooltip: 'Bold (**text**)',
                     isBold: true,
-                    onTap: () => _insertMarkdown('**', '**'),
+                    onTap: widget.isReadOnly
+                        ? () {}
+                        : () => _insertMarkdown('**', '**'),
                   ),
                   _ToolbarButton(
                     label: 'I',
                     tooltip: 'Italic (*text*)',
                     isItalic: true,
-                    onTap: () => _insertMarkdown('*', '*'),
+                    onTap: widget.isReadOnly
+                        ? () {}
+                        : () => _insertMarkdown('*', '*'),
                   ),
                   _ToolbarButton(
                     label: 'H1',
                     tooltip: 'Heading (# Title)',
-                    onTap: () => _insertMarkdown('# '),
+                    onTap: widget.isReadOnly
+                        ? () {}
+                        : () => _insertMarkdown('# '),
                   ),
                   _ToolbarButton(
                     label: 'H2',
                     tooltip: 'Subheading (## Title)',
-                    onTap: () => _insertMarkdown('## '),
+                    onTap: widget.isReadOnly
+                        ? () {}
+                        : () => _insertMarkdown('## '),
                   ),
                   _ToolbarButton(
                     icon: Icons.format_list_bulleted,
                     tooltip: 'Bullet List (- Item)',
-                    onTap: () => _insertMarkdown('- '),
+                    onTap: widget.isReadOnly
+                        ? () {}
+                        : () => _insertMarkdown('- '),
                   ),
                   _ToolbarButton(
                     icon: Icons.check_box_outlined,
                     tooltip: 'Task Checklist (- [ ] Task)',
-                    onTap: () => _insertMarkdown('- [ ] '),
+                    onTap: widget.isReadOnly
+                        ? () {}
+                        : () => _insertMarkdown('- [ ] '),
                   ),
                   _ToolbarButton(
                     icon: Icons.code,
                     tooltip: 'Code Block (```)',
-                    onTap: () => _insertMarkdown('```\n', '\n```'),
+                    onTap: widget.isReadOnly
+                        ? () {}
+                        : () => _insertMarkdown('```\n', '\n```'),
                   ),
                 ],
               ),
@@ -256,6 +304,7 @@ class _NoteEditorQuadrantState extends State<NoteEditorQuadrant> {
               child: TextField(
                 controller: widget.controller,
                 focusNode: _focusNode,
+                readOnly: widget.isReadOnly,
                 maxLines: null,
                 expands: true,
                 maxLength: 4000,
@@ -271,10 +320,11 @@ class _NoteEditorQuadrantState extends State<NoteEditorQuadrant> {
                   color: Color(0xFFF1F5F9),
                 ),
                 cursorColor: activeColor,
-                decoration: const InputDecoration(
-                  hintText:
-                      '# Shift Objectives\n- Document tasks completed\n- Record milestones and blockers\n- Format notes in Markdown...',
-                  hintStyle: TextStyle(
+                decoration: InputDecoration(
+                  hintText: widget.isReadOnly
+                      ? 'Clock in to start notes for your shift, or select a past shift to view and edit notes.'
+                      : '# Shift Objectives\n- Document tasks completed\n- Record milestones and blockers\n- Format notes in Markdown...',
+                  hintStyle: const TextStyle(
                     fontSize: 13,
                     fontFamily: 'monospace',
                     color: Color(0xFF475569),

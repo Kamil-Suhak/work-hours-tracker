@@ -91,11 +91,11 @@ void main() {
 
       // Top Left: NoteEditorQuadrant
       expect(find.byType(NoteEditorQuadrant), findsOneWidget);
-      expect(find.text('Current Shift Note'), findsOneWidget);
+      expect(find.text('Notes | Current Shift'), findsOneWidget);
 
       // Bottom Left: NotePreviewQuadrant
       expect(find.byType(NotePreviewQuadrant), findsOneWidget);
-      expect(find.text('Live Markdown Preview'), findsOneWidget);
+      expect(find.text('Markdown Preview'), findsOneWidget);
 
       // Live typing updates preview in real time
       await tester.enterText(
