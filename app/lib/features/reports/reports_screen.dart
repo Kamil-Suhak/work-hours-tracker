@@ -23,6 +23,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   String? _lastFormalReportPath;
   String? _lastExcelReportPath;
   String? _statusMessage;
+  Map<String, dynamic>? _latestStorageReport;
 
   final DateFormat _displayFormat = DateFormat('MMM d, yyyy');
   final DateFormat _monthFormat = DateFormat('MMMM yyyy');
@@ -35,6 +36,19 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     _selectedExcelMonth = DateTime(now.year, now.month, 1);
     _startDate = DateTime(now.year, now.month, 1);
     _endDate = DateTime(now.year, now.month + 1, 0);
+    _checkLatestStorageReport();
+  }
+
+  Future<void> _checkLatestStorageReport() async {
+    try {
+      final apiClient = ref.read(apiClientProvider);
+      final latest = await apiClient.getLatestReport();
+      if (mounted) {
+        setState(() {
+          _latestStorageReport = latest;
+        });
+      }
+    } catch (_) {}
   }
 
   List<DateTime> _getLast6Months() {
@@ -575,6 +589,44 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
             ),
           ],
 
+          if (_latestStorageReport != null) ...[
+            const SizedBox(height: 12),
+            Center(
+              child: SizedBox(
+                width: 280,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF38BDF8),
+                    side: const BorderSide(
+                        color: Color(0xFF38BDF8), width: 1.2),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed:
+                      _isDownloadingLatest ? null : _downloadLatestMonth,
+                  icon: _isDownloadingLatest
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Color(0xFF38BDF8)),
+                        )
+                      : const Icon(Icons.cloud_download_outlined,
+                          size: 18, color: Color(0xFF38BDF8)),
+                  label: Text(
+                    'Download Latest Stored Report (${_latestStorageReport!['month'] ?? 'Archive'})',
+                    style: const TextStyle(
+                      color: Color(0xFF38BDF8),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+
           if (_statusMessage != null && _lastFormalReportPath != null) ...[
             const SizedBox(height: 14),
             Center(
@@ -841,54 +893,56 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
             ),
           ],
 
-          const SizedBox(height: 24),
-          const Divider(color: Color(0xFF334155)),
-          const SizedBox(height: 16),
+          if (_latestStorageReport != null) ...[
+            const SizedBox(height: 24),
+            const Divider(color: Color(0xFF334155)),
+            const SizedBox(height: 16),
 
-          // Automated Storage Archive section
-          Center(
-            child: Column(
-              children: [
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF38BDF8),
-                    side: const BorderSide(
-                        color: Color(0xFF38BDF8), width: 1.2),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 18, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                  ),
-                  onPressed:
-                      _isDownloadingLatest ? null : _downloadLatestMonth,
-                  icon: _isDownloadingLatest
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Color(0xFF38BDF8)),
-                        )
-                      : const Icon(Icons.cloud_download_outlined,
-                          size: 18, color: Color(0xFF38BDF8)),
-                  label: const Text(
-                    'Download Latest Automated Report',
-                    style: TextStyle(
-                      color: Color(0xFF38BDF8),
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
+            // Automated Storage Archive section
+            Center(
+              child: Column(
+                children: [
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF38BDF8),
+                      side: const BorderSide(
+                          color: Color(0xFF38BDF8), width: 1.2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 18, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed:
+                        _isDownloadingLatest ? null : _downloadLatestMonth,
+                    icon: _isDownloadingLatest
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Color(0xFF38BDF8)),
+                          )
+                        : const Icon(Icons.cloud_download_outlined,
+                            size: 18, color: Color(0xFF38BDF8)),
+                    label: Text(
+                      'Download Latest Stored Report (${_latestStorageReport!['month'] ?? 'Archive'})',
+                      style: const TextStyle(
+                        color: Color(0xFF38BDF8),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Retrieve the scheduled monthly archive automatically generated on the 1st of the month',
-                  style:
-                      TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                  textAlign: TextAlign.center,
-                ),
-              ],
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Retrieve the scheduled monthly archive automatically generated on the 1st of the month',
+                    style:
+                        TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

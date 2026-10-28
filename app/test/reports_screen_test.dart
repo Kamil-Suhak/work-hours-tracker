@@ -107,7 +107,7 @@ void main() {
       expect(find.text('EXCEL DATA REPORT'), findsOneWidget);
       expect(find.byKey(const Key('excel_month_dropdown')), findsOneWidget);
       expect(find.text('Generate Excel Report'), findsOneWidget);
-      expect(find.text('Download Latest Automated Report'), findsOneWidget);
+      expect(find.textContaining('Download Latest Stored Report'), findsWidgets);
 
       // Verify side-by-side position: Formal card is to the left of Excel card
       final formalPos = tester.getTopLeft(find.text('FORMAL CONTRACT REPORT'));
@@ -196,5 +196,29 @@ void main() {
       expect(mockClient.lastPlannedShifts!.length, equals(1));
       expect(mockClient.lastPlannedShifts!.first['durationMinutes'], equals(30));
     });
+
+    testWidgets('omits download stored report button when R2 storage has no reports',
+        (WidgetTester tester) async {
+      final mockClient = _MockApiClientNullR2();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            apiClientProvider.overrideWithValue(mockClient),
+          ],
+          child: const MaterialApp(
+            home: ReportsScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Download Latest Stored Report'), findsNothing);
+    });
   });
+}
+
+class _MockApiClientNullR2 extends _MockApiClient {
+  @override
+  Future<Map<String, dynamic>?> getLatestReport() async => null;
 }
