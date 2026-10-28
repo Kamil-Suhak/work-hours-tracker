@@ -26,19 +26,42 @@ class SettingsDialog extends ConsumerStatefulWidget {
 
 class _SettingsDialogState extends ConsumerState<SettingsDialog> {
   final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _urlController;
   late final TextEditingController _tokenController;
   late final TextEditingController _adminTokenController;
   bool _obscureToken = true;
   bool _obscureAdminToken = true;
   bool _isSaving = false;
-  bool _vibrationsEnabled = true;
-  int _shiftReminderMinutes = 0;
   String _environment = 'production';
-  String _prodUrl = '';
+
   String _prodToken = '';
-  String _stagingUrl = '';
+  String _prodAdminToken = '';
+  int _prodReminderMinutes = 0;
+  bool _prodVibrationsEnabled = true;
+
   String _stagingToken = '';
+  String _stagingAdminToken = '';
+  int _stagingReminderMinutes = 0;
+  bool _stagingVibrationsEnabled = true;
+
+  int get _currentReminderMinutes =>
+      _environment == 'staging' ? _stagingReminderMinutes : _prodReminderMinutes;
+  set _currentReminderMinutes(int val) {
+    if (_environment == 'staging') {
+      _stagingReminderMinutes = val;
+    } else {
+      _prodReminderMinutes = val;
+    }
+  }
+
+  bool get _currentVibrationsEnabled =>
+      _environment == 'staging' ? _stagingVibrationsEnabled : _prodVibrationsEnabled;
+  set _currentVibrationsEnabled(bool val) {
+    if (_environment == 'staging') {
+      _stagingVibrationsEnabled = val;
+    } else {
+      _prodVibrationsEnabled = val;
+    }
+  }
 
   @override
   void initState() {
@@ -48,61 +71,53 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
 
     _environment =
         (settings?.environment == 'staging') ? 'staging' : 'production';
-    _shiftReminderMinutes = settings?.shiftReminderMinutes ?? 0;
-    _vibrationsEnabled = settings?.vibrationsEnabled ?? true;
 
-    _prodUrl = (settings?.prodUrl != null &&
-            settings!.prodUrl.isNotEmpty &&
-            settings.prodUrl != 'https://work-hours-api.workers.dev')
-        ? settings.prodUrl
-        : AppConfig.defaultApiBaseUrl;
     _prodToken = settings?.prodToken ?? '';
+    _prodAdminToken = settings?.prodAdminToken ?? settings?.adminToken ?? '';
+    _prodReminderMinutes =
+        settings?.prodReminderMinutes ?? settings?.shiftReminderMinutes ?? 0;
+    _prodVibrationsEnabled =
+        settings?.prodVibrationsEnabled ?? settings?.vibrationsEnabled ?? true;
 
-    _stagingUrl = (settings?.stagingUrl != null &&
-            settings!.stagingUrl.isNotEmpty)
-        ? settings.stagingUrl
-        : AppConfig.stagingApiBaseUrl;
     _stagingToken = settings?.stagingToken ?? '';
+    _stagingAdminToken = settings?.stagingAdminToken ?? '';
+    _stagingReminderMinutes = settings?.stagingReminderMinutes ?? 0;
+    _stagingVibrationsEnabled = settings?.stagingVibrationsEnabled ?? true;
 
-    final initialUrl = _environment == 'staging' ? _stagingUrl : _prodUrl;
     final initialToken =
         _environment == 'staging' ? _stagingToken : _prodToken;
+    final initialAdminToken =
+        _environment == 'staging' ? _stagingAdminToken : _prodAdminToken;
 
-    _urlController = TextEditingController(text: initialUrl);
     _tokenController = TextEditingController(text: initialToken);
-    _adminTokenController = TextEditingController(
-      text: settings?.adminToken ?? '',
-    );
+    _adminTokenController = TextEditingController(text: initialAdminToken);
   }
 
   void _switchEnvironment(String targetEnv) {
     if (_environment == targetEnv) return;
 
     if (_environment == 'production') {
-      _prodUrl = _urlController.text.trim();
       _prodToken = _tokenController.text.trim();
+      _prodAdminToken = _adminTokenController.text.trim();
     } else {
-      _stagingUrl = _urlController.text.trim();
       _stagingToken = _tokenController.text.trim();
+      _stagingAdminToken = _adminTokenController.text.trim();
     }
 
     setState(() {
       _environment = targetEnv;
       if (targetEnv == 'production') {
-        _urlController.text =
-            _prodUrl.isNotEmpty ? _prodUrl : AppConfig.defaultApiBaseUrl;
         _tokenController.text = _prodToken;
+        _adminTokenController.text = _prodAdminToken;
       } else {
-        _urlController.text =
-            _stagingUrl.isNotEmpty ? _stagingUrl : AppConfig.stagingApiBaseUrl;
         _tokenController.text = _stagingToken;
+        _adminTokenController.text = _stagingAdminToken;
       }
     });
   }
 
   @override
   void dispose() {
-    _urlController.dispose();
     _tokenController.dispose();
     _adminTokenController.dispose();
     super.dispose();
@@ -122,30 +137,35 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
 
     setState(() => _isSaving = true);
     try {
-      final currentUrl = _urlController.text.trim();
       final currentToken = _tokenController.text.trim();
-      final adminToken = _adminTokenController.text.trim();
+      final currentAdminToken = _adminTokenController.text.trim();
 
       if (_environment == 'production') {
-        _prodUrl = currentUrl;
         _prodToken = currentToken;
+        _prodAdminToken = currentAdminToken;
       } else {
-        _stagingUrl = currentUrl;
         _stagingToken = currentToken;
+        _stagingAdminToken = currentAdminToken;
       }
 
       await ref.read(settingsProvider.notifier).saveSettings(
-            prodUrl: _prodUrl,
             prodToken: _prodToken,
-            stagingUrl: _stagingUrl,
             stagingToken: _stagingToken,
             environment: _environment,
-            adminToken: adminToken.isNotEmpty ? adminToken : null,
-            vibrationsEnabled: _vibrationsEnabled,
-            shiftReminderMinutes: _shiftReminderMinutes,
+            prodAdminToken:
+                _prodAdminToken.isNotEmpty ? _prodAdminToken : null,
+            stagingAdminToken:
+                _stagingAdminToken.isNotEmpty ? _stagingAdminToken : null,
+            prodVibrationsEnabled: _prodVibrationsEnabled,
+            stagingVibrationsEnabled: _stagingVibrationsEnabled,
+            prodShiftReminderMinutes: _prodReminderMinutes,
+            stagingShiftReminderMinutes: _stagingReminderMinutes,
           );
 
-      if (_shiftReminderMinutes > 0) {
+      final activeReminder = _environment == 'staging'
+          ? _stagingReminderMinutes
+          : _prodReminderMinutes;
+      if (activeReminder > 0) {
         await ref.read(notificationServiceProvider).requestPermissions();
       }
 
@@ -278,10 +298,8 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                             key: const Key('staging_web_link'),
                             borderRadius: BorderRadius.circular(8),
                             onTap: () {
-                              final targetUrl = _urlController.text.trim().isNotEmpty
-                                  ? _urlController.text.trim()
-                                  : AppConfig.stagingApiBaseUrl;
-                              final uri = Uri.tryParse(targetUrl);
+                              final uri =
+                                  Uri.tryParse(AppConfig.stagingApiBaseUrl);
                               if (uri != null) {
                                 launchUrl(uri,
                                     mode: LaunchMode.externalApplication);
@@ -323,34 +341,77 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                           ),
                           const SizedBox(height: 14),
                         ],
-                        TextFormField(
-                          controller: _urlController,
-                          decoration: InputDecoration(
-                            labelText: _environment == 'staging'
-                                ? 'Staging Worker Base URL'
-                                : 'Worker Base URL',
-                            hintText:
-                                'https://work-hours-api.<subdomain>.workers.dev',
-                            border: const OutlineInputBorder(),
-                            suffixIcon: IconButton(
-                              icon: const Icon(Icons.content_paste),
-                              tooltip: 'Paste from clipboard',
-                              onPressed: () => _pasteTo(_urlController),
-                            ),
+                        // Locked API Base URL Card
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F172A),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFF334155)),
                           ),
-                          keyboardType: TextInputType.url,
-                          validator: (val) {
-                            if (val == null || val.trim().isEmpty) {
-                              return 'Base URL is required';
-                            }
-                            final uri = Uri.tryParse(val.trim());
-                            if (uri == null ||
-                                !uri.hasScheme ||
-                                !uri.hasAuthority) {
-                              return 'Enter a valid URL (e.g. https://...)';
-                            }
-                            return null;
-                          },
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.lock_outline,
+                                          size: 14, color: Color(0xFF94A3B8)),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        _environment == 'staging'
+                                            ? 'Staging API Base URL'
+                                            : 'API Base URL',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF94A3B8),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.content_copy,
+                                        size: 16, color: Color(0xFF94A3B8)),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    tooltip: 'Copy API URL',
+                                    onPressed: () {
+                                      final url = _environment == 'staging'
+                                          ? AppConfig.stagingApiBaseUrl
+                                          : AppConfig.defaultApiBaseUrl;
+                                      Clipboard.setData(
+                                          ClipboardData(text: url));
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        const SnackBar(
+                                          content:
+                                              Text('API URL copied to clipboard'),
+                                          duration: Duration(seconds: 1),
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              SelectableText(
+                                _environment == 'staging'
+                                    ? AppConfig.stagingApiBaseUrl
+                                    : AppConfig.defaultApiBaseUrl,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontFamily: 'monospace',
+                                  color: Color(0xFFE2E8F0),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
@@ -393,86 +454,93 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                             return null;
                           },
                         ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _adminTokenController,
+                          obscureText: _obscureAdminToken,
+                          decoration: InputDecoration(
+                            labelText: _environment == 'staging'
+                                ? 'Staging Admin API Token (Optional)'
+                                : 'Admin API Token (Optional)',
+                            hintText: 'Used for manual shift backfills',
+                            border: const OutlineInputBorder(),
+                            suffixIcon: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: Icon(
+                                    _obscureAdminToken
+                                        ? Icons.visibility
+                                        : Icons.visibility_off,
+                                  ),
+                                  onPressed: () => setState(
+                                    () =>
+                                        _obscureAdminToken = !_obscureAdminToken,
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.content_paste),
+                                  tooltip: 'Paste from clipboard',
+                                  onPressed: () =>
+                                      _pasteTo(_adminTokenController),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<int>(
+                          key: const Key('shift_reminder_dropdown'),
+                          initialValue: _currentReminderMinutes,
+                          decoration: const InputDecoration(
+                            labelText: 'Clock-out Reminder',
+                            helperText:
+                                'Notify before planned shift length ends',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(
+                              Icons.notifications_active_outlined,
+                              color: Color(0xFF10B981),
+                            ),
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 0, child: Text('Disabled')),
+                            DropdownMenuItem(
+                                value: 5, child: Text('5 minutes before')),
+                            DropdownMenuItem(
+                                value: 10, child: Text('10 minutes before')),
+                            DropdownMenuItem(
+                                value: 15, child: Text('15 minutes before')),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() => _currentReminderMinutes = val);
+                            }
+                          },
+                        ),
+                        if (ref.watch(hapticServiceProvider).isSupported) ...[
+                          const SizedBox(height: 12),
+                          SwitchListTile.adaptive(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text(
+                              'Haptic feedback',
+                              style: TextStyle(
+                                  fontSize: 14, fontWeight: FontWeight.w600),
+                            ),
+                            subtitle: const Text(
+                              'Vibrate on clock actions in app and home widget',
+                              style:
+                                  TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                            value: _currentVibrationsEnabled,
+                            onChanged: (val) => setState(
+                                () => _currentVibrationsEnabled = val),
+                            activeTrackColor: const Color(0xFF0F766E),
+                          ),
+                        ],
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _adminTokenController,
-                  obscureText: _obscureAdminToken,
-                  decoration: InputDecoration(
-                    labelText: 'Admin API Token (Optional)',
-                    hintText: 'Used for manual shift backfills',
-                    border: const OutlineInputBorder(),
-                    suffixIcon: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: Icon(
-                            _obscureAdminToken
-                                ? Icons.visibility
-                                : Icons.visibility_off,
-                          ),
-                          onPressed: () => setState(
-                            () => _obscureAdminToken = !_obscureAdminToken,
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.content_paste),
-                          tooltip: 'Paste from clipboard',
-                          onPressed: () => _pasteTo(_adminTokenController),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<int>(
-                  key: const Key('shift_reminder_dropdown'),
-                  initialValue: _shiftReminderMinutes,
-                  decoration: const InputDecoration(
-                    labelText: 'Clock-out Reminder',
-                    helperText: 'Notify before planned shift length ends',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(
-                      Icons.notifications_active_outlined,
-                      color: Color(0xFF10B981),
-                    ),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 0, child: Text('Disabled')),
-                    DropdownMenuItem(value: 5, child: Text('5 minutes before')),
-                    DropdownMenuItem(
-                        value: 10, child: Text('10 minutes before')),
-                    DropdownMenuItem(
-                        value: 15, child: Text('15 minutes before')),
-                  ],
-                  onChanged: (val) {
-                    if (val != null) {
-                      setState(() => _shiftReminderMinutes = val);
-                    }
-                  },
-                ),
-                if (ref.watch(hapticServiceProvider).isSupported) ...[
-                  const SizedBox(height: 12),
-                  SwitchListTile.adaptive(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text(
-                      'Haptic feedback',
-                      style:
-                          TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: const Text(
-                      'Vibrate on clock actions in app and home widget',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                    value: _vibrationsEnabled,
-                    onChanged: (val) =>
-                        setState(() => _vibrationsEnabled = val),
-                    activeTrackColor: const Color(0xFF0F766E),
-                  ),
-                ],
                 const Divider(height: 24, color: Color(0xFF334155)),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,

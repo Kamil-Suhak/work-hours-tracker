@@ -14,8 +14,14 @@ class AppSettings {
   final String environment;
   final String prodUrl;
   final String prodToken;
+  final String? prodAdminToken;
+  final int prodReminderMinutes;
+  final bool prodVibrationsEnabled;
   final String stagingUrl;
   final String stagingToken;
+  final String? stagingAdminToken;
+  final int stagingReminderMinutes;
+  final bool stagingVibrationsEnabled;
 
   const AppSettings({
     required this.baseUrl,
@@ -27,8 +33,14 @@ class AppSettings {
     this.environment = 'production',
     this.prodUrl = AppConfig.defaultApiBaseUrl,
     this.prodToken = '',
+    this.prodAdminToken,
+    this.prodReminderMinutes = 0,
+    this.prodVibrationsEnabled = true,
     this.stagingUrl = AppConfig.stagingApiBaseUrl,
     this.stagingToken = '',
+    this.stagingAdminToken,
+    this.stagingReminderMinutes = 0,
+    this.stagingVibrationsEnabled = true,
   });
 
   AppSettings copyWith({
@@ -41,8 +53,14 @@ class AppSettings {
     String? environment,
     String? prodUrl,
     String? prodToken,
+    String? prodAdminToken,
+    int? prodReminderMinutes,
+    bool? prodVibrationsEnabled,
     String? stagingUrl,
     String? stagingToken,
+    String? stagingAdminToken,
+    int? stagingReminderMinutes,
+    bool? stagingVibrationsEnabled,
   }) {
     return AppSettings(
       baseUrl: baseUrl ?? this.baseUrl,
@@ -54,8 +72,17 @@ class AppSettings {
       environment: environment ?? this.environment,
       prodUrl: prodUrl ?? this.prodUrl,
       prodToken: prodToken ?? this.prodToken,
+      prodAdminToken: prodAdminToken ?? this.prodAdminToken,
+      prodReminderMinutes: prodReminderMinutes ?? this.prodReminderMinutes,
+      prodVibrationsEnabled:
+          prodVibrationsEnabled ?? this.prodVibrationsEnabled,
       stagingUrl: stagingUrl ?? this.stagingUrl,
       stagingToken: stagingToken ?? this.stagingToken,
+      stagingAdminToken: stagingAdminToken ?? this.stagingAdminToken,
+      stagingReminderMinutes:
+          stagingReminderMinutes ?? this.stagingReminderMinutes,
+      stagingVibrationsEnabled:
+          stagingVibrationsEnabled ?? this.stagingVibrationsEnabled,
     );
   }
 }
@@ -88,7 +115,6 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
     final storedHaptics = await store.read(_hapticsStorageKey);
     final storedReminder = await store.read(_reminderStorageKey);
     final storedEnv = await store.read(_envStorageKey);
-    final storedStagingUrl = await store.read(_stagingUrlStorageKey);
     final storedStagingToken = await store.read(_stagingTokenStorageKey);
 
     final defaultUrl = store.defaultBaseUrl;
@@ -108,56 +134,87 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
       prodUrl = AppConfig.defaultApiBaseUrl;
     }
 
+    final storedProdAdminToken = await store.read(AppConfig.prodAdminTokenKey);
+    final storedStagingAdminToken = await store.read(AppConfig.stagingAdminTokenKey);
+    final storedProdReminder = await store.read(AppConfig.prodShiftReminderKey);
+    final storedStagingReminder = await store.read(AppConfig.stagingShiftReminderKey);
+    final storedProdVibrations = await store.read(AppConfig.prodVibrationsKey);
+    final storedStagingVibrations = await store.read(AppConfig.stagingVibrationsKey);
+
+    final prodAdminToken = storedProdAdminToken?.trim() ?? storedAdminToken?.trim();
+    final stagingAdminToken = storedStagingAdminToken?.trim();
+
+    final prodReminderMinutes =
+        int.tryParse(storedProdReminder ?? storedReminder ?? '0') ?? 0;
+    final stagingReminderMinutes =
+        int.tryParse(storedStagingReminder ?? '0') ?? 0;
+
+    final prodVibrationsEnabled =
+        (storedProdVibrations ?? storedHaptics) != 'false';
+    final stagingVibrationsEnabled = storedStagingVibrations != 'false';
+
     final prodToken = (storedProdToken != null && storedProdToken.trim().isNotEmpty)
         ? storedProdToken.trim()
         : (storedToken?.trim() ?? '');
 
-    final stagingUrl = (storedStagingUrl != null &&
-            storedStagingUrl.trim().isNotEmpty)
-        ? storedStagingUrl.trim()
-        : AppConfig.stagingApiBaseUrl;
-
+    const stagingUrl = AppConfig.stagingApiBaseUrl;
     final stagingToken = storedStagingToken?.trim() ?? '';
     final environment =
         (storedEnv?.trim() == 'staging') ? 'staging' : 'production';
 
     final activeUrl = environment == 'staging' ? stagingUrl : prodUrl;
     final activeToken = environment == 'staging' ? stagingToken : prodToken;
+    final activeAdminToken =
+        environment == 'staging' ? stagingAdminToken : prodAdminToken;
+    final activeReminderMinutes =
+        environment == 'staging' ? stagingReminderMinutes : prodReminderMinutes;
+    final activeVibrationsEnabled =
+        environment == 'staging' ? stagingVibrationsEnabled : prodVibrationsEnabled;
 
     final isConfigured = activeToken.isNotEmpty &&
         (store.isWeb || activeUrl != defaultApiBaseUrl);
-    final vibrationsEnabled = storedHaptics != 'false';
-    final shiftReminderMinutes = int.tryParse(storedReminder ?? '0') ?? 0;
 
     if (isConfigured) {
       await widgetSync.syncCredentials(
         baseUrl: activeUrl,
         deviceToken: activeToken,
-        vibrationsEnabled: vibrationsEnabled,
+        vibrationsEnabled: activeVibrationsEnabled,
       );
     }
 
     return AppSettings(
       baseUrl: activeUrl,
       deviceToken: activeToken,
-      adminToken: storedAdminToken?.trim(),
+      adminToken: activeAdminToken,
       isConfigured: isConfigured,
-      vibrationsEnabled: vibrationsEnabled,
-      shiftReminderMinutes: shiftReminderMinutes,
+      vibrationsEnabled: activeVibrationsEnabled,
+      shiftReminderMinutes: activeReminderMinutes,
       environment: environment,
       prodUrl: prodUrl,
       prodToken: prodToken,
+      prodAdminToken: prodAdminToken,
+      prodReminderMinutes: prodReminderMinutes,
+      prodVibrationsEnabled: prodVibrationsEnabled,
       stagingUrl: stagingUrl,
       stagingToken: stagingToken,
+      stagingAdminToken: stagingAdminToken,
+      stagingReminderMinutes: stagingReminderMinutes,
+      stagingVibrationsEnabled: stagingVibrationsEnabled,
     );
   }
 
   Future<void> saveSettings({
-    required String prodUrl,
     required String prodToken,
-    required String stagingUrl,
     required String stagingToken,
     required String environment,
+    String? prodAdminToken,
+    String? stagingAdminToken,
+    bool prodVibrationsEnabled = true,
+    bool stagingVibrationsEnabled = true,
+    int prodShiftReminderMinutes = 0,
+    int stagingShiftReminderMinutes = 0,
+    String? prodUrl,
+    String? stagingUrl,
     String? adminToken,
     bool vibrationsEnabled = true,
     int shiftReminderMinutes = 0,
@@ -165,27 +222,28 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
     final store = ref.read(credentialStoreProvider);
     final widgetSync = ref.read(widgetSyncServiceProvider);
 
-    var cleanProdUrl = prodUrl.trim();
-    if (cleanProdUrl.endsWith('/')) {
-      cleanProdUrl = cleanProdUrl.substring(0, cleanProdUrl.length - 1);
-    }
-    if (cleanProdUrl.isEmpty) {
-      cleanProdUrl = AppConfig.defaultApiBaseUrl;
-    }
+    const cleanProdUrl = AppConfig.defaultApiBaseUrl;
     final cleanProdToken = prodToken.trim();
-
-    var cleanStagingUrl = stagingUrl.trim();
-    if (cleanStagingUrl.endsWith('/')) {
-      cleanStagingUrl = cleanStagingUrl.substring(0, cleanStagingUrl.length - 1);
-    }
-    if (cleanStagingUrl.isEmpty) {
-      cleanStagingUrl = AppConfig.stagingApiBaseUrl;
-    }
+    const cleanStagingUrl = AppConfig.stagingApiBaseUrl;
     final cleanStagingToken = stagingToken.trim();
+
+    final cleanProdAdmin = prodAdminToken?.trim() ?? adminToken?.trim();
+    final cleanStagingAdmin = stagingAdminToken?.trim();
 
     final cleanEnv = (environment == 'staging') ? 'staging' : 'production';
     final activeUrl = cleanEnv == 'staging' ? cleanStagingUrl : cleanProdUrl;
-    final activeToken = cleanEnv == 'staging' ? cleanStagingToken : cleanProdToken;
+    final activeToken =
+        cleanEnv == 'staging' ? cleanStagingToken : cleanProdToken;
+    final activeAdmin =
+        cleanEnv == 'staging' ? cleanStagingAdmin : cleanProdAdmin;
+    final activeReminder = cleanEnv == 'staging'
+        ? stagingShiftReminderMinutes
+        : (prodShiftReminderMinutes > 0
+            ? prodShiftReminderMinutes
+            : shiftReminderMinutes);
+    final activeVibrations = cleanEnv == 'staging'
+        ? stagingVibrationsEnabled
+        : prodVibrationsEnabled;
 
     // Persist discrete environment configurations
     await store.write(_prodUrlStorageKey, cleanProdUrl);
@@ -194,38 +252,65 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
     await store.write(_stagingTokenStorageKey, cleanStagingToken);
     await store.write(_envStorageKey, cleanEnv);
 
+    if (cleanProdAdmin != null && cleanProdAdmin.isNotEmpty) {
+      await store.write(AppConfig.prodAdminTokenKey, cleanProdAdmin);
+    } else {
+      await store.delete(AppConfig.prodAdminTokenKey);
+    }
+
+    if (cleanStagingAdmin != null && cleanStagingAdmin.isNotEmpty) {
+      await store.write(AppConfig.stagingAdminTokenKey, cleanStagingAdmin);
+    } else {
+      await store.delete(AppConfig.stagingAdminTokenKey);
+    }
+
+    await store.write(
+        AppConfig.prodShiftReminderKey, prodShiftReminderMinutes.toString());
+    await store.write(AppConfig.stagingShiftReminderKey,
+        stagingShiftReminderMinutes.toString());
+    await store.write(
+        AppConfig.prodVibrationsKey, prodVibrationsEnabled.toString());
+    await store.write(
+        AppConfig.stagingVibrationsKey, stagingVibrationsEnabled.toString());
+
     // Also persist active credentials to legacy keys for widget & background readers
     await store.write(_baseUrlStorageKey, activeUrl);
     await store.write(_tokenStorageKey, activeToken);
 
-    if (adminToken != null && adminToken.trim().isNotEmpty) {
-      await store.write(_adminTokenStorageKey, adminToken.trim());
+    if (activeAdmin != null && activeAdmin.isNotEmpty) {
+      await store.write(_adminTokenStorageKey, activeAdmin);
     } else {
       await store.delete(_adminTokenStorageKey);
     }
-    await store.write(_hapticsStorageKey, vibrationsEnabled.toString());
-    await store.write(_reminderStorageKey, shiftReminderMinutes.toString());
+    await store.write(_hapticsStorageKey, activeVibrations.toString());
+    await store.write(_reminderStorageKey, activeReminder.toString());
 
     await widgetSync.syncCredentials(
       baseUrl: activeUrl,
       deviceToken: activeToken,
-      vibrationsEnabled: vibrationsEnabled,
+      vibrationsEnabled: activeVibrations,
     );
 
     state = AsyncValue.data(
       AppSettings(
         baseUrl: activeUrl,
         deviceToken: activeToken,
-        adminToken: adminToken?.trim(),
+        adminToken: activeAdmin,
         isConfigured: activeToken.isNotEmpty &&
             (store.isWeb || activeUrl != defaultApiBaseUrl),
-        vibrationsEnabled: vibrationsEnabled,
-        shiftReminderMinutes: shiftReminderMinutes,
+        vibrationsEnabled: activeVibrations,
+        shiftReminderMinutes: activeReminder,
         environment: cleanEnv,
         prodUrl: cleanProdUrl,
         prodToken: cleanProdToken,
+        prodAdminToken: cleanProdAdmin,
+        prodReminderMinutes: prodShiftReminderMinutes,
+        prodVibrationsEnabled: prodVibrationsEnabled,
         stagingUrl: cleanStagingUrl,
         stagingToken: cleanStagingToken,
+        stagingAdminToken: cleanStagingAdmin,
+        stagingReminderMinutes: stagingShiftReminderMinutes,
+        stagingVibrationsEnabled: stagingVibrationsEnabled,
       ),
     );
   }

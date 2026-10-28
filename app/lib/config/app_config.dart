@@ -35,6 +35,12 @@ class AppConfig {
   static const String environmentKey = 'selected_environment';
   static const String stagingTokenKey = 'staging_device_auth_token';
   static const String stagingUrlKey = 'staging_api_base_url';
+  static const String prodAdminTokenKey = 'prod_admin_auth_token';
+  static const String stagingAdminTokenKey = 'staging_admin_auth_token';
+  static const String prodShiftReminderKey = 'prod_shift_reminder_minutes';
+  static const String stagingShiftReminderKey = 'staging_shift_reminder_minutes';
+  static const String prodVibrationsKey = 'prod_vibrations_enabled';
+  static const String stagingVibrationsKey = 'staging_vibrations_enabled';
 
   // --- Platform Method Channels ---
   static const String widgetSyncChannel = 'com.workhours.tracker/widget_sync';
