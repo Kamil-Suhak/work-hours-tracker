@@ -110,5 +110,12 @@
 
 ---
 
+### Phase 12: v1.2.4 Production Keystore Signing & Android Version Badge
+- [x] **Production Keystore Signing in CI**: Configured Gradle release signing via environment variables and `key.properties`, automated base64 secret decoding in `.github/workflows/release-android.yml`, and added `.keystore` / `.jks` gitignore protections.
+- [x] **Android Version Check Badge**: Added understated `Latest version: <latest> | Current version: <current>` badge in SettingsDialog on native Android. Dynamically fetches latest GitHub release, highlighting in yellow when an update is available and in green when up-to-date.
+- [x] **v1.2.4 Versioning & Release Prep**: Updated `CHANGELOG.md`, `AppConfig.appVersion` (`1.2.4`), `pubspec.yaml` (`1.2.4+12`), and Worker `package.json` (`1.2.4`).
+
+---
+
 ## Status Summary
-All v1.2.3 implementation items are complete, verified with 0 analyzer issues, 100% test pass rate (71 Vitest tests + 77 Flutter tests), and committed locally.
+All v1.2.4 implementation items are complete, verified with 0 analyzer issues, 100% test pass rate (71 Vitest tests + Flutter tests), and committed locally.

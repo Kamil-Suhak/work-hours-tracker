@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.4] - 2026-10-30
+
+### Added
+- **Production Keystore Signing in CI Pipeline:** Configured Android Gradle release signing via environment variables (`KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`) and GitHub Actions secret decoding (`ANDROID_KEYSTORE_BASE64`). Enables consistent release certificate signing to prevent Play Protect untrusted warnings and allows seamless in-place APK updates on Android without uninstalling or losing data.
+- **Android Version Check Badge:** Added an understated version indicator in the Settings dialog on Android (`!kIsWeb && defaultTargetPlatform == TargetPlatform.android`). Dynamically fetches the latest release from GitHub Releases API with a 4-second timeout, formatting as `Latest version: <latest> | Current version: <current>`. Highlights the latest version in yellow when an update is available and in green when up-to-date. Tapping the badge opens the latest release page on GitHub.
+
+### Changed
+- **Version Bumps:** Bumped application configuration, Flutter bundle version (`1.2.4+12`), and Cloudflare Worker API to `1.2.4`.
+
+---
+
 ## [1.2.3] - 2026-10-28
 
 ### Added
