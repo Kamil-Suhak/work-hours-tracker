@@ -18,6 +18,8 @@ void main() {
         currentVersion: '1.2.3',
         isChecking: true,
       );
+      expect(info.latestDisplay, 'checking...');
+      expect(info.currentDisplay, 'v1.2.3');
       expect(
         info.displayText,
         'Latest version: checking... | Current version: v1.2.3',
@@ -29,10 +31,12 @@ void main() {
         currentVersion: '1.2.3',
         isError: true,
       );
+      expect(info.latestDisplay, 'unavailable');
       expect(
         info.displayText,
         'Latest version: unavailable | Current version: v1.2.3',
       );
+      expect(info.isUpToDate, isFalse);
     });
 
     test('formats up-to-date version correctly', () {
@@ -41,6 +45,9 @@ void main() {
         latestVersion: 'v1.2.3',
         hasUpdate: false,
       );
+      expect(info.latestDisplay, 'v1.2.3');
+      expect(info.currentDisplay, 'v1.2.3');
+      expect(info.isUpToDate, isTrue);
       expect(
         info.displayText,
         'Latest version: v1.2.3 | Current version: v1.2.3',
@@ -54,6 +61,8 @@ void main() {
         latestVersion: 'v1.2.4',
         hasUpdate: true,
       );
+      expect(info.latestDisplay, 'v1.2.4');
+      expect(info.isUpToDate, isFalse);
       expect(
         info.displayText,
         'Latest version: v1.2.4 | Current version: v1.2.3',
@@ -136,7 +145,7 @@ void main() {
       });
     });
 
-    testWidgets('renders version badge on Android platform with update indicator',
+    testWidgets('renders version badge on Android platform with colored version text',
         (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.android;
 
@@ -161,11 +170,64 @@ void main() {
 
         final badgeFinder = find.byKey(const Key('android_version_badge'));
         expect(badgeFinder, findsOneWidget);
-        expect(
-          find.text('Latest version: v1.2.4 | Current version: v1.2.3'),
-          findsOneWidget,
+
+        // Verify rich text contents
+        final richTextFinder = find.descendant(
+          of: badgeFinder,
+          matching: find.byType(RichText),
         );
-        expect(find.text('UPDATE'), findsOneWidget);
+        expect(richTextFinder, findsOneWidget);
+
+        final richText = tester.widget<RichText>(richTextFinder);
+        final span = richText.text as TextSpan;
+        expect(span.toPlainText(), 'Latest version: v1.2.4 | Current version: v1.2.3');
+
+        // Check that the latest version text span has yellow color (Color(0xFFFBBF24))
+        final latestSpan = (span.children![1] as TextSpan);
+        expect(latestSpan.text, 'v1.2.4');
+        expect(latestSpan.style?.color, const Color(0xFFFBBF24));
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('renders green color when latest version matches current',
+        (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+
+      try {
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              versionCheckProvider.overrideWith((ref) => const VersionInfo(
+                    currentVersion: '1.2.3',
+                    latestVersion: 'v1.2.3',
+                    hasUpdate: false,
+                  )),
+            ],
+            child: const MaterialApp(
+              home: Scaffold(
+                body: SettingsDialog(),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final badgeFinder = find.byKey(const Key('android_version_badge'));
+        expect(badgeFinder, findsOneWidget);
+
+        final richTextFinder = find.descendant(
+          of: badgeFinder,
+          matching: find.byType(RichText),
+        );
+        final richText = tester.widget<RichText>(richTextFinder);
+        final span = richText.text as TextSpan;
+        expect(span.toPlainText(), 'Latest version: v1.2.3 | Current version: v1.2.3');
+
+        final latestSpan = (span.children![1] as TextSpan);
+        expect(latestSpan.text, 'v1.2.3');
+        expect(latestSpan.style?.color, const Color(0xFF10B981));
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }

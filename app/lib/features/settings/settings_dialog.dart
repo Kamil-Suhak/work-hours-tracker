@@ -555,7 +555,11 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                             isError: versionAsync.hasError,
                           );
 
-                      final hasUpdate = versionInfo.hasUpdate;
+                      final latestColor = versionInfo.hasUpdate
+                          ? const Color(0xFFFBBF24)
+                          : (versionInfo.isUpToDate
+                              ? const Color(0xFF10B981)
+                              : const Color(0xFF64748B));
 
                       return InkWell(
                         key: const Key('android_version_badge'),
@@ -572,55 +576,31 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                             color: const Color(0xFF0F172A),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
-                              color: hasUpdate
-                                  ? const Color(0xFFF59E0B)
-                                  : const Color(0xFF334155),
+                              color: const Color(0xFF334155),
                               width: 1,
                             ),
                           ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                hasUpdate
-                                    ? Icons.system_update
-                                    : Icons.verified_outlined,
-                                size: 16,
-                                color: hasUpdate
-                                    ? const Color(0xFFF59E0B)
-                                    : const Color(0xFF10B981),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  versionInfo.displayText,
+                          child: Text.rich(
+                            TextSpan(
+                              children: [
+                                const TextSpan(text: 'Latest version: '),
+                                TextSpan(
+                                  text: versionInfo.latestDisplay,
                                   style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: hasUpdate
-                                        ? const Color(0xFFFDE68A)
-                                        : const Color(0xFF94A3B8),
+                                    color: latestColor,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                              ),
-                              if (hasUpdate)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF59E0B)
-                                        .withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const Text(
-                                    'UPDATE',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFFF59E0B),
-                                    ),
-                                  ),
+                                TextSpan(
+                                  text:
+                                      ' | Current version: ${versionInfo.currentDisplay}',
                                 ),
-                            ],
+                              ],
+                            ),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF94A3B8),
+                            ),
                           ),
                         ),
                       );

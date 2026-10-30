@@ -24,19 +24,20 @@ class VersionInfo {
     this.isError = false,
   });
 
-  String get displayText {
-    final current =
-        currentVersion.startsWith('v') ? currentVersion : 'v$currentVersion';
-    if (isChecking) {
-      return 'Latest version: checking... | Current version: $current';
-    }
-    if (isError || latestVersion == null) {
-      return 'Latest version: unavailable | Current version: $current';
-    }
-    final latest =
-        latestVersion!.startsWith('v') ? latestVersion! : 'v$latestVersion';
-    return 'Latest version: $latest | Current version: $current';
+  String get currentDisplay =>
+      currentVersion.startsWith('v') ? currentVersion : 'v$currentVersion';
+
+  String get latestDisplay {
+    if (isChecking) return 'checking...';
+    if (isError || latestVersion == null) return 'unavailable';
+    return latestVersion!.startsWith('v') ? latestVersion! : 'v$latestVersion';
   }
+
+  bool get isUpToDate =>
+      !isChecking && !isError && latestVersion != null && !hasUpdate;
+
+  String get displayText =>
+      'Latest version: $latestDisplay | Current version: $currentDisplay';
 }
 
 final versionCheckProvider =
