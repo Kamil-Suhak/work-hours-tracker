@@ -31,8 +31,19 @@ android {
             def envKeystore = System.getenv("KEYSTORE_PATH")
             def keyPropsFile = file("key.properties").exists() ? file("key.properties") : rootProject.file("key.properties")
 
-            if (envKeystore && file(envKeystore).exists()) {
-                storeFile = file(envKeystore)
+            File keystoreFile = null
+            if (envKeystore) {
+                if (file(envKeystore).exists()) {
+                    keystoreFile = file(envKeystore)
+                } else if (file("app/$envKeystore").exists()) {
+                    keystoreFile = file("app/$envKeystore")
+                } else if (rootProject.file(envKeystore).exists()) {
+                    keystoreFile = rootProject.file(envKeystore)
+                }
+            }
+
+            if (keystoreFile != null) {
+                storeFile = keystoreFile
                 storePassword = System.getenv("KEYSTORE_PASSWORD")
                 keyAlias = System.getenv("KEY_ALIAS")
                 keyPassword = System.getenv("KEY_PASSWORD")

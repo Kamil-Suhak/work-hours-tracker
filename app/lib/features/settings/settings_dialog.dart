@@ -548,7 +548,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                   Consumer(
                     builder: (context, ref, _) {
                       final versionAsync = ref.watch(versionCheckProvider);
-                      final versionInfo = versionAsync.valueOrNull ??
+                      final versionInfo = versionAsync.value ??
                           VersionInfo(
                             currentVersion: AppConfig.appVersion,
                             isChecking: versionAsync.isLoading,

@@ -42,7 +42,7 @@ class VersionInfo {
 
 final versionCheckProvider =
     FutureProvider.autoDispose<VersionInfo>((ref) async {
-  final current = AppConfig.appVersion;
+  const current = AppConfig.appVersion;
   final client = ref.watch(httpClientProvider);
 
   try {
