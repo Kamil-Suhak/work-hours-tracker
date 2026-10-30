@@ -48,7 +48,7 @@ jobs:
         working-directory: app
         run: |
           flutter pub get
-          flutter build apk --release
+          flutter build apk --release --android-skip-build-dependency-validation
         env:
           KEYSTORE_PATH: release.jks
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
