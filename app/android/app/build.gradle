@@ -26,9 +26,31 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        release {
+            def envKeystore = System.getenv("KEYSTORE_PATH")
+            def keyPropsFile = file("key.properties").exists() ? file("key.properties") : rootProject.file("key.properties")
+
+            if (envKeystore && file(envKeystore).exists()) {
+                storeFile = file(envKeystore)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            } else if (keyPropsFile.exists()) {
+                def keyProps = new Properties()
+                keyProps.load(new FileInputStream(keyPropsFile))
+                storeFile = file(keyProps['storeFile'])
+                storePassword = keyProps['storePassword']
+                keyAlias = keyProps['keyAlias']
+                keyPassword = keyProps['keyPassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig = signingConfigs.debug
+            def isConfigured = signingConfigs.release.storeFile != null && signingConfigs.release.storeFile.exists()
+            signingConfig = isConfigured ? signingConfigs.release : signingConfigs.debug
         }
     }
 }

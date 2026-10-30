@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import '../../services/platform/platform_services.dart';
 import '../clock/clock_notifier.dart';
 import '../history/shifts_notifier.dart';
 import 'settings_notifier.dart';
+import 'version_check_provider.dart';
 
 class SettingsDialog extends ConsumerStatefulWidget {
   const SettingsDialog({super.key});
@@ -542,6 +544,90 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                   ),
                 ),
                 const Divider(height: 24, color: Color(0xFF334155)),
+                if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) ...[
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final versionAsync = ref.watch(versionCheckProvider);
+                      final versionInfo = versionAsync.valueOrNull ??
+                          VersionInfo(
+                            currentVersion: AppConfig.appVersion,
+                            isChecking: versionAsync.isLoading,
+                            isError: versionAsync.hasError,
+                          );
+
+                      final hasUpdate = versionInfo.hasUpdate;
+
+                      return InkWell(
+                        key: const Key('android_version_badge'),
+                        onTap: () => launchUrl(
+                          Uri.parse(
+                              'https://github.com/Kamil-Suhak/work-hours-tracker/releases/latest'),
+                          mode: LaunchMode.externalApplication,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F172A),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: hasUpdate
+                                  ? const Color(0xFFF59E0B)
+                                  : const Color(0xFF334155),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                hasUpdate
+                                    ? Icons.system_update
+                                    : Icons.verified_outlined,
+                                size: 16,
+                                color: hasUpdate
+                                    ? const Color(0xFFF59E0B)
+                                    : const Color(0xFF10B981),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  versionInfo.displayText,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: hasUpdate
+                                        ? const Color(0xFFFDE68A)
+                                        : const Color(0xFF94A3B8),
+                                  ),
+                                ),
+                              ),
+                              if (hasUpdate)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF59E0B)
+                                        .withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text(
+                                    'UPDATE',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFFF59E0B),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
