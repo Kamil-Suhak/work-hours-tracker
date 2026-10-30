@@ -183,9 +183,17 @@ void main() {
         expect(span.toPlainText(), 'Latest version: v1.2.4 | Current version: v1.2.3');
 
         // Check that the latest version text span has yellow color (Color(0xFFFBBF24))
-        final latestSpan = (span.children![1] as TextSpan);
-        expect(latestSpan.text, 'v1.2.4');
-        expect(latestSpan.style?.color, const Color(0xFFFBBF24));
+        TextSpan? latestSpan;
+        span.visitChildren((child) {
+          if (child is TextSpan && child.text == 'v1.2.4') {
+            latestSpan = child;
+            return false;
+          }
+          return true;
+        });
+        expect(latestSpan, isNotNull);
+        expect(latestSpan!.text, 'v1.2.4');
+        expect(latestSpan!.style?.color, const Color(0xFFFBBF24));
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }
@@ -225,9 +233,17 @@ void main() {
         final span = richText.text as TextSpan;
         expect(span.toPlainText(), 'Latest version: v1.2.3 | Current version: v1.2.3');
 
-        final latestSpan = (span.children![1] as TextSpan);
-        expect(latestSpan.text, 'v1.2.3');
-        expect(latestSpan.style?.color, const Color(0xFF10B981));
+        TextSpan? latestSpan;
+        span.visitChildren((child) {
+          if (child is TextSpan && child.text == 'v1.2.3') {
+            latestSpan = child;
+            return false;
+          }
+          return true;
+        });
+        expect(latestSpan, isNotNull);
+        expect(latestSpan!.text, 'v1.2.3');
+        expect(latestSpan!.style?.color, const Color(0xFF10B981));
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }
