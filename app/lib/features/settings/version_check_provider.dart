@@ -70,12 +70,12 @@ final versionCheckProvider =
         );
       }
     }
-    return VersionInfo(
+    return const VersionInfo(
       currentVersion: current,
       isError: true,
     );
   } catch (_) {
-    return VersionInfo(
+    return const VersionInfo(
       currentVersion: current,
       isError: true,
     );
