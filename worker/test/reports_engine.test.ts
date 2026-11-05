@@ -14,6 +14,7 @@ import {
   aggregateDailyContractHours,
   formatCompactDuration,
   generateContractDocx,
+  redistributeIntegerHours,
   unzipBuffer,
 } from '../src/reports/docx_generator';
 import { validateReportRequest } from '../src/reports/report_service';
@@ -498,12 +499,82 @@ describe('Reports Engine Unit Tests', () => {
       { date: '2026-11-01', durationMinutes: 480 }, // Different month, excluded
     ];
 
-    const rows = aggregateDailyContractHours(events, planned, '2026-10');
+    const rows = aggregateDailyContractHours(events, planned, '2026-10', 22);
     expect(rows).toEqual([
-      { date: '2026-10-01', durationMinutes: 480, durationCompact: '8h0m' },
-      { date: '2026-10-27', durationMinutes: 480, durationCompact: '8h0m' },
-      { date: '2026-10-28', durationMinutes: 360, durationCompact: '6h0m' },
+      { date: '2026-10-01', durationMinutes: 480, durationHours: 8, durationCompact: '8h0m' },
+      { date: '2026-10-27', durationMinutes: 480, durationHours: 8, durationCompact: '8h0m' },
+      { date: '2026-10-28', durationMinutes: 360, durationHours: 6, durationCompact: '6h0m' },
     ]);
+  });
+
+  it('redistributes integer hours correctly across real October shifts matching target doc', () => {
+    const rawOctShifts = [
+      { date: '2026-10-01', durationMinutes: 480 },
+      { date: '2026-10-05', durationMinutes: 240 },
+      { date: '2026-10-07', durationMinutes: 540 },
+      { date: '2026-10-08', durationMinutes: 420 },
+      { date: '2026-10-12', durationMinutes: 120 },
+      { date: '2026-10-14', durationMinutes: 430 }, // 7h 10m -> 7
+      { date: '2026-10-15', durationMinutes: 480 },
+      { date: '2026-10-18', durationMinutes: 170 }, // 2h 50m -> 3 (rounds up)
+      { date: '2026-10-19', durationMinutes: 93 },  // 1h 33m -> 1 (rounds down)
+      { date: '2026-10-20', durationMinutes: 240 },
+      { date: '2026-10-21', durationMinutes: 480 },
+      { date: '2026-10-23', durationMinutes: 47 },  // 0h 47m -> 1 (min 1h locked)
+      { date: '2026-10-25', durationMinutes: 300 },
+      { date: '2026-10-26', durationMinutes: 240 },
+      { date: '2026-10-28', durationMinutes: 520 }, // 8h 40m -> 9 (rounds up)
+    ];
+
+    const result = redistributeIntegerHours(rawOctShifts, 80);
+    const expected = [
+      { date: '2026-10-01', durationHours: 8 },
+      { date: '2026-10-05', durationHours: 4 },
+      { date: '2026-10-07', durationHours: 9 },
+      { date: '2026-10-08', durationHours: 7 },
+      { date: '2026-10-12', durationHours: 2 },
+      { date: '2026-10-14', durationHours: 7 },
+      { date: '2026-10-15', durationHours: 8 },
+      { date: '2026-10-18', durationHours: 3 },
+      { date: '2026-10-19', durationHours: 1 },
+      { date: '2026-10-20', durationHours: 4 },
+      { date: '2026-10-21', durationHours: 8 },
+      { date: '2026-10-23', durationHours: 1 },
+      { date: '2026-10-25', durationHours: 5 },
+      { date: '2026-10-26', durationHours: 4 },
+      { date: '2026-10-28', durationHours: 9 },
+    ];
+
+    expect(result.map((r) => ({ date: r.date, durationHours: r.durationHours }))).toEqual(expected);
+    const totalHours = result.reduce((sum, r) => sum + r.durationHours, 0);
+    expect(totalHours).toBe(80);
+  });
+
+  it('redistributeIntegerHours handles min 1h, max 9h, and tie-breaking by date', () => {
+    // 2 shifts: one 30 mins (<60m locked to 1), one 600 mins (>9h capped at 9)
+    const clamped = redistributeIntegerHours(
+      [
+        { date: '2026-10-01', durationMinutes: 30 },
+        { date: '2026-10-02', durationMinutes: 600 },
+      ],
+      10
+    );
+    expect(clamped[0].durationHours).toBe(1);
+    expect(clamped[1].durationHours).toBe(9);
+
+    // Tie breaking by earlier date
+    const tied = redistributeIntegerHours(
+      [
+        { date: '2026-10-02', durationMinutes: 150 }, // 2h 30m
+        { date: '2026-10-01', durationMinutes: 150 }, // 2h 30m
+      ],
+      5 // 2+2=4, 1 extra to distribute
+    );
+    // Earlier date (10-01) gets the extra hour -> 3h, 10-02 gets 2h
+    const d1 = tied.find((r) => r.date === '2026-10-01');
+    const d2 = tied.find((r) => r.date === '2026-10-02');
+    expect(d1?.durationHours).toBe(3);
+    expect(d2?.durationHours).toBe(2);
   });
 
   it('generates filled contract .docx with date | 0h0m | signature PNG and Rachunek fields', async () => {
@@ -568,8 +639,8 @@ describe('Reports Engine Unit Tests', () => {
         issuePlace: 'Mielec',
       },
       dailyRows: [
-        { date: '2026-10-01', durationMinutes: 480, durationCompact: '8h0m' },
-        { date: '2026-10-27', durationMinutes: 240, durationCompact: '4h0m' },
+        { date: '2026-10-01', durationMinutes: 480, durationCompact: '8h0m', durationHours: 8 },
+        { date: '2026-10-27', durationMinutes: 240, durationCompact: '4h0m', durationHours: 4 },
       ],
       issueDateWarsaw: '2026-10-26',
     });
@@ -584,14 +655,15 @@ describe('Reports Engine Unit Tests', () => {
     expect(updatedDocXml).toContain('01.10.2026 r.');
     expect(updatedDocXml).toContain('Nazwisko i imię Zleceniobiorcy: Kowalski Jan');
     expect(updatedDocXml).toContain('2026-10-01');
-    expect(updatedDocXml).toContain('8h0m');
+    expect(updatedDocXml).toContain('>8<');
     expect(updatedDocXml).toContain('2026-10-27');
-    expect(updatedDocXml).toContain('4h0m');
+    expect(updatedDocXml).toContain('>4<');
     expect(updatedDocXml).toContain('rIdSignatureImg');
-    expect(updatedDocXml).toContain('80h 0m');
+    expect(updatedDocXml).toContain('>80<');
     expect(updatedDocXml).toContain('50 PLN');
     expect(updatedDocXml).toContain('4000 PLN');
-    expect(updatedDocXml).toContain('Mielec, 2026-10-26');
+    expect(updatedDocXml).toContain('Mielec, 2026-10-30');
+    expect(updatedDocXml).toContain('<w:br w:type="page"/>');
   });
 
   it('getCurrentWarsawMonthRangeUtc computes exact current month boundaries in Warsaw', () => {
@@ -603,6 +675,97 @@ describe('Reports Engine Unit Tests', () => {
     expect(range.startIso).toBe('2026-09-30T22:00:00.000Z');
     // 2026-11-01 00:00 CET (UTC+1) -> 2026-10-31T23:00:00.000Z
     expect(range.endIso).toBe('2026-10-31T23:00:00.000Z');
+  });
+
+  it('generateExcelWorkbook includes DrawingML charts for daily hours and location breakdown', async () => {
+    const decoder = new TextDecoder();
+    const mockEvents: EventRow[] = [
+      {
+        id: 'evt-1',
+        request_id: 'req-1',
+        user_id: 'default_user',
+        device_id: 'dev-1',
+        event_type: 'clock_in',
+        source: 'flutter_app',
+        occurred_at_utc: '2026-10-01T09:00:00.000Z',
+        created_at_utc: '2026-10-01T09:00:00.000Z',
+        location: 'in-office',
+        reason: null,
+        note: null,
+      },
+      {
+        id: 'evt-2',
+        request_id: 'req-2',
+        user_id: 'default_user',
+        device_id: 'dev-1',
+        event_type: 'clock_out',
+        source: 'flutter_app',
+        occurred_at_utc: '2026-10-01T17:00:00.000Z',
+        created_at_utc: '2026-10-01T17:00:00.000Z',
+        reason: null,
+        note: 'Sprint planning',
+      },
+      {
+        id: 'evt-3',
+        request_id: 'req-3',
+        user_id: 'default_user',
+        device_id: 'dev-1',
+        event_type: 'clock_in',
+        source: 'flutter_app',
+        occurred_at_utc: '2026-10-02T10:00:00.000Z',
+        created_at_utc: '2026-10-02T10:00:00.000Z',
+        location: 'remote',
+        reason: null,
+        note: null,
+      },
+      {
+        id: 'evt-4',
+        request_id: 'req-4',
+        user_id: 'default_user',
+        device_id: 'dev-1',
+        event_type: 'clock_out',
+        source: 'flutter_app',
+        occurred_at_utc: '2026-10-02T14:00:00.000Z',
+        created_at_utc: '2026-10-02T14:00:00.000Z',
+        reason: null,
+        note: 'Code review',
+      },
+    ];
+
+    const result = generateExcelWorkbook(mockEvents, {
+      startDate: '2026-10-01T00:00:00.000Z',
+      endDate: '2026-10-31T23:59:59.999Z',
+      preset: 'full',
+    });
+
+    const unpacked = await unzipBuffer(result.buffer);
+    const contentTypes = decoder.decode(unpacked.find((e) => e.path === '[Content_Types].xml')!.data);
+    const drawingEntry = unpacked.find((e) => e.path === 'xl/drawings/drawing1.xml');
+    const chart1Entry = unpacked.find((e) => e.path === 'xl/charts/chart1.xml');
+    const chart2Entry = unpacked.find((e) => e.path === 'xl/charts/chart2.xml');
+    const sheetEntry = unpacked.find((e) => e.path === 'xl/worksheets/sheet1.xml');
+
+    expect(contentTypes).toContain('drawing+xml');
+    expect(contentTypes).toContain('chart+xml');
+    expect(drawingEntry).toBeDefined();
+    expect(chart1Entry).toBeDefined();
+    expect(chart2Entry).toBeDefined();
+
+    const chart1Xml = decoder.decode(chart1Entry!.data);
+    expect(chart1Xml).toContain('Daily Work Hours');
+    expect(chart1Xml).toContain('barChart');
+    expect(chart1Xml).toContain('2026-10-01');
+    expect(chart1Xml).toContain('2026-10-02');
+
+    const chart2Xml = decoder.decode(chart2Entry!.data);
+    expect(chart2Xml).toContain('Location Breakdown');
+    expect(chart2Xml).toContain('doughnutChart');
+    expect(chart2Xml).toContain('in-office');
+    expect(chart2Xml).toContain('remote');
+
+    const sheetXml = decoder.decode(sheetEntry!.data);
+    expect(sheetXml).toContain('<drawing r:id="rId1"/>');
+    expect(sheetXml).toContain('LOCATION BREAKDOWN');
   });
 });
 

@@ -5,6 +5,7 @@ import { createZipBuffer, formatWarsawDate } from './excel_generator';
 export interface DailyContractRow {
   date: string; // YYYY-MM-DD
   durationMinutes: number;
+  durationHours: number; // Integer hours (1..9)
   durationCompact: string; // e.g. "8h0m"
 }
 
@@ -25,13 +26,89 @@ export function formatCompactDuration(totalMinutes: number): string {
 }
 
 /**
+ * Redistributes minutes across shifts to produce integer hours between 1 and 9
+ * that sum exactly to the target total hours (zero-sum redistribution).
+ *
+ * Rules:
+ * 1. Shifts < 1h (< 60m) are locked to 1h.
+ * 2. Shifts >= 9h are capped at 9h.
+ * 3. Base integer hours = floor(minutes / 60).
+ * 4. Remaining +1 hours are allocated to shifts with the highest minute remainders.
+ * 5. Ties are broken by earlier calendar date.
+ */
+export function redistributeIntegerHours(
+  rawShifts: { date: string; durationMinutes: number }[],
+  targetTotalHours: number = 80
+): { date: string; durationMinutes: number; durationHours: number }[] {
+  if (rawShifts.length === 0) return [];
+
+  const items = rawShifts.map((s, idx) => {
+    let base = Math.floor(s.durationMinutes / 60);
+    const rem = s.durationMinutes % 60;
+    let locked = false;
+
+    if (s.durationMinutes > 0 && s.durationMinutes < 60) {
+      base = 1;
+      locked = true;
+    } else if (base >= 9) {
+      base = 9;
+      locked = true;
+    }
+
+    return {
+      date: s.date,
+      durationMinutes: s.durationMinutes,
+      base,
+      rem,
+      locked,
+      finalHours: base,
+      idx,
+    };
+  });
+
+  const allocatedSoFar = items.reduce((acc, it) => acc + it.finalHours, 0);
+  const remainingHoursToDistribute = targetTotalHours - allocatedSoFar;
+
+  if (remainingHoursToDistribute > 0) {
+    const candidates = items
+      .filter((it) => !it.locked && it.rem > 0 && it.finalHours < 9)
+      .sort((a, b) => {
+        if (b.rem !== a.rem) return b.rem - a.rem;
+        return a.date.localeCompare(b.date);
+      });
+
+    for (let i = 0; i < remainingHoursToDistribute && i < candidates.length; i++) {
+      candidates[i].finalHours += 1;
+    }
+  } else if (remainingHoursToDistribute < 0) {
+    const candidates = items
+      .filter((it) => !it.locked && it.finalHours > 1)
+      .sort((a, b) => {
+        if (a.rem !== b.rem) return a.rem - b.rem;
+        return b.date.localeCompare(a.date);
+      });
+
+    for (let i = 0; i < Math.abs(remainingHoursToDistribute) && i < candidates.length; i++) {
+      candidates[i].finalHours -= 1;
+    }
+  }
+
+  return items.map((it) => ({
+    date: it.date,
+    durationMinutes: it.durationMinutes,
+    durationHours: it.finalHours,
+  }));
+}
+
+/**
  * Aggregates recorded D1 shifts and user-planned future shifts by Warsaw calendar date (YYYY-MM-DD)
- * for the specified target month (YYYY-MM).
+ * for the specified target month (YYYY-MM) and redistributes minutes into integer hours (1..9).
  */
 export function aggregateDailyContractHours(
   events: EventRow[],
   plannedShifts: PlannedShiftItem[] = [],
-  monthString: string
+  monthString: string,
+  targetMonthlyHours: number = 80
 ): DailyContractRow[] {
   const sorted = [...events].sort(
     (a, b) => new Date(a.occurred_at_utc).getTime() - new Date(b.occurred_at_utc).getTime()
@@ -59,13 +136,18 @@ export function aggregateDailyContractHours(
     }
   }
 
-  return Array.from(minutesByDate.entries())
+  const rawRows = Array.from(minutesByDate.entries())
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, durationMinutes]) => ({
-      date,
-      durationMinutes,
-      durationCompact: formatCompactDuration(durationMinutes),
-    }));
+    .map(([date, durationMinutes]) => ({ date, durationMinutes }));
+
+  const redistributed = redistributeIntegerHours(rawRows, targetMonthlyHours);
+
+  return redistributed.map((r) => ({
+    date: r.date,
+    durationMinutes: r.durationMinutes,
+    durationHours: r.durationHours,
+    durationCompact: formatCompactDuration(r.durationMinutes),
+  }));
 }
 
 /**
@@ -228,17 +310,16 @@ export async function generateContractDocx(params: {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
 
-  const { width, height } = getPngDimensions(signaturePngBytes);
-  // Table cell signature size (~3.45cm x 0.68cm max, scaled 1.5x)
-  const cellSigSize = fitEmuDimensions(width, height, 1_275_000, 270_000);
-  // Rachunek footer signature size (~4.8cm x 1.2cm max, scaled 1.5x)
-  const footerSigSize = fitEmuDimensions(width, height, 1_725_000, 435_000);
+  // Exact dimensions matching target-october.docx (cx="812959" cy="301096" for table, cx="1152842" cy="433149" for footer)
+  const cellSigSize = { cx: 812959, cy: 301096 };
+  const footerSigSize = { cx: 1152842, cy: 433149 };
 
   const sigRelId = 'rIdSignatureImg';
   const grossPln =
     profile.grossAmountPln ?? Math.round(profile.hourlyRatePln * profile.monthlyHours * 100) / 100;
   const issuePlace = profile.issuePlace?.trim() || 'Mielec';
-  const monthlyHoursText = `${profile.monthlyHours}h 0m`;
+  const monthlyHoursText = String(profile.monthlyHours);
+  const fixedSigningDate = issueDateWarsaw.replace(/-\d{2}$/, '-30');
 
   for (const entry of entries) {
     if (entry.path === '[Content_Types].xml') {
@@ -286,7 +367,7 @@ export async function generateContractDocx(params: {
             if (cellIndex === 1) {
               return replaceCellParagraphRuns(
                 tcXml,
-                `<w:r><w:rPr><w:rFonts w:ascii="Trebuchet MS" w:hAnsi="Trebuchet MS" /><w:sz w:val="18" /><w:szCs w:val="18" /></w:rPr><w:t>${escapeXml(dayRow.durationCompact)}</w:t></w:r>`
+                `<w:r><w:rPr><w:rFonts w:ascii="Trebuchet MS" w:hAnsi="Trebuchet MS" /><w:sz w:val="18" /><w:szCs w:val="18" /></w:rPr><w:t>${escapeXml(String(dayRow.durationHours))}</w:t></w:r>`
               );
             }
             if (cellIndex === 2) {
@@ -300,6 +381,12 @@ export async function generateContractDocx(params: {
           });
         });
       });
+
+      // Ensure an explicit page break after the hours table so Rachunek is always on a separate page
+      const hasPageBreakAfterTbl = /<\/w:tbl>\s*<w:p[^>]*>[\s\S]*?<w:br\s+w:type="page"\/>/.test(docXml);
+      if (!hasPageBreakAfterTbl) {
+        docXml = docXml.replace('</w:tbl>', '</w:tbl><w:p><w:r><w:br w:type="page"/></w:r></w:p>');
+      }
 
       // 2. Populate paragraphs outside the table (Page 1 headers & Page 2 Rachunek)
       docXml = docXml.replace(/<w:p\b[^>]*>[\s\S]*?<\/w:p>/g, (pXml) => {
@@ -366,7 +453,7 @@ export async function generateContractDocx(params: {
           const tabsXml = '<w:r><w:tab /></w:r>'.repeat(5);
           return replaceParagraphRuns(
             pXml,
-            `<w:r><w:rPr><w:rFonts w:ascii="Trebuchet MS" w:hAnsi="Trebuchet MS" /><w:sz w:val="20" /><w:szCs w:val="20" /></w:rPr><w:t>${escapeXml(issuePlace)}, ${escapeXml(issueDateWarsaw)}</w:t></w:r>${tabsXml}<w:r>${buildInlineSignatureDrawingXml(sigRelId, footerSigSize.cx, footerSigSize.cy, 250)}</w:r>`
+            `<w:r><w:rPr><w:rFonts w:ascii="Trebuchet MS" w:hAnsi="Trebuchet MS" /><w:sz w:val="20" /><w:szCs w:val="20" /></w:rPr><w:t>${escapeXml(issuePlace)}, ${escapeXml(fixedSigningDate)}</w:t></w:r>${tabsXml}<w:r>${buildInlineSignatureDrawingXml(sigRelId, footerSigSize.cx, footerSigSize.cy, 250)}</w:r>`
           );
         }
 

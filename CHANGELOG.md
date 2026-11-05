@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.5] - 2026-11-05
+
+### Added
+- **Formal Contract `.docx` Integer Hour Redistribution:** Implemented a zero-sum, largest-remainder integer redistribution algorithm (`redistributeIntegerHours`) for the attendance annex table (`Załącznik`). Daily shifts are rounded to integer hours (1h minimum, 9h maximum cap) with minute remainders allocated by highest remainder (ties broken by earlier calendar date), ensuring the monthly sum strictly equals the contract requirement (`80h`). Formatted table attendance hours and Rachunek monthly hours as plain integers (e.g. `8`, `80`).
+- **Fixed Rachunek Signing Date:** Guaranteed the signing date on Page 2 (`Rachunek do umowy zlecenia`) is always the 30th day of the month (`${issuePlace}, ${YYYY-MM-30}`), independent of calendar length or generation day.
+- **Target Signature Extents:** Scaled handwritten signature OpenXML drawing dimensions to match target document specifications (`cx="812959" cy="301096"` in table cells; `cx="1152842" cy="433149"` in Rachunek footer).
+- **Full Reporting (`.xlsx`) DrawingML Charts:** Added pure OpenXML zero-dependency chart generation to full Excel reports:
+  - *Daily Work Hours*: Clustered column/bar chart (`xl/charts/chart1.xml`) plotting hours worked across shift dates.
+  - *Location Breakdown*: Doughnut chart (`xl/charts/chart2.xml`) breaking down hours worked between Remote and In-Office locations.
+  - Added numeric `Hours` column to the shift data table with dynamic `SUM` formula in the total row and a dedicated location summary table.
+- **Contract Profile Endpoint:** Added `GET /api/v1/reports/contract-profile` returning contractor metadata and required monthly hours.
+
+### Changed
+- **Reports Screen 3-Button Architecture:** Streamlined the reports UI to exactly three unambiguous, distinctly labeled buttons with no confusing helper text or duplicate controls:
+  1. Formal Report Card: Single `Generate & Download Formal Report` button.
+  2. Full Report Card: `Generate & Download Full Report` button for custom date ranges.
+  3. Full Report Card: `Download Auto-Generated Report` button for scheduled 1st-of-month archives.
+- **Contract Target Gating & Interactive Forecast Status:** Added a contract progress status tile in the Formal Report Card that calculates worked plus planned hours against the contract profile. The formal report button remains strictly disabled until worked + forecasted hours equal the contract target (`80h`). Tapping the status tile opens an improved `PlanFutureShiftsDialog` allowing users to forecast remaining days up to the exact target.
+- **Removed Orphaned Code:** Cleaned up redundant "Open Last Report" buttons (files open automatically upon download), duplicate archive download controls in the formal card, and orphaned report state variables.
+- **Version Bumps:** Bumped Flutter bundle version to `1.2.5+13` and Cloudflare Worker API to `1.2.5`.
+
+---
+
 ## [1.2.4] - 2026-10-30
 
 ### Added

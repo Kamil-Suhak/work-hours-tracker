@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../api/models.dart';
 import '../clock/clock_notifier.dart';
 import '../../services/platform/platform_services.dart';
 
@@ -20,13 +21,31 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   bool _isGeneratingFormal = false;
   bool _isGeneratingExcel = false;
   bool _isDownloadingLatest = false;
-  String? _lastFormalReportPath;
-  String? _lastExcelReportPath;
-  String? _statusMessage;
   Map<String, dynamic>? _latestStorageReport;
+
+  int _contractMonthlyHours = 80;
+  int _monthWorkedMinutes = 0;
+  List<Map<String, dynamic>> _plannedShifts = [];
+  bool _isLoadingMonth = false;
 
   final DateFormat _displayFormat = DateFormat('MMM d, yyyy');
   final DateFormat _monthFormat = DateFormat('MMMM yyyy');
+
+  int get _plannedMinutes => _plannedShifts.fold(
+        0,
+        (sum, s) => sum + (s['durationMinutes'] as int? ?? 0),
+      );
+
+  int get _totalFormalMinutes => _monthWorkedMinutes + _plannedMinutes;
+
+  bool get _isFormalTargetMet =>
+      _totalFormalMinutes == (_contractMonthlyHours * 60);
+
+  static String _formatHoursMinutes(int totalMinutes) {
+    final h = totalMinutes ~/ 60;
+    final m = totalMinutes % 60;
+    return '${h}h ${m}m';
+  }
 
   @override
   void initState() {
@@ -37,6 +56,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     _startDate = DateTime(now.year, now.month, 1);
     _endDate = DateTime(now.year, now.month + 1, 0);
     _checkLatestStorageReport();
+    _loadMonthData();
   }
 
   Future<void> _checkLatestStorageReport() async {
@@ -49,6 +69,64 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         });
       }
     } catch (_) {}
+  }
+
+  Future<void> _loadMonthData() async {
+    setState(() => _isLoadingMonth = true);
+    try {
+      final apiClient = ref.read(apiClientProvider);
+      try {
+        final profile = await apiClient.getContractProfile();
+        if (profile['monthlyHours'] is num) {
+          _contractMonthlyHours = (profile['monthlyHours'] as num).toInt();
+        }
+      } catch (_) {}
+
+      final formalStart = DateTime(_formalMonth.year, _formalMonth.month, 1);
+      final formalEnd =
+          DateTime(_formalMonth.year, _formalMonth.month + 1, 0, 23, 59, 59);
+
+      final now = DateTime.now();
+      final isCurrentMonth =
+          _formalMonth.year == now.year && _formalMonth.month == now.month;
+
+      int workedMins = 0;
+      try {
+        final events =
+            await apiClient.getEvents(from: formalStart, to: formalEnd);
+        final sorted = List<TrackingEvent>.from(events)
+          ..sort((a, b) => a.occurredAtUtc.compareTo(b.occurredAtUtc));
+        TrackingEvent? pendingIn;
+        for (final ev in sorted) {
+          if (ev.eventType == 'clock_in') {
+            pendingIn = ev;
+          } else if (ev.eventType == 'clock_out' && pendingIn != null) {
+            workedMins +=
+                ev.occurredAtUtc.difference(pendingIn.occurredAtUtc).inMinutes;
+            pendingIn = null;
+          }
+        }
+      } catch (_) {}
+
+      if (isCurrentMonth) {
+        final status = ref.read(currentStatusProvider).value;
+        if (status != null && status.monthSeconds > 0) {
+          final statusMins = status.monthSeconds ~/ 60;
+          if (statusMins > workedMins) {
+            workedMins = statusMins;
+          }
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _monthWorkedMinutes = workedMins;
+          _isLoadingMonth = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingMonth = false);
+    }
   }
 
   List<DateTime> _getLast6Months() {
@@ -91,31 +169,27 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     }
   }
 
-  Future<void> _promptAndGenerateFormalReport() async {
+  Future<void> _openForecastDialog() async {
     final now = DateTime.now();
-    final isCurrentMonth =
-        _formalMonth.year == now.year && _formalMonth.month == now.month;
+    final planned = await showDialog<List<Map<String, dynamic>>>(
+      context: context,
+      builder: (ctx) => PlanFutureShiftsDialog(
+        now: now,
+        recordedMonthMinutes: _monthWorkedMinutes,
+        initialPlannedShifts: _plannedShifts,
+        targetMinutes: _contractMonthlyHours * 60,
+      ),
+    );
 
-    List<Map<String, dynamic>>? plannedShifts;
-    if (isCurrentMonth) {
-      final clockState = ref.read(currentStatusProvider).value;
-      final recordedMinutes = (clockState?.monthSeconds ?? 0) ~/ 60;
-
-      plannedShifts = await showDialog<List<Map<String, dynamic>>>(
-        context: context,
-        builder: (ctx) => PlanFutureShiftsDialog(
-          now: now,
-          recordedMonthMinutes: recordedMinutes,
-        ),
-      );
-
-      if (plannedShifts == null || !mounted) return;
+    if (planned != null && mounted) {
+      setState(() {
+        _plannedShifts = planned;
+      });
     }
+  }
 
-    setState(() {
-      _isGeneratingFormal = true;
-      _statusMessage = null;
-    });
+  Future<void> _generateFormalReport() async {
+    setState(() => _isGeneratingFormal = true);
 
     try {
       final apiClient = ref.read(apiClientProvider);
@@ -127,28 +201,18 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         endDate: formalEnd,
         format: 'docx',
         preset: 'formal',
-        plannedShifts: plannedShifts,
+        plannedShifts: _plannedShifts.isNotEmpty ? _plannedShifts : null,
       );
 
-      final path = await ref.read(reportFileServiceProvider).saveAndOpenReport(
+      await ref.read(reportFileServiceProvider).saveAndOpenReport(
             bytes: result.bytes,
             filename: result.filename,
           );
 
-      final totalMinutes = (result.totalHours * 60).round();
-      final h = totalMinutes ~/ 60;
-      final m = totalMinutes % 60;
-
-      setState(() {
-        _lastFormalReportPath = path;
-        _statusMessage =
-            'Generated formal report: ${h}h ${m}m (${result.totalShifts} days)';
-      });
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Formal report generated: ${result.filename}'),
+            content: Text('Formal report downloaded: ${result.filename}'),
             backgroundColor: const Color(0xFF0F766E),
           ),
         );
@@ -170,10 +234,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   }
 
   Future<void> _generateExcelReport() async {
-    setState(() {
-      _isGeneratingExcel = true;
-      _statusMessage = null;
-    });
+    setState(() => _isGeneratingExcel = true);
 
     try {
       final apiClient = ref.read(apiClientProvider);
@@ -184,25 +245,15 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         preset: 'full',
       );
 
-      final path = await ref.read(reportFileServiceProvider).saveAndOpenReport(
+      await ref.read(reportFileServiceProvider).saveAndOpenReport(
             bytes: result.bytes,
             filename: result.filename,
           );
 
-      final totalMinutes = (result.totalHours * 60).round();
-      final h = totalMinutes ~/ 60;
-      final m = totalMinutes % 60;
-
-      setState(() {
-        _lastExcelReportPath = path;
-        _statusMessage =
-            'Generated Excel report: ${h}h ${m}m (${result.totalShifts} shifts)';
-      });
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Report generated: ${result.filename}'),
+            content: Text('Full report downloaded: ${result.filename}'),
             backgroundColor: const Color(0xFF0F766E),
           ),
         );
@@ -211,7 +262,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to generate report: $e'),
+            content: Text('Failed to generate full report: $e'),
             backgroundColor: Colors.red[800],
           ),
         );
@@ -223,27 +274,8 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     }
   }
 
-  Future<void> _openReport(String path) async {
-    final opened =
-        await ref.read(reportFileServiceProvider).openReportFile(path);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content:
-              Text(opened ? 'Opening report...' : 'Could not open report file.'),
-          backgroundColor:
-              opened ? const Color(0xFF0F766E) : Colors.amber[800],
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
-  }
-
   Future<void> _downloadLatestMonth() async {
-    setState(() {
-      _isDownloadingLatest = true;
-      _statusMessage = null;
-    });
+    setState(() => _isDownloadingLatest = true);
 
     try {
       final apiClient = ref.read(apiClientProvider);
@@ -266,16 +298,10 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       final bytes = await apiClient.downloadReport(filename);
 
       final cleanName = filename.split('/').last;
-      final path = await ref.read(reportFileServiceProvider).saveAndOpenReport(
+      await ref.read(reportFileServiceProvider).saveAndOpenReport(
             bytes: bytes,
             filename: cleanName,
           );
-
-      setState(() {
-        _lastExcelReportPath = path;
-        _statusMessage =
-            'Downloaded automated archive: ${latest['month'] ?? cleanName}';
-      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -431,7 +457,9 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                     if (val != null) {
                       setState(() {
                         _formalMonth = val;
+                        _plannedShifts = [];
                       });
+                      _loadMonthData();
                     }
                   },
           ),
@@ -529,22 +557,89 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
-          // Reasonably Sized Generate Button Centered
+          // Contract Hours Status / Interactive Forecast Tile
+          InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: isBusy ? null : _openForecastDialog,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: _isFormalTargetMet
+                      ? const Color(0xFF10B981)
+                      : const Color(0xFFF59E0B),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _isFormalTargetMet
+                        ? Icons.check_circle
+                        : Icons.pending_outlined,
+                    size: 20,
+                    color: _isFormalTargetMet
+                        ? const Color(0xFF10B981)
+                        : const Color(0xFFF59E0B),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _isLoadingMonth
+                              ? 'Loading contract hours...'
+                              : _isFormalTargetMet
+                                  ? 'Contract Target Met (${_formatHoursMinutes(_totalFormalMinutes)} / ${_contractMonthlyHours}h)'
+                                  : 'Contract Target: ${_contractMonthlyHours}h (${_formatHoursMinutes(_totalFormalMinutes)} total)',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: _isFormalTargetMet
+                                ? const Color(0xFF10B981)
+                                : const Color(0xFFF59E0B),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${_formatHoursMinutes(_monthWorkedMinutes)} worked + ${_formatHoursMinutes(_plannedMinutes)} forecast — Tap to ${_isFormalTargetMet ? 'adjust forecast' : 'plan remaining shifts'}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.edit_calendar,
+                      size: 16, color: Color(0xFF94A3B8)),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Exactly 1 Function Button: Generate & Download Formal Report
           Center(
             child: SizedBox(
-              width: 280,
+              width: 320,
               child: ElevatedButton.icon(
                 key: const Key('generate_formal_report_button'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: indigoAccent,
                   foregroundColor: Colors.white,
+                  disabledBackgroundColor: const Color(0xFF334155),
+                  disabledForegroundColor: const Color(0xFF64748B),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
                 ),
-                onPressed: isBusy ? null : _promptAndGenerateFormalReport,
+                onPressed:
+                    (_isFormalTargetMet && !isBusy) ? _generateFormalReport : null,
                 icon: _isGeneratingFormal
                     ? const SizedBox(
                         width: 18,
@@ -555,89 +650,13 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                     : const Icon(Icons.assignment_turned_in_outlined,
                         size: 20),
                 label: const Text(
-                  'Generate Formal Report',
+                  'Generate & Download Formal Report',
                   style: TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 14),
+                      fontWeight: FontWeight.w700, fontSize: 13),
                 ),
               ),
             ),
           ),
-
-          if (_lastFormalReportPath != null) ...[
-            const SizedBox(height: 12),
-            Center(
-              child: SizedBox(
-                width: 280,
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: indigoAccent,
-                    side:
-                        const BorderSide(color: indigoAccent, width: 1.5),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                  onPressed: () => _openReport(_lastFormalReportPath!),
-                  icon: const Icon(Icons.open_in_new, size: 18),
-                  label: const Text(
-                    'Open Last Report',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w700, fontSize: 13),
-                  ),
-                ),
-              ),
-            ),
-          ],
-
-          if (_latestStorageReport != null) ...[
-            const SizedBox(height: 12),
-            Center(
-              child: SizedBox(
-                width: 280,
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF38BDF8),
-                    side: const BorderSide(
-                        color: Color(0xFF38BDF8), width: 1.2),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                  onPressed:
-                      _isDownloadingLatest ? null : _downloadLatestMonth,
-                  icon: _isDownloadingLatest
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Color(0xFF38BDF8)),
-                        )
-                      : const Icon(Icons.cloud_download_outlined,
-                          size: 18, color: Color(0xFF38BDF8)),
-                  label: Text(
-                    'Download Latest Stored Report (${_latestStorageReport!['month'] ?? 'Archive'})',
-                    style: const TextStyle(
-                      color: Color(0xFF38BDF8),
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-
-          if (_statusMessage != null && _lastFormalReportPath != null) ...[
-            const SizedBox(height: 14),
-            Center(
-              child: Text(
-                _statusMessage!,
-                style: const TextStyle(
-                    fontSize: 12, color: Color(0xFF94A3B8)),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -824,10 +843,10 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
           ),
           const SizedBox(height: 24),
 
-          // Reasonably Sized Generate Button Centered
+          // Function Button 1: Generate & Download Full Report
           Center(
             child: SizedBox(
-              width: 280,
+              width: 320,
               child: ElevatedButton.icon(
                 key: const Key('generate_excel_report_button'),
                 style: ElevatedButton.styleFrom(
@@ -847,99 +866,52 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                       )
                     : const Icon(Icons.table_view, size: 20),
                 label: const Text(
-                  'Generate Excel Report',
+                  'Generate & Download Full Report',
                   style: TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 14),
+                      fontWeight: FontWeight.w700, fontSize: 13),
                 ),
               ),
             ),
           ),
 
-          if (_lastExcelReportPath != null) ...[
-            const SizedBox(height: 12),
+          // Function Button 2: Download Auto-Generated Report
+          if (_latestStorageReport != null) ...[
+            const SizedBox(height: 20),
+            const Divider(color: Color(0xFF334155)),
+            const SizedBox(height: 16),
             Center(
               child: SizedBox(
-                width: 280,
+                width: 320,
                 child: OutlinedButton.icon(
+                  key: const Key('download_latest_storage_report_button'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: activeColor,
-                    side:
-                        const BorderSide(color: activeColor, width: 1.5),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    foregroundColor: const Color(0xFF38BDF8),
+                    side: const BorderSide(
+                        color: Color(0xFF38BDF8), width: 1.2),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
                   ),
-                  onPressed: () => _openReport(_lastExcelReportPath!),
-                  icon: const Icon(Icons.open_in_new, size: 18),
-                  label: const Text(
-                    'Open Last Report',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w700, fontSize: 13),
+                  onPressed:
+                      _isDownloadingLatest ? null : _downloadLatestMonth,
+                  icon: _isDownloadingLatest
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Color(0xFF38BDF8)),
+                        )
+                      : const Icon(Icons.cloud_download_outlined,
+                          size: 20, color: Color(0xFF38BDF8)),
+                  label: Text(
+                    'Download Auto-Generated Report (${_latestStorageReport!['month'] ?? 'Archive'})',
+                    style: const TextStyle(
+                      color: Color(0xFF38BDF8),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
-              ),
-            ),
-          ],
-
-          if (_statusMessage != null && _lastExcelReportPath != null) ...[
-            const SizedBox(height: 14),
-            Center(
-              child: Text(
-                _statusMessage!,
-                style: const TextStyle(
-                    fontSize: 12, color: Color(0xFF94A3B8)),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ],
-
-          if (_latestStorageReport != null) ...[
-            const SizedBox(height: 24),
-            const Divider(color: Color(0xFF334155)),
-            const SizedBox(height: 16),
-
-            // Automated Storage Archive section
-            Center(
-              child: Column(
-                children: [
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF38BDF8),
-                      side: const BorderSide(
-                          color: Color(0xFF38BDF8), width: 1.2),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 18, vertical: 12),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                    ),
-                    onPressed:
-                        _isDownloadingLatest ? null : _downloadLatestMonth,
-                    icon: _isDownloadingLatest
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Color(0xFF38BDF8)),
-                          )
-                        : const Icon(Icons.cloud_download_outlined,
-                            size: 18, color: Color(0xFF38BDF8)),
-                    label: Text(
-                      'Download Latest Stored Report (${_latestStorageReport!['month'] ?? 'Archive'})',
-                      style: const TextStyle(
-                        color: Color(0xFF38BDF8),
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Retrieve the scheduled monthly archive automatically generated on the 1st of the month',
-                    style:
-                        TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
               ),
             ),
           ],
@@ -954,11 +926,15 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
 class PlanFutureShiftsDialog extends StatefulWidget {
   final DateTime now;
   final int recordedMonthMinutes;
+  final List<Map<String, dynamic>>? initialPlannedShifts;
+  final int targetMinutes;
 
   const PlanFutureShiftsDialog({
     super.key,
     required this.now,
     required this.recordedMonthMinutes,
+    this.initialPlannedShifts,
+    this.targetMinutes = 4800,
   });
 
   @override
@@ -979,17 +955,30 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
     final month = widget.now.month;
     final lastDay = DateTime(year, month + 1, 0).day;
 
-    // Include today through the last day of the current month so the user can
-    // plan today's upcoming shift as well as remaining days (e.g. 26th–31st).
     _remainingDays = [
       for (int d = widget.now.day; d <= lastDay; d++) DateTime(year, month, d),
     ];
     _minutesByDate = {
       for (final day in _remainingDays) _formatYmd(day): 0,
     };
+
+    if (widget.initialPlannedShifts != null) {
+      for (final item in widget.initialPlannedShifts!) {
+        final d = item['date'] as String?;
+        final m = item['durationMinutes'] as int?;
+        if (d != null && m != null && _minutesByDate.containsKey(d)) {
+          _minutesByDate[d] = m;
+        }
+      }
+    }
+
     _controllers = {
       for (final day in _remainingDays)
-        _formatYmd(day): TextEditingController(),
+        _formatYmd(day): TextEditingController(
+          text: (_minutesByDate[_formatYmd(day)] ?? 0) > 0
+              ? _formatHoursMinutes(_minutesByDate[_formatYmd(day)]!)
+              : '',
+        ),
     };
     _focusNodes = {
       for (final day in _remainingDays)
@@ -1033,7 +1022,6 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
     final input = raw.trim().toLowerCase().replaceAll(',', '.');
     if (input.isEmpty) return 0;
 
-    // Exact zero representations
     if (input == '0' ||
         input == '0h' ||
         input == '0m' ||
@@ -1044,7 +1032,6 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
       return 0;
     }
 
-    // Colon notation: "H:MM" or "HH:MM" (e.g. "7:30", "08:15")
     final colonMatch = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(input);
     if (colonMatch != null) {
       final h = int.tryParse(colonMatch.group(1)!) ?? 0;
@@ -1054,7 +1041,6 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
       }
     }
 
-    // Hours and minutes with units: e.g. "7h 30m", "7h30m", "7h 30", "7h", "30m", "1.5h"
     final hmMatch = RegExp(
       r'^(?:(\d+(?:\.\d+)?)\s*h)?\s*(?:(\d+)\s*m?)?$',
     ).firstMatch(input);
@@ -1065,7 +1051,7 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
 
       if (hStr != null || mStr != null) {
         if (hStr == null && mStr != null && !input.contains('m')) {
-          // Fall through to numeric fallback
+          // Fall through
         } else {
           double totalMinutes = 0;
           if (hStr != null) {
@@ -1079,7 +1065,6 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
       }
     }
 
-    // Numeric fallback: e.g. "8", "6.5", "90"
     final numVal = double.tryParse(input);
     if (numVal != null && numVal >= 0) {
       if (numVal <= 24) {
@@ -1186,6 +1171,7 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
 
     final plannedMins = _plannedTotalMinutes;
     final projectedMins = widget.recordedMonthMinutes + plannedMins;
+    final isTargetMet = projectedMins == widget.targetMinutes;
 
     return Dialog(
       backgroundColor: slateDark,
@@ -1219,9 +1205,9 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
                 ],
               ),
               const SizedBox(height: 6),
-              const Text(
-                'Add planned hours for the remaining days of this month to include in your formal report.',
-                style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+              Text(
+                'Add planned hours for remaining days to reach your contract target (${_formatHoursMinutes(widget.targetMinutes)}).',
+                style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
               ),
               const SizedBox(height: 12),
 
@@ -1232,7 +1218,11 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
                 decoration: BoxDecoration(
                   color: slateBg,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFF334155)),
+                  border: Border.all(
+                    color: isTargetMet
+                        ? activeColor
+                        : const Color(0xFFF59E0B),
+                  ),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1254,9 +1244,12 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
                         style:
                             TextStyle(color: Color(0xFF64748B), fontSize: 14)),
                     _buildStatColumn(
-                      label: 'Projected Total',
-                      value: _formatHoursMinutes(projectedMins),
-                      color: activeColor,
+                      label: isTargetMet ? 'Target Met' : 'Projected',
+                      value:
+                          '${_formatHoursMinutes(projectedMins)} / ${_formatHoursMinutes(widget.targetMinutes)}',
+                      color: isTargetMet
+                          ? activeColor
+                          : const Color(0xFFF59E0B),
                     ),
                   ],
                 ),
@@ -1352,63 +1345,37 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
                           const SizedBox(width: 4),
                           _buildDurationChip(key, '8h', 480, mins == 480),
                           const SizedBox(width: 6),
-                          Tooltip(
-                            message: 'Custom duration (e.g. 2h 30m)',
-                            child: SizedBox(
-                              width: 66,
-                              height: 28,
-                              child: TextField(
-                                controller: _controllers[key],
-                                focusNode: _focusNodes[key],
-                                textAlign: TextAlign.center,
-                                keyboardType: TextInputType.text,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                decoration: InputDecoration(
-                                  hintText: '0h 0m',
-                                  hintStyle: const TextStyle(
-                                    fontSize: 11,
-                                    color: Color(0xFF64748B),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  filled: true,
-                                  fillColor: const Color(0xFF1E293B),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 4, vertical: 4),
-                                  isDense: true,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(6),
-                                    borderSide: const BorderSide(
-                                        color: Color(0xFF334155)),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(6),
-                                    borderSide: BorderSide(
-                                      color: isCustom
-                                          ? indigoAccent
-                                          : const Color(0xFF334155),
-                                      width: isCustom ? 1.5 : 1.0,
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(6),
-                                    borderSide: const BorderSide(
-                                        color: indigoAccent, width: 1.5),
-                                  ),
-                                ),
-                                onChanged: (val) {
-                                  final parsed = _parseDurationMinutes(val);
-                                  if (parsed != null) {
-                                    setState(() {
-                                      _minutesByDate[key] = parsed;
-                                    });
-                                  }
-                                },
-                                onSubmitted: (_) => _commitDayInput(key),
+                          SizedBox(
+                            width: 68,
+                            child: TextField(
+                              controller: _controllers[key],
+                              focusNode: _focusNodes[key],
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: isCustom
+                                    ? const Color(0xFFA5B4FC)
+                                    : Colors.white,
                               ),
+                              decoration: InputDecoration(
+                                hintText: 'custom',
+                                hintStyle: const TextStyle(
+                                    color: Color(0xFF64748B), fontSize: 10),
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 6),
+                                filled: true,
+                                fillColor: const Color(0xFF1E293B),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(6),
+                                  borderSide: BorderSide(
+                                    color: isCustom
+                                        ? indigoAccent
+                                        : const Color(0xFF334155),
+                                  ),
+                                ),
+                              ),
+                              onSubmitted: (_) => _commitDayInput(key),
                             ),
                           ),
                         ],
@@ -1442,7 +1409,7 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
                     onPressed: _submit,
                     icon: const Icon(Icons.check, size: 18),
                     label: const Text(
-                      'Generate Report',
+                      'Apply Forecast',
                       style: TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ),

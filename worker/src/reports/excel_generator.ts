@@ -134,15 +134,24 @@ export function computeReportStats(shifts: ShiftSummaryItem[]): ReportStats {
 // 2. OpenXML Document Generators
 // ==========================================
 
-function buildContentTypesXml(): string {
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+function buildContentTypesXml(hasCharts: boolean = true): string {
+  let xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
   <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
-  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
-</Types>`;
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>`;
+
+  if (hasCharts) {
+    xml += `
+  <Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>
+  <Override PartName="/xl/charts/chart1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>
+  <Override PartName="/xl/charts/chart2.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>`;
+  }
+
+  xml += `\n</Types>`;
+  return xml;
 }
 
 function buildRelsXml(): string {
@@ -158,6 +167,301 @@ function buildWorkbookRelsXml(): string {
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
   <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 </Relationships>`;
+}
+
+function buildWorksheetRelsXml(): string {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/>
+</Relationships>`;
+}
+
+function buildDrawingRelsXml(): string {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/chart1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/chart2.xml"/>
+</Relationships>`;
+}
+
+function buildDrawingXml(): string {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <xdr:twoCellAnchor>
+    <xdr:from>
+      <xdr:col>9</xdr:col>
+      <xdr:colOff>0</xdr:colOff>
+      <xdr:row>11</xdr:row>
+      <xdr:rowOff>0</xdr:rowOff>
+    </xdr:from>
+    <xdr:to>
+      <xdr:col>17</xdr:col>
+      <xdr:colOff>0</xdr:colOff>
+      <xdr:row>26</xdr:row>
+      <xdr:rowOff>0</xdr:rowOff>
+    </xdr:to>
+    <xdr:graphicFrame macro="">
+      <xdr:nvGraphicFramePr>
+        <xdr:cNvPr id="2" name="Chart 1"/>
+        <xdr:cNvGraphicFramePr/>
+      </xdr:nvGraphicFramePr>
+      <xdr:xfrm>
+        <a:off x="0" y="0"/>
+        <a:ext cx="0" cy="0"/>
+      </xdr:xfrm>
+      <a:graphic>
+        <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">
+          <c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rId1"/>
+        </a:graphicData>
+      </a:graphic>
+    </xdr:graphicFrame>
+    <xdr:clientData/>
+  </xdr:twoCellAnchor>
+  <xdr:twoCellAnchor>
+    <xdr:from>
+      <xdr:col>9</xdr:col>
+      <xdr:colOff>0</xdr:colOff>
+      <xdr:row>27</xdr:row>
+      <xdr:rowOff>0</xdr:rowOff>
+    </xdr:from>
+    <xdr:to>
+      <xdr:col>17</xdr:col>
+      <xdr:colOff>0</xdr:colOff>
+      <xdr:row>42</xdr:row>
+      <xdr:rowOff>0</xdr:rowOff>
+    </xdr:to>
+    <xdr:graphicFrame macro="">
+      <xdr:nvGraphicFramePr>
+        <xdr:cNvPr id="3" name="Chart 2"/>
+        <xdr:cNvGraphicFramePr/>
+      </xdr:nvGraphicFramePr>
+      <xdr:xfrm>
+        <a:off x="0" y="0"/>
+        <a:ext cx="0" cy="0"/>
+      </xdr:xfrm>
+      <a:graphic>
+        <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">
+          <c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rId2"/>
+        </a:graphicData>
+      </a:graphic>
+    </xdr:graphicFrame>
+    <xdr:clientData/>
+  </xdr:twoCellAnchor>
+</xdr:wsDr>`;
+}
+
+export function aggregateLocations(shifts: ShiftSummaryItem[]): { name: string; hours: number }[] {
+  const map = new Map<string, number>();
+  for (const s of shifts) {
+    const loc = s.location || 'remote';
+    const current = map.get(loc) ?? 0;
+    map.set(loc, current + s.durationHoursDecimal);
+  }
+  return Array.from(map.entries())
+    .map(([name, hours]) => ({ name, hours: Math.round(hours * 100) / 100 }))
+    .sort((a, b) => b.hours - a.hours);
+}
+
+function buildDailyHoursChartXml(shifts: ShiftSummaryItem[]): string {
+  const endRow = shifts.length + 1;
+  const catPoints = shifts
+    .map((s, idx) => `<c:pt idx="${idx}"><c:v>${escapeXml(s.date)}</c:v></c:pt>`)
+    .join('');
+  const valPoints = shifts
+    .map((s, idx) => `<c:pt idx="${idx}"><c:v>${s.durationHoursDecimal.toFixed(2)}</c:v></c:pt>`)
+    .join('');
+
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <c:chart>
+    <c:title>
+      <c:tx>
+        <c:rich>
+          <a:bodyPr/>
+          <a:lstStyle/>
+          <a:p>
+            <a:pPr>
+              <a:defRPr sz="1200" b="1"/>
+            </a:pPr>
+            <a:r>
+              <a:rPr lang="en-US" b="1"/>
+              <a:t>Daily Work Hours</a:t>
+            </a:r>
+          </a:p>
+        </c:rich>
+      </c:tx>
+      <c:layout/>
+      <c:overlay val="0"/>
+    </c:title>
+    <c:plotArea>
+      <c:layout/>
+      <c:barChart>
+        <c:barDir val="col"/>
+        <c:grouping val="clustered"/>
+        <c:varyColors val="0"/>
+        <c:ser>
+          <c:idx val="0"/>
+          <c:order val="0"/>
+          <c:tx>
+            <c:strRef>
+              <c:strCache>
+                <c:ptCount val="1"/>
+                <c:pt idx="0"><c:v>Hours</c:v></c:pt>
+              </c:strCache>
+            </c:strRef>
+          </c:tx>
+          <c:spPr>
+            <a:solidFill>
+              <a:srgbClr val="0F766E"/>
+            </a:solidFill>
+            <a:ln>
+              <a:solidFill>
+                <a:srgbClr val="0D9488"/>
+              </a:solidFill>
+            </a:ln>
+          </c:spPr>
+          <c:cat>
+            <c:strRef>
+              <c:f>&apos;Work Hours&apos;!$A$2:$A$${endRow}</c:f>
+              <c:strCache>
+                <c:ptCount val="${shifts.length}"/>
+                ${catPoints}
+              </c:strCache>
+            </c:strRef>
+          </c:cat>
+          <c:val>
+            <c:numRef>
+              <c:f>&apos;Work Hours&apos;!$E$2:$E$${endRow}</c:f>
+              <c:numCache>
+                <c:formatCode>0.00</c:formatCode>
+                <c:ptCount val="${shifts.length}"/>
+                ${valPoints}
+              </c:numCache>
+            </c:numRef>
+          </c:val>
+        </c:ser>
+        <c:gapWidth val="150"/>
+        <c:axId val="1001"/>
+        <c:axId val="1002"/>
+      </c:barChart>
+      <c:catAx>
+        <c:axId val="1001"/>
+        <c:scaling>
+          <c:orientation val="minMax"/>
+        </c:scaling>
+        <c:delete val="0"/>
+        <c:axPos val="b"/>
+        <c:tickLblPos val="nextTo"/>
+        <c:crossAx val="1002"/>
+        <c:crosses val="autoZero"/>
+        <c:auto val="1"/>
+        <c:lblAlgn val="ctr"/>
+        <c:lblOffset val="100"/>
+      </c:catAx>
+      <c:valAx>
+        <c:axId val="1002"/>
+        <c:scaling>
+          <c:orientation val="minMax"/>
+        </c:scaling>
+        <c:delete val="0"/>
+        <c:axPos val="l"/>
+        <c:majorGridlines/>
+        <c:numFmt formatCode="0.00" sourceLinked="0"/>
+        <c:tickLblPos val="nextTo"/>
+        <c:crossAx val="1001"/>
+        <c:crosses val="autoZero"/>
+        <c:crossBetween val="between"/>
+      </c:valAx>
+    </c:plotArea>
+    <c:legend>
+      <c:legendPos val="b"/>
+      <c:layout/>
+      <c:overlay val="0"/>
+    </c:legend>
+    <c:plotVisOnly val="1"/>
+  </c:chart>
+</c:chartSpace>`;
+}
+
+function buildLocationChartXml(locations: { name: string; hours: number }[], startRow: number): string {
+  const endRow = startRow + locations.length - 1;
+  const catPoints = locations
+    .map((l, idx) => `<c:pt idx="${idx}"><c:v>${escapeXml(l.name)}</c:v></c:pt>`)
+    .join('');
+  const valPoints = locations
+    .map((l, idx) => `<c:pt idx="${idx}"><c:v>${l.hours.toFixed(2)}</c:v></c:pt>`)
+    .join('');
+
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <c:chart>
+    <c:title>
+      <c:tx>
+        <c:rich>
+          <a:bodyPr/>
+          <a:lstStyle/>
+          <a:p>
+            <a:pPr>
+              <a:defRPr sz="1200" b="1"/>
+            </a:pPr>
+            <a:r>
+              <a:rPr lang="en-US" b="1"/>
+              <a:t>Location Breakdown</a:t>
+            </a:r>
+          </a:p>
+        </c:rich>
+      </c:tx>
+      <c:layout/>
+      <c:overlay val="0"/>
+    </c:title>
+    <c:plotArea>
+      <c:layout/>
+      <c:doughnutChart>
+        <c:varyColors val="1"/>
+        <c:ser>
+          <c:idx val="0"/>
+          <c:order val="0"/>
+          <c:tx>
+            <c:strRef>
+              <c:strCache>
+                <c:ptCount val="1"/>
+                <c:pt idx="0"><c:v>Location</c:v></c:pt>
+              </c:strCache>
+            </c:strRef>
+          </c:tx>
+          <c:cat>
+            <c:strRef>
+              <c:f>&apos;Work Hours&apos;!$J$${startRow}:$J$${endRow}</c:f>
+              <c:strCache>
+                <c:ptCount val="${locations.length}"/>
+                ${catPoints}
+              </c:strCache>
+            </c:strRef>
+          </c:cat>
+          <c:val>
+            <c:numRef>
+              <c:f>&apos;Work Hours&apos;!$K$${startRow}:$K$${endRow}</c:f>
+              <c:numCache>
+                <c:formatCode>0.00</c:formatCode>
+                <c:ptCount val="${locations.length}"/>
+                ${valPoints}
+              </c:numCache>
+            </c:numRef>
+          </c:val>
+          <c:holeSize val="55"/>
+        </c:ser>
+        <c:firstSliceAng val="0"/>
+        <c:holeSize val="55"/>
+      </c:doughnutChart>
+    </c:plotArea>
+    <c:legend>
+      <c:legendPos val="r"/>
+      <c:layout/>
+      <c:overlay val="0"/>
+    </c:legend>
+    <c:plotVisOnly val="1"/>
+  </c:chart>
+</c:chartSpace>`;
 }
 
 function buildWorkbookXml(sheetName: string = 'Work Hours Log'): string {
@@ -242,6 +546,10 @@ export function buildWorksheetXml(
       width: Math.max(12, ...shifts.map((s) => s.durationFormatted.length), stats.totalHoursFormatted.length, 8) + 4,
     },
     {
+      label: 'Hours',
+      width: 10,
+    },
+    {
       label: 'Location',
       width: 14,
     },
@@ -267,9 +575,11 @@ export function buildWorksheetXml(
     { label: 'Average Shift Length', val: stats.averageShiftFormatted },
     { label: 'Longest Shift', val: stats.longestShiftFormatted },
   ];
+  const locations = aggregateLocations(shifts);
+  const totalRightRows = 1 + statRows.length + 1 + (locations.length > 0 ? 1 + locations.length : 0);
 
   let xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <cols>`;
 
   // Table 1 columns
@@ -294,7 +604,7 @@ export function buildWorksheetXml(
   xml += `\n    </row>`;
 
   // Data rows (rendered side-by-side)
-  const numDataRows = Math.max(shifts.length + 1, statRows.length);
+  const numDataRows = Math.max(shifts.length + 1, totalRightRows);
 
   for (let i = 0; i < numDataRows; i++) {
     const rowNum = i + 2;
@@ -308,6 +618,7 @@ export function buildWorksheetXml(
       xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(shift.startTimeLocal))}</t></is></c>`;
       xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(shift.endTimeLocal))}</t></is></c>`;
       xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(shift.durationFormatted))}</t></is></c>`;
+      xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="3"><v>${shift.durationHoursDecimal.toFixed(2)}</v></c>`;
       xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(shift.location ?? 'remote'))}</t></is></c>`;
       xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(shift.source))}</t></is></c>`;
       xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="0" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(shift.note ?? ''))}</t></is></c>`;
@@ -318,21 +629,34 @@ export function buildWorksheetXml(
       xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="2" t="inlineStr"><is><t>${shifts.length} Shifts</t></is></c>`;
       xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="2" t="inlineStr"><is><t>${stats.totalDays} Days</t></is></c>`;
       xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="2" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(stats.totalHoursFormatted))}</t></is></c>`;
+      xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="5"><f>SUM(E2:E${shifts.length + 1})</f><v>${stats.totalHours.toFixed(2)}</v></c>`;
+      c++;
       while (c < numTable1Cols) {
         xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="2" t="inlineStr"><is><t></t></is></c>`;
       }
     }
 
-    // Right Table: side-by-side Summary Statistics
+    // Right Table: side-by-side Summary Statistics & Location Breakdown
     if (i < statRows.length) {
       xml += `\n      <c r="${getColLetter(statCol1Idx)}${rowNum}" s="0" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(statRows[i].label))}</t></is></c>`;
       xml += `\n      <c r="${getColLetter(statCol2Idx)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(statRows[i].val))}</t></is></c>`;
+    } else if (i === statRows.length + 1 && locations.length > 0) {
+      xml += `\n      <c r="${getColLetter(statCol1Idx)}${rowNum}" s="1" t="inlineStr"><is><t>LOCATION BREAKDOWN</t></is></c>`;
+      xml += `\n      <c r="${getColLetter(statCol2Idx)}${rowNum}" s="1" t="inlineStr"><is><t>HOURS</t></is></c>`;
+    } else if (i >= statRows.length + 2 && i < statRows.length + 2 + locations.length) {
+      const loc = locations[i - (statRows.length + 2)];
+      xml += `\n      <c r="${getColLetter(statCol1Idx)}${rowNum}" s="0" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(loc.name))}</t></is></c>`;
+      xml += `\n      <c r="${getColLetter(statCol2Idx)}${rowNum}" s="3"><v>${loc.hours.toFixed(2)}</v></c>`;
     }
 
     xml += `\n    </row>`;
   }
 
-  xml += `\n  </sheetData>\n</worksheet>`;
+  xml += `\n  </sheetData>`;
+  if (shifts.length > 0) {
+    xml += `\n  <drawing r:id="rId1"/>`;
+  }
+  xml += `\n</worksheet>`;
   return xml;
 }
 
@@ -483,10 +807,13 @@ export function generateExcelWorkbook(
   const stats = computeReportStats(shifts);
 
   const encoder = new TextEncoder();
+  const hasCharts = shifts.length > 0;
+  const locations = aggregateLocations(shifts);
+
   const entries: ZipEntry[] = [
     {
       path: '[Content_Types].xml',
-      data: encoder.encode(buildContentTypesXml()),
+      data: encoder.encode(buildContentTypesXml(hasCharts)),
     },
     {
       path: '_rels/.rels',
@@ -509,6 +836,31 @@ export function generateExcelWorkbook(
       data: encoder.encode(buildWorksheetXml(shifts, stats, request.preset, request.options)),
     },
   ];
+
+  if (hasCharts) {
+    entries.push(
+      {
+        path: 'xl/worksheets/_rels/sheet1.xml.rels',
+        data: encoder.encode(buildWorksheetRelsXml()),
+      },
+      {
+        path: 'xl/drawings/drawing1.xml',
+        data: encoder.encode(buildDrawingXml()),
+      },
+      {
+        path: 'xl/drawings/_rels/drawing1.xml.rels',
+        data: encoder.encode(buildDrawingRelsXml()),
+      },
+      {
+        path: 'xl/charts/chart1.xml',
+        data: encoder.encode(buildDailyHoursChartXml(shifts)),
+      },
+      {
+        path: 'xl/charts/chart2.xml',
+        data: encoder.encode(buildLocationChartXml(locations, 9)),
+      }
+    );
+  }
 
   const zip = createZipBuffer(entries);
   return { buffer: zip, shifts, stats };

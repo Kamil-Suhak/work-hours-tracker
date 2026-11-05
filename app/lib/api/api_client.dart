@@ -283,6 +283,16 @@ class ApiClient {
     _handleError(response);
   }
 
+  Future<Map<String, dynamic>> getContractProfile() async {
+    final uri = Uri.parse('$baseUrl/api/v1/reports/contract-profile');
+    final headers = await _buildHeaders();
+    final response = await _httpClient.get(uri, headers: headers);
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    _handleError(response);
+  }
+
   Future<Uint8List> downloadReport(String filename) async {
     final encoded = Uri.encodeComponent(filename);
     final uri = Uri.parse('$baseUrl/api/v1/reports/download/$encoded');

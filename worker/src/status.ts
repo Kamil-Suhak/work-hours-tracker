@@ -104,6 +104,42 @@ export function getPreviousWarsawMonthRangeUtc(now: Date = new Date()): {
 }
 
 /**
+ * Returns the exact UTC start and end bounds for any specified calendar year and month in Europe/Warsaw.
+ */
+export function getWarsawMonthRangeUtc(
+  year: number,
+  month: number
+): {
+  startIso: string;
+  endIso: string;
+  monthString: string;
+  year: number;
+  month: number;
+  daysInMonth: number;
+} {
+  let nextYear = year;
+  let nextMonth = month + 1;
+  if (nextMonth === 13) {
+    nextMonth = 1;
+    nextYear += 1;
+  }
+
+  const startUtc = warsawWallClockToUtc(year, month, 1, 0, 0, 0);
+  const endUtc = warsawWallClockToUtc(nextYear, nextMonth, 1, 0, 0, 0);
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const monthString = `${year}-${String(month).padStart(2, '0')}`;
+
+  return {
+    startIso: startUtc.toISOString(),
+    endIso: endUtc.toISOString(),
+    monthString,
+    year,
+    month,
+    daysInMonth,
+  };
+}
+
+/**
  * Returns the exact UTC start and end bounds for the current calendar month in Europe/Warsaw.
  * Uses half-open interval [startIso, endIso) so the 1st 00:00 and last day 23:59 Warsaw time are exact.
  */
@@ -118,26 +154,7 @@ export function getCurrentWarsawMonthRangeUtc(now: Date = new Date()): {
   const { monthString } = getWarsawDateComponents(now);
   const year = parseInt(monthString.slice(0, 4), 10);
   const month = parseInt(monthString.slice(5, 7), 10);
-
-  let nextYear = year;
-  let nextMonth = month + 1;
-  if (nextMonth === 13) {
-    nextMonth = 1;
-    nextYear += 1;
-  }
-
-  const startUtc = warsawWallClockToUtc(year, month, 1, 0, 0, 0);
-  const endUtc = warsawWallClockToUtc(nextYear, nextMonth, 1, 0, 0, 0);
-  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
-
-  return {
-    startIso: startUtc.toISOString(),
-    endIso: endUtc.toISOString(),
-    monthString,
-    year,
-    month,
-    daysInMonth,
-  };
+  return getWarsawMonthRangeUtc(year, month);
 }
 
 /**

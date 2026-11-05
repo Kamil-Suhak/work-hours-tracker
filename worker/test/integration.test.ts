@@ -760,8 +760,8 @@ describe('Worker End-to-End Integration Suite', () => {
         contractorName: 'Jan Testowy',
         contractDate: '01.01.2026',
         hourlyRatePln: 50,
-        monthlyHours: 80,
-        grossAmountPln: 4000,
+        monthlyHours: 10,
+        grossAmountPln: 500,
         issuePlace: 'Wrocław',
       });
 

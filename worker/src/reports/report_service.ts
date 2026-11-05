@@ -16,6 +16,7 @@ import {
   formatDuration,
   getCurrentWarsawMonthRangeUtc,
   getPreviousWarsawMonthRangeUtc,
+  getWarsawMonthRangeUtc,
   warsawDateRangeToUtc,
 } from '../status';
 import { formatWarsawDate, generateExcelWorkbook } from './excel_generator';
@@ -84,13 +85,21 @@ export function validateReportRequest(
     }
   }
 
-  // Formal .docx reports always use the fixed, full current Warsaw calendar month
+  // Formal .docx reports use the specified month (or default to current Warsaw calendar month)
   if (format === 'docx') {
-    const { startIso, endIso } = getCurrentWarsawMonthRangeUtc(now);
+    let monthRange: { startIso: string; endIso: string; monthString: string };
+    if (typeof startDate === 'string' && /^\d{4}-\d{2}/.test(startDate.trim())) {
+      const year = parseInt(startDate.trim().slice(0, 4), 10);
+      const month = parseInt(startDate.trim().slice(5, 7), 10);
+      monthRange = getWarsawMonthRangeUtc(year, month);
+    } else {
+      monthRange = getCurrentWarsawMonthRangeUtc(now);
+    }
+
     return {
       format: 'docx',
-      startDate: startIso,
-      endDate: endIso,
+      startDate: monthRange.startIso,
+      endDate: monthRange.endIso,
       preset: 'formal',
       ...(validatedPlannedShifts ? { plannedShifts: validatedPlannedShifts } : {}),
     };
@@ -229,17 +238,33 @@ export async function generateReport(
       );
     }
 
-    const { startIso, endIso, monthString } = getCurrentWarsawMonthRangeUtc(now);
+    const startIso = request.startDate;
+    const endIso = request.endDate;
+    const monthString = formatWarsawDate(new Date(startIso)).slice(0, 7);
     // Include +24h query tail so a shift starting on the last day of the month and ending after midnight pairs with its clock_out
     const queryEndIso = new Date(new Date(endIso).getTime() + 24 * 60 * 60 * 1000).toISOString();
     const events = await fetchEventsForRange(db, userId, startIso, queryEndIso, false);
+
+    const targetMonthlyHours = profile.monthlyHours ?? 80;
+    const requiredTotalMinutes = targetMonthlyHours * 60;
+
     const dailyRows = aggregateDailyContractHours(
       events,
       request.plannedShifts ?? [],
-      monthString
+      monthString,
+      targetMonthlyHours
     );
 
-    const issueDateWarsaw = formatWarsawDate(now);
+    const totalMinutes = dailyRows.reduce((acc, r) => acc + r.durationMinutes, 0);
+    if (totalMinutes !== requiredTotalMinutes) {
+      throw new AppError(
+        'VALIDATION_ERROR',
+        `Formal contract report requires total worked + planned time to equal exactly ${targetMonthlyHours} hours (${requiredTotalMinutes} minutes). Current total: ${formatDuration(totalMinutes * 60)} (${totalMinutes} minutes).`,
+        400
+      );
+    }
+
+    const issueDateWarsaw = `${monthString}-30`;
     const docxBuffer = await generateContractDocx({
       templateDocxBytes: new Uint8Array(templateBuf),
       signaturePngBytes: new Uint8Array(signatureBuf),
@@ -248,7 +273,6 @@ export async function generateReport(
       issueDateWarsaw,
     });
 
-    const totalMinutes = dailyRows.reduce((acc, r) => acc + r.durationMinutes, 0);
     const totalHours = Math.round((totalMinutes / 60) * 100) / 100;
     const avgMinutes = dailyRows.length > 0 ? Math.round(totalMinutes / dailyRows.length) : 0;
     const longestMinutes =
@@ -405,4 +429,18 @@ export async function runScheduledMonthlyReport(
   }
 
   return { fullFilename };
+}
+
+export async function getContractProfile(
+  bucket?: R2Bucket
+): Promise<ContractProfile | null> {
+  if (!bucket) return null;
+  const obj = await bucket.get('templates/contract-profile.json');
+  if (!obj) return null;
+  try {
+    const text = await obj.text();
+    return JSON.parse(text) as ContractProfile;
+  } catch {
+    return null;
+  }
 }

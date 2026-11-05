@@ -21,6 +21,7 @@ import {
   validateReportRequest,
   generateReport,
   getLatestReport,
+  getContractProfile,
   runScheduledMonthlyReport,
 } from './reports/report_service';
 
@@ -328,6 +329,24 @@ export default {
         );
 
         return jsonResponse(latest, 200, standardHeaders);
+      }
+
+      if (pathname === '/api/v1/reports/contract-profile' && method === 'GET') {
+        const { deviceId } = await authenticateDevice(request, env);
+        const profile = await getContractProfile(env.REPORTS_BUCKET);
+
+        console.log(
+          JSON.stringify({
+            correlationId,
+            operation: 'get-contract-profile',
+            deviceId,
+            monthlyHours: profile?.monthlyHours ?? 80,
+            latencyMs: Date.now() - startTime,
+            result: 'ok',
+          })
+        );
+
+        return jsonResponse(profile ?? { monthlyHours: 80 }, 200, standardHeaders);
       }
 
       if (pathname.startsWith('/api/v1/reports/download/') && method === 'GET') {

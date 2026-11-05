@@ -3,16 +3,37 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:work_hours_mobile/api/api_client.dart';
+import 'package:work_hours_mobile/api/models.dart';
 import 'package:work_hours_mobile/features/clock/clock_notifier.dart';
 import 'package:work_hours_mobile/features/reports/reports_screen.dart';
 
 class _MockApiClient extends ApiClient {
-  _MockApiClient() : super(baseUrl: 'https://mock.work.com');
+  _MockApiClient({this.contractMonthlyHours = 80})
+      : super(baseUrl: 'https://mock.work.com');
+
+  final int contractMonthlyHours;
 
   int generateCallCount = 0;
   String? lastFormat;
   String? lastPreset;
   List<Map<String, dynamic>>? lastPlannedShifts;
+
+  @override
+  Future<Map<String, dynamic>> getContractProfile() async {
+    return {
+      'monthlyHours': contractMonthlyHours,
+      'contractorName': 'Test Contractor',
+      'hourlyRatePln': 50,
+    };
+  }
+
+  @override
+  Future<List<TrackingEvent>> getEvents({
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    return const [];
+  }
 
   @override
   Future<({Uint8List bytes, String filename, double totalHours, int totalShifts})> generateReport({
@@ -31,8 +52,8 @@ class _MockApiClient extends ApiClient {
       filename: format == 'docx'
           ? 'zalaczniki-umowa-zlecenie-2026-10.docx'
           : 'work-hours-test.xlsx',
-      totalHours: 12.5,
-      totalShifts: 2,
+      totalHours: 80.0,
+      totalShifts: 15,
     );
   }
 
@@ -77,7 +98,7 @@ void main() {
   });
 
   group('ReportsScreen Widget Tests', () {
-    testWidgets('renders side-by-side Formal and Excel report cards visible at once',
+    testWidgets('renders side-by-side Formal and Excel report cards with strict 3-button architecture',
         (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1600, 1200);
       tester.view.devicePixelRatio = 1.0;
@@ -102,20 +123,27 @@ void main() {
       // Both Formal and Excel Report panels are visible simultaneously
       expect(find.text('FORMAL CONTRACT REPORT'), findsOneWidget);
       expect(find.byKey(const Key('formal_month_dropdown')), findsOneWidget);
-      expect(find.text('Generate Formal Report'), findsOneWidget);
+      // Button 1: Formal report single function button
+      expect(find.text('Generate & Download Formal Report'), findsOneWidget);
 
       expect(find.text('EXCEL DATA REPORT'), findsOneWidget);
       expect(find.byKey(const Key('excel_month_dropdown')), findsOneWidget);
-      expect(find.text('Generate Excel Report'), findsOneWidget);
-      expect(find.textContaining('Download Latest Stored Report'), findsWidgets);
+      // Button 2: Full report manual range button
+      expect(find.text('Generate & Download Full Report'), findsOneWidget);
+      // Button 3: Auto-generated report download button
+      expect(find.textContaining('Download Auto-Generated Report'), findsOneWidget);
 
       // Verify side-by-side position: Formal card is to the left of Excel card
       final formalPos = tester.getTopLeft(find.text('FORMAL CONTRACT REPORT'));
       final excelPos = tester.getTopLeft(find.text('EXCEL DATA REPORT'));
       expect(formalPos.dx, lessThan(excelPos.dx));
+
+      // Verify no orphaned Open Last Report buttons or helper texts
+      expect(find.text('Open Last Report'), findsNothing);
+      expect(find.textContaining('Retrieve the scheduled monthly archive'), findsNothing);
     });
 
-    testWidgets('generates full Excel report with custom date range and opens file',
+    testWidgets('generates full Excel report with custom date range and downloads file',
         (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1600, 1200);
       tester.view.devicePixelRatio = 1.0;
@@ -135,32 +163,24 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Excel Report is directly visible on screen (no tab switching needed)
-      await tester.ensureVisible(find.text('Generate Excel Report'));
-      await tester.tap(find.text('Generate Excel Report'));
+      await tester.ensureVisible(find.text('Generate & Download Full Report'));
+      await tester.tap(find.text('Generate & Download Full Report'));
       await tester.pumpAndSettle();
 
       expect(mockClient.generateCallCount, equals(1));
       expect(mockClient.lastFormat, equals('xlsx'));
       expect(mockClient.lastPreset, equals('full'));
-
-      expect(find.text('Open Last Report'), findsOneWidget);
       expect(channelCalls.any((c) => c.method == 'saveAndOpenReport'), isTrue);
-
-      await tester.ensureVisible(find.text('Open Last Report'));
-      await tester.tap(find.text('Open Last Report'));
-      await tester.pumpAndSettle();
-
-      expect(channelCalls.any((c) => c.method == 'openReportFile'), isTrue);
     });
 
-    testWidgets('opens PlanFutureShiftsDialog and sends plannedShifts for Formal report',
+    testWidgets('enforces contract target gating for formal report and enables button when target met',
         (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 2.0;
       addTearDown(() => tester.view.resetPhysicalSize());
 
-      final mockClient = _MockApiClient();
+      // Target contract hours = 8 hours (480 minutes)
+      final mockClient = _MockApiClient(contractMonthlyHours: 8);
 
       await tester.pumpWidget(
         ProviderScope(
@@ -174,30 +194,45 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Generate Formal Report'));
+      // Initially 0 hours worked and 0 hours planned -> target NOT met -> button is disabled
+      final formalButtonFinder = find.byKey(const Key('generate_formal_report_button'));
+      expect(formalButtonFinder, findsOneWidget);
+      final formalButton = tester.widget<ElevatedButton>(formalButtonFinder);
+      expect(formalButton.onPressed, isNull);
+
+      // Tap the forecast status tile to open PlanFutureShiftsDialog
+      await tester.tap(find.textContaining('Tap to plan remaining shifts'));
       await tester.pumpAndSettle();
 
       expect(find.text('Plan Remaining Shifts'), findsOneWidget);
-      expect(find.text('Projected Total'), findsOneWidget);
 
-      // Enter custom duration on the first day row to guarantee at least one planned shift
-      final firstInput = find.byType(TextField).first;
-      await tester.enterText(firstInput, '0h 30m');
-      await tester.testTextInput.receiveAction(TextInputAction.done);
+      // In the dialog, set 8h on the first day
+      await tester.tap(find.text('8h').first);
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Generate Report'));
+      expect(find.text('Target Met'), findsOneWidget);
+
+      // Tap Apply Forecast
+      await tester.tap(find.text('Apply Forecast'));
+      await tester.pumpAndSettle();
+
+      // Back on the screen, target is met!
+      expect(find.textContaining('Contract Target Met'), findsOneWidget);
+      final enabledButton = tester.widget<ElevatedButton>(formalButtonFinder);
+      expect(enabledButton.onPressed, isNotNull);
+
+      // Tap Generate & Download Formal Report
+      await tester.tap(formalButtonFinder);
       await tester.pumpAndSettle();
 
       expect(mockClient.generateCallCount, equals(1));
       expect(mockClient.lastFormat, equals('docx'));
       expect(mockClient.lastPreset, equals('formal'));
       expect(mockClient.lastPlannedShifts, isNotNull);
-      expect(mockClient.lastPlannedShifts!.length, equals(1));
-      expect(mockClient.lastPlannedShifts!.first['durationMinutes'], equals(30));
+      expect(mockClient.lastPlannedShifts!.first['durationMinutes'], equals(480));
     });
 
-    testWidgets('omits download stored report button when R2 storage has no reports',
+    testWidgets('omits download auto-generated report button when R2 storage has no reports',
         (WidgetTester tester) async {
       final mockClient = _MockApiClientNullR2();
 
@@ -213,7 +248,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Download Latest Stored Report'), findsNothing);
+      expect(find.byKey(const Key('download_latest_storage_report_button')), findsNothing);
     });
   });
 }
