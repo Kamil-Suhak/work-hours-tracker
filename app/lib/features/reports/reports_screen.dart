@@ -31,6 +31,12 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   final DateFormat _displayFormat = DateFormat('MMM d, yyyy');
   final DateFormat _monthFormat = DateFormat('MMMM yyyy');
 
+  bool get _isPastMonth {
+    final now = DateTime.now();
+    final firstOfCurrentMonth = DateTime(now.year, now.month, 1);
+    return _formalMonth.isBefore(firstOfCurrentMonth);
+  }
+
   int get _plannedMinutes => _plannedShifts.fold(
         0,
         (sum, s) => sum + (s['durationMinutes'] as int? ?? 0),
@@ -38,8 +44,23 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
 
   int get _totalFormalMinutes => _monthWorkedMinutes + _plannedMinutes;
 
-  bool get _isFormalTargetMet =>
-      _totalFormalMinutes == (_contractMonthlyHours * 60);
+  bool get _isFormalTargetMet {
+    if (_isPastMonth) {
+      return _monthWorkedMinutes == (_contractMonthlyHours * 60);
+    }
+    return _totalFormalMinutes == (_contractMonthlyHours * 60);
+  }
+
+  static DateTime _truncateToMinute(DateTime dt) {
+    final utc = dt.toUtc();
+    return DateTime.utc(
+      utc.year,
+      utc.month,
+      utc.day,
+      utc.hour,
+      utc.minute,
+    );
+  }
 
   static String _formatHoursMinutes(int totalMinutes) {
     final h = totalMinutes ~/ 60;
@@ -101,8 +122,12 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
           if (ev.eventType == 'clock_in') {
             pendingIn = ev;
           } else if (ev.eventType == 'clock_out' && pendingIn != null) {
-            workedMins +=
-                ev.occurredAtUtc.difference(pendingIn.occurredAtUtc).inMinutes;
+            final inTime = _truncateToMinute(pendingIn.occurredAtUtc);
+            final outTime = _truncateToMinute(ev.occurredAtUtc);
+            final diffMins = outTime.difference(inTime).inMinutes;
+            if (diffMins > 0) {
+              workedMins += diffMins;
+            }
             pendingIn = null;
           }
         }
@@ -170,10 +195,12 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   }
 
   Future<void> _openForecastDialog() async {
+    if (_isPastMonth) return;
     final now = DateTime.now();
     final planned = await showDialog<List<Map<String, dynamic>>>(
       context: context,
       builder: (ctx) => PlanFutureShiftsDialog(
+        month: _formalMonth,
         now: now,
         recordedMonthMinutes: _monthWorkedMinutes,
         initialPlannedShifts: _plannedShifts,
@@ -201,7 +228,9 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         endDate: formalEnd,
         format: 'docx',
         preset: 'formal',
-        plannedShifts: _plannedShifts.isNotEmpty ? _plannedShifts : null,
+        plannedShifts: (!_isPastMonth && _plannedShifts.isNotEmpty)
+            ? _plannedShifts
+            : null,
       );
 
       await ref.read(reportFileServiceProvider).saveAndOpenReport(
@@ -562,7 +591,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
           // Contract Hours Status / Interactive Forecast Tile
           InkWell(
             borderRadius: BorderRadius.circular(10),
-            onTap: isBusy ? null : _openForecastDialog,
+            onTap: (isBusy || _isPastMonth) ? null : _openForecastDialog,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
@@ -594,8 +623,10 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                           _isLoadingMonth
                               ? 'Loading contract hours...'
                               : _isFormalTargetMet
-                                  ? 'Contract Target Met (${_formatHoursMinutes(_totalFormalMinutes)} / ${_contractMonthlyHours}h)'
-                                  : 'Contract Target: ${_contractMonthlyHours}h (${_formatHoursMinutes(_totalFormalMinutes)} total)',
+                                  ? 'Contract Target Met (${_formatHoursMinutes(_isPastMonth ? _monthWorkedMinutes : _totalFormalMinutes)} / ${_contractMonthlyHours}h)'
+                                  : _isPastMonth
+                                      ? 'Contract Target Not Met (${_formatHoursMinutes(_monthWorkedMinutes)} / ${_contractMonthlyHours}h)'
+                                      : 'Contract Target: ${_contractMonthlyHours}h (${_formatHoursMinutes(_totalFormalMinutes)} total)',
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -606,7 +637,11 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${_formatHoursMinutes(_monthWorkedMinutes)} worked + ${_formatHoursMinutes(_plannedMinutes)} forecast — Tap to ${_isFormalTargetMet ? 'adjust forecast' : 'plan remaining shifts'}',
+                          _isPastMonth
+                              ? (_isFormalTargetMet
+                                  ? 'All required contract hours recorded for this month.'
+                                  : 'Past month cannot be forecasted. Check your shift history.')
+                              : '${_formatHoursMinutes(_monthWorkedMinutes)} worked + ${_formatHoursMinutes(_plannedMinutes)} forecast — Tap to ${_isFormalTargetMet ? 'adjust forecast' : 'plan remaining shifts'}',
                           style: const TextStyle(
                             fontSize: 11,
                             color: Color(0xFF94A3B8),
@@ -615,8 +650,9 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                       ],
                     ),
                   ),
-                  const Icon(Icons.edit_calendar,
-                      size: 16, color: Color(0xFF94A3B8)),
+                  if (!_isPastMonth)
+                    const Icon(Icons.edit_calendar,
+                        size: 16, color: Color(0xFF94A3B8)),
                 ],
               ),
             ),
@@ -924,6 +960,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
 /// Dialog for planning remaining shifts in the current month before generating
 /// the formal contract report.
 class PlanFutureShiftsDialog extends StatefulWidget {
+  final DateTime month;
   final DateTime now;
   final int recordedMonthMinutes;
   final List<Map<String, dynamic>>? initialPlannedShifts;
@@ -931,6 +968,7 @@ class PlanFutureShiftsDialog extends StatefulWidget {
 
   const PlanFutureShiftsDialog({
     super.key,
+    required this.month,
     required this.now,
     required this.recordedMonthMinutes,
     this.initialPlannedShifts,
@@ -951,12 +989,15 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
   @override
   void initState() {
     super.initState();
-    final year = widget.now.year;
-    final month = widget.now.month;
+    final year = widget.month.year;
+    final month = widget.month.month;
     final lastDay = DateTime(year, month + 1, 0).day;
 
+    final isCurrent = widget.now.year == year && widget.now.month == month;
+    final startDay = isCurrent ? widget.now.day : 1;
+
     _remainingDays = [
-      for (int d = widget.now.day; d <= lastDay; d++) DateTime(year, month, d),
+      for (int d = startDay; d <= lastDay; d++) DateTime(year, month, d),
     ];
     _minutesByDate = {
       for (final day in _remainingDays) _formatYmd(day): 0,
@@ -1206,7 +1247,7 @@ class _PlanFutureShiftsDialogState extends State<PlanFutureShiftsDialog> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Add planned hours for remaining days to reach your contract target (${_formatHoursMinutes(widget.targetMinutes)}).',
+                'Add planned hours for remaining days in ${DateFormat('MMMM yyyy').format(widget.month)} to reach your contract target (${_formatHoursMinutes(widget.targetMinutes)}).',
                 style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
               ),
               const SizedBox(height: 12),

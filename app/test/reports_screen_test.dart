@@ -2,16 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart';
 import 'package:work_hours_mobile/api/api_client.dart';
 import 'package:work_hours_mobile/api/models.dart';
 import 'package:work_hours_mobile/features/clock/clock_notifier.dart';
 import 'package:work_hours_mobile/features/reports/reports_screen.dart';
 
 class _MockApiClient extends ApiClient {
-  _MockApiClient({this.contractMonthlyHours = 80})
+  _MockApiClient({this.contractMonthlyHours = 80, this.events = const []})
       : super(baseUrl: 'https://mock.work.com');
 
   final int contractMonthlyHours;
+  final List<TrackingEvent> events;
 
   int generateCallCount = 0;
   String? lastFormat;
@@ -32,7 +34,7 @@ class _MockApiClient extends ApiClient {
     required DateTime from,
     required DateTime to,
   }) async {
-    return const [];
+    return events;
   }
 
   @override
@@ -230,6 +232,189 @@ void main() {
       expect(mockClient.lastPreset, equals('formal'));
       expect(mockClient.lastPlannedShifts, isNotNull);
       expect(mockClient.lastPlannedShifts!.first['durationMinutes'], equals(480));
+    });
+
+    testWidgets('past month with met target: minute truncation handles seconds, forecasting disabled, generate button enabled',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      // Create a shift in previous month with second offsets:
+      // Clock in at 08:00:50 and clock out at 16:00:10 (8h 0m after minute truncation)
+      final now = DateTime.now();
+      final prevMonth = DateTime(now.year, now.month - 1, 1);
+      final events = [
+        TrackingEvent(
+          id: 'evt-1',
+          requestId: 'req-1',
+          userId: 'user-1',
+          eventType: 'clock_in',
+          source: 'flutter_app',
+          occurredAtUtc: DateTime.utc(prevMonth.year, prevMonth.month, 10, 8, 0, 50),
+          createdAtUtc: DateTime.utc(prevMonth.year, prevMonth.month, 10, 8, 0, 50),
+          location: 'remote',
+        ),
+        TrackingEvent(
+          id: 'evt-2',
+          requestId: 'req-2',
+          userId: 'user-1',
+          eventType: 'clock_out',
+          source: 'flutter_app',
+          occurredAtUtc: DateTime.utc(prevMonth.year, prevMonth.month, 10, 16, 0, 10),
+          createdAtUtc: DateTime.utc(prevMonth.year, prevMonth.month, 10, 16, 0, 10),
+          location: 'remote',
+        ),
+      ];
+
+      final mockClient = _MockApiClient(contractMonthlyHours: 8, events: events);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            apiClientProvider.overrideWithValue(mockClient),
+          ],
+          child: const MaterialApp(
+            home: ReportsScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Switch dropdown to the previous month
+      await tester.tap(find.byKey(const Key('formal_month_dropdown')));
+      await tester.pumpAndSettle();
+
+      final prevMonthText = DateFormat('MMMM yyyy').format(prevMonth);
+      await tester.tap(find.text(prevMonthText).last);
+      await tester.pumpAndSettle();
+
+      // Target is met (8h 0m / 8h) thanks to minute truncation (50s and 10s truncated)
+      expect(find.textContaining('Contract Target Met (8h 0m / 8h)'), findsOneWidget);
+      expect(find.text('All required contract hours recorded for this month.'), findsOneWidget);
+      expect(find.byIcon(Icons.edit_calendar), findsNothing);
+
+      // Tapping the status tile should NOT open PlanFutureShiftsDialog
+      await tester.tap(find.textContaining('Contract Target Met'));
+      await tester.pumpAndSettle();
+      expect(find.text('Plan Remaining Shifts'), findsNothing);
+
+      // Generate button is enabled
+      final formalButtonFinder = find.byKey(const Key('generate_formal_report_button'));
+      final enabledButton = tester.widget<ElevatedButton>(formalButtonFinder);
+      expect(enabledButton.onPressed, isNotNull);
+
+      // Generate report: verify plannedShifts is null for past month
+      await tester.tap(formalButtonFinder);
+      await tester.pumpAndSettle();
+
+      expect(mockClient.generateCallCount, equals(1));
+      expect(mockClient.lastPlannedShifts, isNull);
+    });
+
+    testWidgets('past month with unmet target: shows error state, disables forecasting and disables generate button',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      // Only 4 hours recorded in previous month against an 8-hour target
+      final now = DateTime.now();
+      final prevMonth = DateTime(now.year, now.month - 1, 1);
+      final events = [
+        TrackingEvent(
+          id: 'evt-1',
+          requestId: 'req-1',
+          userId: 'user-1',
+          eventType: 'clock_in',
+          source: 'flutter_app',
+          occurredAtUtc: DateTime.utc(prevMonth.year, prevMonth.month, 10, 8, 0, 0),
+          createdAtUtc: DateTime.utc(prevMonth.year, prevMonth.month, 10, 8, 0, 0),
+          location: 'remote',
+        ),
+        TrackingEvent(
+          id: 'evt-2',
+          requestId: 'req-2',
+          userId: 'user-1',
+          eventType: 'clock_out',
+          source: 'flutter_app',
+          occurredAtUtc: DateTime.utc(prevMonth.year, prevMonth.month, 10, 12, 0, 0),
+          createdAtUtc: DateTime.utc(prevMonth.year, prevMonth.month, 10, 12, 0, 0),
+          location: 'remote',
+        ),
+      ];
+
+      final mockClient = _MockApiClient(contractMonthlyHours: 8, events: events);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            apiClientProvider.overrideWithValue(mockClient),
+          ],
+          child: const MaterialApp(
+            home: ReportsScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Switch dropdown to the previous month
+      await tester.tap(find.byKey(const Key('formal_month_dropdown')));
+      await tester.pumpAndSettle();
+
+      final prevMonthText = DateFormat('MMMM yyyy').format(prevMonth);
+      await tester.tap(find.text(prevMonthText).last);
+      await tester.pumpAndSettle();
+
+      // Status shows target not met and explains past month cannot be forecasted
+      expect(find.textContaining('Contract Target Not Met (4h 0m / 8h)'), findsOneWidget);
+      expect(find.text('Past month cannot be forecasted. Check your shift history.'), findsOneWidget);
+      expect(find.byIcon(Icons.edit_calendar), findsNothing);
+
+      // Tapping the status tile should NOT open PlanFutureShiftsDialog
+      await tester.tap(find.textContaining('Contract Target Not Met'));
+      await tester.pumpAndSettle();
+      expect(find.text('Plan Remaining Shifts'), findsNothing);
+
+      // Generate button is disabled
+      final formalButtonFinder = find.byKey(const Key('generate_formal_report_button'));
+      final button = tester.widget<ElevatedButton>(formalButtonFinder);
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets('PlanFutureShiftsDialog in current month only lists today and future days',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final mockClient = _MockApiClient(contractMonthlyHours: 8);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            apiClientProvider.overrideWithValue(mockClient),
+          ],
+          child: const MaterialApp(
+            home: ReportsScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Tap forecast status tile
+      await tester.tap(find.textContaining('Tap to plan remaining shifts'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Plan Remaining Shifts'), findsOneWidget);
+
+      final now = DateTime.now();
+      // If today is past day 1, any day strictly before today should NOT appear
+      if (now.day > 1) {
+        final yesterday = DateTime(now.year, now.month, now.day - 1);
+        final yesterdayLabel = DateFormat('EEE, MMM d').format(yesterday);
+        expect(find.text(yesterdayLabel), findsNothing);
+      }
     });
 
     testWidgets('omits download auto-generated report button when R2 storage has no reports',

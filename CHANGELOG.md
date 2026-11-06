@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.6] - 2026-11-06
+
+### Fixed
+- **Minute-Truncation Parity Between Frontend & Backend:** Added `_truncateToMinute` in `ReportsScreen` so event clock-in and clock-out timestamps have seconds and milliseconds stripped prior to difference calculation. Prevents 1-minute truncation shortfalls across multi-shift months where `clockOut.second < clockIn.second`, guaranteeing exact agreement with backend `pairShifts` (e.g. October 80h 0m target met).
+- **Past-Month Forecasting Guard:** Disabled forecasting on historical months. Past months display an informative status badge (`Contract Target Met` or `Contract Target Not Met`) and disable the interactive forecast dialog.
+- **Current-Month Forecasting Range Constraint:** Constrained `PlanFutureShiftsDialog` to only present today and future days of the active month (`now.day .. lastDay`), completely preventing forecasting on elapsed days.
+- **Omit Out-of-Month Forecasts:** Ensured formal report requests never attach planned shifts when generating reports for past months.
+
+---
+
 ## [1.2.5] - 2026-11-05
 
 ### Added
