@@ -75,11 +75,17 @@ function getAllowedOrigin(request: Request, env: Env): string | null {
       return origin;
     }
 
-    // 2. Local development origins
+    // 2. Local development origins (only when explicitly enabled or running locally)
+    const allowLocalhost =
+      env.ALLOW_LOCALHOST_CORS === 'true' ||
+      requestUrl.hostname === 'localhost' ||
+      requestUrl.hostname === '127.0.0.1' ||
+      requestUrl.hostname === '[::1]';
     if (
-      originUrl.hostname === 'localhost' ||
-      originUrl.hostname === '127.0.0.1' ||
-      originUrl.hostname === '[::1]'
+      allowLocalhost &&
+      (originUrl.hostname === 'localhost' ||
+        originUrl.hostname === '127.0.0.1' ||
+        originUrl.hostname === '[::1]')
     ) {
       return origin;
     }

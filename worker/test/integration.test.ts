@@ -1193,8 +1193,25 @@ describe('Worker End-to-End Integration Suite', () => {
   });
 
   describe('CORS and Security Headers', () => {
-    it('allows same-origin or localhost origins and adds security headers', async () => {
-      const res = await worker.fetch(
+    it('allows same-origin and gated localhost origins and adds security headers', async () => {
+      const sameOriginRes = await worker.fetch(
+        createRequest('/api/v1/status', {
+          headers: {
+            Origin: 'https://work-hours.local',
+          },
+        }),
+        env
+      );
+
+      expect(sameOriginRes.status).toBe(200);
+      expect(sameOriginRes.headers.get('Access-Control-Allow-Origin')).toBe('https://work-hours.local');
+      expect(sameOriginRes.headers.get('Vary')).toContain('Origin');
+      expect(sameOriginRes.headers.get('X-Content-Type-Options')).toBe('nosniff');
+      expect(sameOriginRes.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin');
+      expect(sameOriginRes.headers.get('Cache-Control')).toContain('no-store');
+
+      // Production worker host should not reflect localhost unless ALLOW_LOCALHOST_CORS is enabled
+      const prodLocalhostRes = await worker.fetch(
         createRequest('/api/v1/status', {
           headers: {
             Origin: 'http://localhost:3000',
@@ -1202,13 +1219,34 @@ describe('Worker End-to-End Integration Suite', () => {
         }),
         env
       );
+      expect(prodLocalhostRes.status).toBe(200);
+      expect(prodLocalhostRes.headers.get('Access-Control-Allow-Origin')).toBeNull();
 
+      // Explicitly enabled (e.g. staging) allows localhost dev origins
+      const stagingRes = await worker.fetch(
+        createRequest('/api/v1/status', {
+          headers: {
+            Origin: 'http://localhost:3000',
+          },
+        }),
+        { ...env, ALLOW_LOCALHOST_CORS: 'true' }
+      );
+      expect(stagingRes.status).toBe(200);
+      expect(stagingRes.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:3000');
+    });
+
+    it('allows localhost CORS when worker itself is served on localhost', async () => {
+      const res = await worker.fetch(
+        new Request('http://localhost:8787/api/v1/status', {
+          headers: {
+            Authorization: `Bearer ${validToken}`,
+            Origin: 'http://localhost:3000',
+          },
+        }),
+        env
+      );
       expect(res.status).toBe(200);
       expect(res.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:3000');
-      expect(res.headers.get('Vary')).toContain('Origin');
-      expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
-      expect(res.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin');
-      expect(res.headers.get('Cache-Control')).toContain('no-store');
     });
 
     it('does not reflect disallowed third-party origin in Access-Control-Allow-Origin', async () => {
@@ -1234,7 +1272,7 @@ describe('Worker End-to-End Integration Suite', () => {
             Origin: 'http://localhost:8080',
           },
         }),
-        env
+        { ...env, ALLOW_LOCALHOST_CORS: 'true' }
       );
 
       expect(res.status).toBe(204);
