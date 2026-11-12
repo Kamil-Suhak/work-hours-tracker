@@ -18,22 +18,46 @@ class ShiftNotesCard extends StatefulWidget {
 
   static const String storageKey = AppConfig.activeShiftNoteKey;
   static const FlutterSecureStorage _storage = FlutterSecureStorage();
+  static int _draftEpoch = 0;
+  static String? _latestDesiredDraft;
 
   static Future<String?> loadSavedDraft() async {
     return await _storage.read(key: storageKey);
   }
 
   static Future<void> saveDraft(String note) async {
-    if (note.trim().isEmpty) {
+    final epoch = ++_draftEpoch;
+    final desired = note.trim().isEmpty ? null : note;
+    _latestDesiredDraft = desired;
+    if (desired == null) {
       await _storage.delete(key: storageKey);
     } else {
-      await _storage.write(key: storageKey, value: note);
+      await _storage.write(key: storageKey, value: desired);
+    }
+    if (epoch != _draftEpoch) {
+      await _reconcileLatestDraft();
     }
   }
 
   static Future<void> clearDraft() async {
+    final epoch = ++_draftEpoch;
+    _latestDesiredDraft = null;
     await _storage.delete(key: storageKey);
     await WidgetSyncService.syncActiveNote('');
+    if (epoch != _draftEpoch) {
+      await _reconcileLatestDraft();
+    }
+  }
+
+  static Future<void> _reconcileLatestDraft() async {
+    // Re-apply the latest desired draft in case an older platform-channel write
+    // completed after a newer saveDraft/clearDraft call.
+    final latest = _latestDesiredDraft;
+    if (latest == null) {
+      await _storage.delete(key: storageKey);
+    } else {
+      await _storage.write(key: storageKey, value: latest);
+    }
   }
 
   @override

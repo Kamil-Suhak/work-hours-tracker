@@ -23,19 +23,16 @@ Authorization: Bearer <token>
 ```
 
 ### Credentials
-1. **Device Token (Client Operations):**
+1. **Device Token (All API Endpoints):**
    - Issued to devices via `npm run provision -- "<device-name>"`.
    - Stored in Cloudflare D1 `devices` table as `SHA-256(token + DEVICE_TOKEN_PEPPER)`.
-   - Authorized for all standard endpoints: `status`, `clock-in`, `clock-out`, `undo`, `events`, `reports/*`.
-2. **Admin Token (Maintenance Operations):**
-   - Stored as a Cloudflare Worker secret (`ADMIN_API_TOKEN`).
-   - Required for privileged administrative backfills (`/api/v1/admin/events/manual`).
+   - Authorized for all API endpoints: `status`, `clock-in`, `clock-out`, `shift/target`, `undo`, `events`, `reports/*`.
 
 ---
 
 ## 3. Idempotency
 
-Mutating endpoints (`clock-in`, `clock-out`, `undo`, `admin/events/manual`) require a unique client-generated `requestId` (UUID v4 recommended, max 128 characters).
+Mutating clock commands (`clock-in`, `clock-out`, `undo`) require a unique client-generated `requestId` (UUID v4 recommended, max 128 characters).
 
 - **Guarantee:** If a network retry occurs with the same `requestId`, the Worker replays the original cached response from `processed_requests` without inserting duplicate database records.
 - **Retention:** Processed requests are retained indefinitely in SQLite for single-user audit stability.
@@ -46,7 +43,7 @@ Mutating endpoints (`clock-in`, `clock-out`, `undo`, `admin/events/manual`) requ
 
 ### 4.1 Status & Time
 #### `GET /api/v1/status`
-Returns the current authoritative state, elapsed durations, and the latest event.
+Returns the current authoritative state, elapsed durations, optional auto-stop target, and the latest event. If an active shift's `targetClockOutUtc` has already elapsed, authenticated API requests (and the monthly report cron) lazily materialize a `clock_out` event at `max(activeSince, targetClockOutUtc)` with reason `"Auto-stopped at target"` before returning or aggregating.
 
 - **Auth:** Device Token
 - **Response (200 OK):**
@@ -54,6 +51,7 @@ Returns the current authoritative state, elapsed durations, and the latest event
 {
   "state": "clocked_in",
   "activeSince": "2026-10-04T08:00:00.000Z",
+  "targetClockOutUtc": "2026-10-04T16:00:00.000Z",
   "serverTime": "2026-10-04T12:30:00.000Z",
   "todaySeconds": 16200,
   "monthSeconds": 72000,
@@ -80,17 +78,20 @@ Transitions state from `clocked_out` to `clocked_in` and records an event.
   "source": "flutter_app",
   "location": "remote",
   "offsetMinutes": -5,
+  "targetMinutes": 480,
   "note": "Optional initial shift note"
 }
 ```
-- **Allowed Sources:** `flutter_app`, `android_widget`, `admin_manual`, `web_dashboard`
+- **Allowed Sources:** `flutter_app`, `android_widget`, `web_dashboard`
 - **Allowed Locations:** `remote`, `in-office` (optional, defaults to `remote`)
+- **Optional `targetMinutes`:** Integer `1`–`1440` (max 24 hours); sets `targetClockOutUtc` relative to the effective clock-in minute (`null` for open-ended shifts)
 - **Response (200 OK):**
 ```json
 {
   "state": "clocked_in",
   "changed": true,
   "activeSince": "2026-10-04T08:00:00.000Z",
+  "targetClockOutUtc": "2026-10-04T16:00:00.000Z",
   "serverTime": "2026-10-04T08:00:00.000Z",
   "todaySeconds": 0,
   "monthSeconds": 55800,
@@ -104,7 +105,7 @@ Transitions state from `clocked_out` to `clocked_in` and records an event.
 *Note: If already clocked in, returns `changed: false` with current state without creating a new event.*
 
 #### `POST /api/v1/clock-out`
-Transitions state from `clocked_in` to `clocked_out`, calculates shift duration, and stores the completed shift note.
+Transitions state from `clocked_in` to `clocked_out`, clears `targetClockOutUtc`, calculates shift duration, and stores the completed shift note.
 
 - **Auth:** Device Token
 - **Body:**
@@ -121,6 +122,7 @@ Transitions state from `clocked_in` to `clocked_out`, calculates shift duration,
   "state": "clocked_out",
   "changed": true,
   "activeSince": null,
+  "targetClockOutUtc": null,
   "serverTime": "2026-10-04T16:00:00.000Z",
   "todaySeconds": 28800,
   "monthSeconds": 84600,
@@ -131,6 +133,16 @@ Transitions state from `clocked_in` to `clocked_out`, calculates shift duration,
   }
 }
 ```
+
+#### `PATCH /api/v1/shift/target`
+Sets, shifts, or clears `targetClockOutUtc` for the currently active (`clocked_in`) shift. Uses optimistic locking (`version`) on `work_state`.
+
+- **Auth:** Device Token
+- **Body (one of):**
+  - Relative shift nudge: `{ "deltaMinutes": -10 }` (integer `-1440`..`1440`, non-zero; negative deltas clamp to `max(nowMinute + 1m, activeSince + 1m)`)
+  - Explicit target duration: `{ "targetMinutes": 120 }` (integer `1`..`1440` from `activeSince`, must be at least 1 minute in the future)
+  - Clear target (open-ended shift): `{ "targetMinutes": null }`
+- **Response (200 OK):** Returns the updated `GET /api/v1/status` payload.
 
 #### `POST /api/v1/undo`
 Reverts the latest clock-in or clock-out action within a 5-minute (300,000 ms) grace window.
@@ -150,6 +162,7 @@ Reverts the latest clock-in or clock-out action within a 5-minute (300,000 ms) g
   "undoneEventId": "a9b8c7d6-0000-4000-8000-000000000003",
   "restoredState": "clocked_in",
   "activeSince": "2026-10-04T08:00:00.000Z",
+  "targetClockOutUtc": null,
   "serverTime": "2026-10-04T16:02:00.000Z",
   "todaySeconds": 0,
   "monthSeconds": 55800,
@@ -163,10 +176,10 @@ Reverts the latest clock-in or clock-out action within a 5-minute (300,000 ms) g
 
 ---
 
-### 4.3 History & Admin Corrections
+### 4.3 History & Events
 
 #### `GET /api/v1/events`
-Queries raw clock events within a date range (maximum range: 93 days).
+Queries raw clock events within a date range (maximum range: 93 days). Note: historical entries or D1 script inserts may carry `source: "admin_manual"`.
 
 - **Auth:** Device Token
 - **Query Parameters:**
@@ -188,31 +201,6 @@ Queries raw clock events within a date range (maximum range: 93 days).
     "note": null
   }
 ]
-```
-
-#### `POST /api/v1/admin/events/manual`
-Inserts a historical matched shift pair (clock-in + clock-out) with validation against existing shift overlaps.
-
-- **Auth:** Admin Token (`ADMIN_API_TOKEN`)
-- **Body:**
-```json
-{
-  "requestId": "f4a5b6c7-1234-5678-9abc-def012345678",
-  "clockInAt": "2026-10-03T08:00:00.000Z",
-  "clockOutAt": "2026-10-03T16:30:00.000Z",
-  "reason": "Forgot phone at home",
-  "location": "in-office",
-  "note": "Worked on Q3 planning"
-}
-```
-- **Response (200 OK):**
-```json
-{
-  "success": true,
-  "clockInEventId": "b1a2c3d4-0000-4000-8000-000000000010",
-  "clockOutEventId": "b1a2c3d4-0000-4000-8000-000000000011",
-  "durationSeconds": 30600
-}
 ```
 
 ---
@@ -298,9 +286,14 @@ Errors return standardized JSON with HTTP 4xx or 5xx status codes:
 | `INVALID_REQUEST_ID` | 400 | Missing or overly long `requestId` (> 128 chars). |
 | `INVALID_SOURCE` | 400 | `source` not in allowlist. |
 | `INVALID_LOCATION` | 400 | `location` is not `'remote'` or `'in-office'`. |
+| `INVALID_OFFSET` | 400 | `offsetMinutes` must be an integer between `-120` and `120`. |
+| `INVALID_TARGET` | 400 | `targetMinutes` or `deltaMinutes` invalid, in the past, or exceeds 24 hours. |
+| `NOTE_TOO_LONG` | 400 | Shift note exceeds 4,000 characters. |
 | `INVALID_DATE_RANGE` | 400 | `endDate` is before `startDate` or range exceeds 93 days. |
-| `OVERLAPPING_SHIFT` | 400 | Manual shift overlaps with existing recorded shifts. |
+| `NO_ACTIVE_TARGET` | 400 | Relative target nudge attempted without an existing shift target. |
 | `UNDO_WINDOW_EXPIRED`| 400 | More than 5 minutes elapsed since event occurrence. |
+| `NOT_CLOCKED_IN` | 409 | Shift target update attempted while clocked out. |
+| `STATE_CONFLICT` | 409 | Shift state changed concurrently during update; retry request. |
 | `EVENT_MISMATCH` | 409 | Event to undo is not the latest event in sequence. |
 | `NO_EVENTS_FOUND` | 404 | No events exist to query or undo. |
 | `REPORT_NOT_FOUND` | 404 | Requested report file does not exist in R2 bucket. |

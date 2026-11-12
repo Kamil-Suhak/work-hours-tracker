@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../clock/clock_notifier.dart';
 import '../clock/widgets/markdown_renderer.dart';
-import 'manual_shift_dialog.dart';
 import 'shift_model.dart';
 import 'shifts_notifier.dart';
 
@@ -80,27 +79,17 @@ class _RecentShiftsViewState extends ConsumerState<RecentShiftsView> {
                     ),
                   ],
                 ),
-                Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.add_circle_outline),
-                      tooltip: 'Record Past Shift',
-                      color: activeEmerald,
-                      onPressed: () => ManualShiftDialog.show(context),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.refresh),
-                      tooltip: 'Refresh History',
-                      color: const Color(0xFF94A3B8),
-                      onPressed: () =>
-                          ref.read(shiftsProvider.notifier).refresh(),
-                    ),
-                  ],
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  tooltip: 'Refresh History',
+                  color: const Color(0xFF94A3B8),
+                  onPressed: () =>
+                      ref.read(shiftsProvider.notifier).refresh(),
                 ),
               ],
             ),
           ),
-          const Divider(color: Color(0xFF1E293B), height: 1),
+          const Divider(color: Color(0xFF334155), height: 1),
         ],
         Expanded(
           child: RefreshIndicator(
@@ -126,14 +115,6 @@ class _RecentShiftsViewState extends ConsumerState<RecentShiftsView> {
                             fontSize: 16,
                             color: Color(0xFF94A3B8),
                             fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Clock in and out to record your working hours',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Color(0xFF64748B),
                           ),
                         ),
                       ],
@@ -253,160 +234,125 @@ class _RecentShiftsViewState extends ConsumerState<RecentShiftsView> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Text(
-                        dateLabel,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                          color: Color(0xFFF8FAFC),
-                        ),
-                      ),
-                      if (isSelected) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF38BDF8)
-                                .withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(
-                                color: const Color(0xFF38BDF8), width: 0.8),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            dateLabel,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                              color: Color(0xFFF8FAFC),
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          child: const Text(
-                            'Editing',
+                        ),
+                        if (isSelected) ...[
+                          const SizedBox(width: 8),
+                          const Text(
+                            '• Editing',
                             style: TextStyle(
-                              fontSize: 10,
+                              fontSize: 11,
                               fontWeight: FontWeight.w700,
                               color: Color(0xFF38BDF8),
                             ),
                           ),
-                        ),
+                        ],
                       ],
-                    ],
-                  ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: activeEmerald.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Text(
-                      shift.durationFormatted,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
-                        color: Color(0xFF34D399),
-                      ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    shift.durationFormatted,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontFeatures: [FontFeature.tabularFigures()],
+                      fontSize: 13,
+                      color: Color(0xFF34D399),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-              Row(
+              Wrap(
+                spacing: 12,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  const Icon(Icons.schedule, size: 15, color: Color(0xFF64748B)),
-                  const SizedBox(width: 6),
-                  Text(
-                    '$inTime - $outTime',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF94A3B8),
-                    ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.schedule, size: 14, color: Color(0xFF64748B)),
+                      const SizedBox(width: 6),
+                      Text(
+                        '$inTime - $outTime',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ),
+                    ],
                   ),
-                  const Spacer(),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: shift.isInOffice
-                          ? const Color(0xFF38BDF8).withValues(alpha: 0.15)
-                          : const Color(0xFF475569).withValues(alpha: 0.25),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          shift.isInOffice
-                              ? Icons.business_outlined
-                              : Icons.home_work_outlined,
-                          size: 12,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        shift.isInOffice
+                            ? Icons.business_outlined
+                            : Icons.home_work_outlined,
+                        size: 13,
+                        color: shift.isInOffice
+                            ? const Color(0xFF38BDF8)
+                            : const Color(0xFF94A3B8),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        shift.isInOffice ? 'In-Office' : 'Remote',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
                           color: shift.isInOffice
                               ? const Color(0xFF38BDF8)
                               : const Color(0xFF94A3B8),
                         ),
-                        const SizedBox(width: 4),
+                      ),
+                    ],
+                  ),
+                  if (hasNote)
+                    const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.notes, size: 13, color: activeEmerald),
+                        SizedBox(width: 4),
                         Text(
-                          shift.isInOffice ? 'In-Office' : 'Remote',
+                          'Notes',
                           style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: shift.isInOffice
-                                ? const Color(0xFF38BDF8)
-                                : const Color(0xFF94A3B8),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: activeEmerald,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                  if (hasNote) ...[
-                    Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: activeEmerald.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.notes, size: 13, color: activeEmerald),
-                          SizedBox(width: 4),
-                          Text(
-                            'Notes',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: activeEmerald,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                  ],
                   if (isManual)
-                    Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Text(
-                        'Manual backfill',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFFFBBF24),
-                        ),
+                    const Text(
+                      'Manual backfill',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFFBBF24),
                       ),
                     ),
                 ],
               ),
-              if (shift.clockIn.reason != null &&
-                  shift.clockIn.reason!.trim().isNotEmpty) ...[
+              if ((shift.clockOut.reason?.trim().isNotEmpty ?? false) ||
+                  (shift.clockIn.reason?.trim().isNotEmpty ?? false)) ...[
                 const SizedBox(height: 6),
                 Text(
-                  'Reason: ${shift.clockIn.reason}',
+                  'Reason: ${(shift.clockOut.reason?.trim().isNotEmpty ?? false) ? shift.clockOut.reason!.trim() : shift.clockIn.reason!.trim()}',
                   style: const TextStyle(
                     fontSize: 11,
                     fontStyle: FontStyle.italic,
@@ -467,6 +413,14 @@ class _ShiftNoteDialogState extends ConsumerState<_ShiftNoteDialog> {
         eventId: targetEventId,
         note: noteText.isNotEmpty ? noteText : null,
       );
+      if (noteText.isEmpty &&
+          widget.shift.clockIn.note != null &&
+          widget.shift.clockIn.note!.trim().isNotEmpty) {
+        await apiClient.updateEventNote(
+          eventId: widget.shift.clockIn.id,
+          note: null,
+        );
+      }
       ref.invalidate(shiftsProvider);
 
       if (mounted) {
@@ -611,14 +565,6 @@ class _ShiftNoteDialogState extends ConsumerState<_ShiftNoteDialog> {
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Tap Edit to write or backfill notes.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF64748B),
-                            ),
-                          ),
                         ],
                       ),
                     )),
@@ -638,16 +584,19 @@ class _ShiftNoteDialogState extends ConsumerState<_ShiftNoteDialog> {
                         height: 14,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Colors.white,
+                          color: Colors.black,
                         ),
                       )
                     : const Icon(Icons.check, size: 16),
-                label: const Text('Save & Close'),
+                label: const Text(
+                  'Save & Close',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF10B981),
-                  foregroundColor: Colors.white,
+                  foregroundColor: Colors.black,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
                 onPressed: _isSaving ? null : _handleSave,

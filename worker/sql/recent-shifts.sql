@@ -19,5 +19,5 @@ SELECT
     COALESCE(e.note, '') AS note
 FROM events e
 LEFT JOIN devices d ON e.device_id = d.id
-ORDER BY e.occurred_at_utc DESC
+ORDER BY e.occurred_at_utc DESC, e.created_at_utc DESC, e.rowid DESC
 LIMIT 25;

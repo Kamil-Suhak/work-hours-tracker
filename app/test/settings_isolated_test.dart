@@ -15,12 +15,14 @@ void main() {
         AppConfig.environmentKey: 'production',
         AppConfig.prodDeviceTokenKey: 'prod-token-1234',
         AppConfig.stagingTokenKey: 'staging-token-5678',
-        AppConfig.prodAdminTokenKey: 'prod-admin-token',
-        AppConfig.stagingAdminTokenKey: 'staging-admin-token',
         AppConfig.prodShiftReminderKey: '10',
         AppConfig.stagingShiftReminderKey: '5',
         AppConfig.prodVibrationsKey: 'true',
         AppConfig.stagingVibrationsKey: 'false',
+        'admin_auth_token': 'legacy-admin',
+        'prod_admin_auth_token': 'legacy-prod-admin',
+        'staging_admin_auth_token': 'legacy-staging-admin',
+        'planned_shift_minutes': '120',
       });
     });
 
@@ -32,18 +34,23 @@ void main() {
           (await container.read(settingsProvider.future))!;
 
       expect(initial.environment, 'production');
+      expect(initial.baseUrl, AppConfig.defaultApiBaseUrl);
       expect(initial.deviceToken, 'prod-token-1234');
-      expect(initial.adminToken, 'prod-admin-token');
+      expect(initial.isConfigured, isTrue);
       expect(initial.shiftReminderMinutes, 10);
       expect(initial.vibrationsEnabled, isTrue);
+
+      const storage = FlutterSecureStorage();
+      expect(await storage.read(key: 'admin_auth_token'), isNull);
+      expect(await storage.read(key: 'prod_admin_auth_token'), isNull);
+      expect(await storage.read(key: 'staging_admin_auth_token'), isNull);
+      expect(await storage.read(key: 'planned_shift_minutes'), isNull);
 
       // Now save changes
       await container.read(settingsProvider.notifier).saveSettings(
             prodToken: 'updated-prod-token',
             stagingToken: 'updated-staging-token',
             environment: 'staging',
-            prodAdminToken: 'prod-admin-2',
-            stagingAdminToken: 'staging-admin-2',
             prodShiftReminderMinutes: 15,
             stagingShiftReminderMinutes: 0,
             prodVibrationsEnabled: false,
@@ -53,14 +60,12 @@ void main() {
       final AppSettings updated = container.read(settingsProvider).value!;
       expect(updated.environment, 'staging');
       expect(updated.deviceToken, 'updated-staging-token');
-      expect(updated.adminToken, 'staging-admin-2');
       expect(updated.shiftReminderMinutes, 0);
       expect(updated.vibrationsEnabled, isTrue);
       expect(updated.baseUrl, AppConfig.stagingApiBaseUrl);
 
       // Verify Production values were preserved in the state
       expect(updated.prodToken, 'updated-prod-token');
-      expect(updated.prodAdminToken, 'prod-admin-2');
       expect(updated.prodReminderMinutes, 15);
       expect(updated.prodVibrationsEnabled, isFalse);
 
@@ -69,8 +74,6 @@ void main() {
             prodToken: updated.prodToken,
             stagingToken: updated.stagingToken,
             environment: 'production',
-            prodAdminToken: updated.prodAdminToken,
-            stagingAdminToken: updated.stagingAdminToken,
             prodShiftReminderMinutes: updated.prodReminderMinutes,
             stagingShiftReminderMinutes: updated.stagingReminderMinutes,
             prodVibrationsEnabled: updated.prodVibrationsEnabled,

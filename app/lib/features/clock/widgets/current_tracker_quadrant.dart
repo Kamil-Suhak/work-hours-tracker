@@ -17,7 +17,10 @@ class CurrentTrackerQuadrant extends StatelessWidget {
   final void Function({int? offsetMinutes}) onClockOut;
   final ValueChanged<LatestEventSummary> onUndo;
   final VoidCallback? onViewHistory;
-  final Duration? plannedDuration;
+  final bool isAdjustingTarget;
+  final ValueChanged<int>? onAdjustTargetDelta;
+  final VoidCallback? onOpenCustomTarget;
+  final VoidCallback? onTargetReached;
 
   const CurrentTrackerQuadrant({
     super.key,
@@ -28,7 +31,10 @@ class CurrentTrackerQuadrant extends StatelessWidget {
     required this.onClockOut,
     required this.onUndo,
     this.onViewHistory,
-    this.plannedDuration,
+    this.isAdjustingTarget = false,
+    this.onAdjustTargetDelta,
+    this.onOpenCustomTarget,
+    this.onTargetReached,
   });
 
   @override
@@ -88,8 +94,7 @@ class CurrentTrackerQuadrant extends StatelessWidget {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final verticalGap = (constraints.maxHeight * 0.035).clamp(8.0, 20.0);
-                final buttonWidth = ((constraints.maxWidth - 52) / 2).clamp(140.0, 210.0);
+                final verticalGap = (constraints.maxHeight * 0.03).clamp(8.0, 18.0);
                 final buttonVerticalPadding = (constraints.maxHeight * 0.03).clamp(10.0, 15.0);
 
                 return SingleChildScrollView(
@@ -113,49 +118,62 @@ class CurrentTrackerQuadrant extends StatelessWidget {
                           ),
                           SizedBox(height: verticalGap),
 
-                          // Central Current Shift Timer Card (Consolidated side-by-side)
+                          // Central Current Shift Timer Card (embedded cleanly in quadrant)
                           CurrentShiftTimerCard(
                             isClockedIn: isClockedIn,
                             activeSince: status.activeSince,
+                            targetClockOutUtc: status.targetClockOutUtc,
                             serverTime: status.serverTime,
                             todaySeconds: status.todaySeconds,
                             monthSeconds: status.monthSeconds,
                             enablePeriodicTimer: enableAnimations,
                             onViewHistory: onViewHistory,
-                            plannedDuration: plannedDuration,
                             showHistoryButton: false,
+                            embedded: true,
+                            isAdjustingTarget: isAdjustingTarget,
+                            onAdjustTargetDelta: onAdjustTargetDelta,
+                            onOpenCustomTarget: onOpenCustomTarget,
+                            onTargetReached: onTargetReached,
                           ),
                           SizedBox(height: verticalGap + 2),
 
-                          // Action Buttons (Narrower & Centered)
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              ClockActionButton(
-                                isClockIn: true,
-                                isLoading: isLoading && !isClockedIn,
-                                isEnabled: !isLoading && !isClockedIn,
-                                width: buttonWidth,
-                                padding: EdgeInsets.symmetric(
-                                    vertical: buttonVerticalPadding),
-                                onAction: onClockIn,
+                          // Action Buttons (Fluid, overflow-safe up to 440dp)
+                          Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 440),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: ClockActionButton(
+                                      isClockIn: true,
+                                      isLoading: isLoading && !isClockedIn,
+                                      isEnabled: !isLoading && !isClockedIn,
+                                      width: double.infinity,
+                                      padding: EdgeInsets.symmetric(
+                                          vertical: buttonVerticalPadding),
+                                      onAction: onClockIn,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: ClockActionButton(
+                                      isClockIn: false,
+                                      isLoading: isLoading && isClockedIn,
+                                      isEnabled: !isLoading && isClockedIn,
+                                      width: double.infinity,
+                                      padding: EdgeInsets.symmetric(
+                                          vertical: buttonVerticalPadding),
+                                      onAction: ({
+                                        int? offsetMinutes,
+                                        Duration? plannedDuration,
+                                        String location = 'remote',
+                                      }) =>
+                                          onClockOut(offsetMinutes: offsetMinutes),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 14),
-                              ClockActionButton(
-                                isClockIn: false,
-                                isLoading: isLoading && isClockedIn,
-                                isEnabled: !isLoading && isClockedIn,
-                                width: buttonWidth,
-                                padding: EdgeInsets.symmetric(
-                                    vertical: buttonVerticalPadding),
-                                onAction: ({
-                                  int? offsetMinutes,
-                                  Duration? plannedDuration,
-                                  String location = 'remote',
-                                }) =>
-                                    onClockOut(offsetMinutes: offsetMinutes),
-                              ),
-                            ],
+                            ),
                           ),
 
                           // Undo Action Button if within grace period

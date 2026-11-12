@@ -271,6 +271,9 @@ The server must limit the maximum range even for a single-user app.
 
 ### `POST /api/v1/admin/events/manual`
 
+> [!NOTE]
+> **Superseded:** This endpoint and `ADMIN_API_TOKEN` were subsequently removed from the Worker API and Flutter client to keep the app lean. Historical `admin_manual` rows remain readable in `GET /api/v1/events`, active shifts support optional server-side auto-stop via `PATCH /api/v1/shift/target` (`work_state.target_clock_out_utc`), and manual D1 corrections are handled locally via `worker/scripts/shifts.mjs` (`npm --prefix worker run db:shift`).
+
 Purpose: enter a past shift, repair data after a missed clock action, or recover from an app/API failure.
 
 ```json

@@ -5,6 +5,3 @@ variables:
   - secret: true
     name: deviceToken
     description: ""
-  - secret: true
-    name: adminToken
-    description: ""

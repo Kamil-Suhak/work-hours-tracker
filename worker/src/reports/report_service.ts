@@ -158,10 +158,10 @@ export async function fetchEventsForRange(
   const query = inclusiveEnd
     ? `SELECT * FROM events
        WHERE user_id = ? AND occurred_at_utc >= ? AND occurred_at_utc <= ?
-       ORDER BY occurred_at_utc ASC, id ASC`
+       ORDER BY occurred_at_utc ASC, created_at_utc ASC, rowid ASC`
     : `SELECT * FROM events
        WHERE user_id = ? AND occurred_at_utc >= ? AND occurred_at_utc < ?
-       ORDER BY occurred_at_utc ASC, id ASC`;
+       ORDER BY occurred_at_utc ASC, created_at_utc ASC, rowid ASC`;
 
   const { results } = await db
     .prepare(query)

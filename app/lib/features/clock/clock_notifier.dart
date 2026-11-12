@@ -39,6 +39,26 @@ class CurrentStatusNotifier extends AsyncNotifier<WorkStatus> {
     } catch (_) {}
   }
 
+  Future<void> _runStatusTransition(
+    Future<WorkStatus> Function(TimeTrackingRepository repo) action, {
+    bool invalidateShifts = true,
+    bool resetToLoading = false,
+  }) async {
+    final prevClockedIn = state.value?.isClockedIn ?? false;
+    state = resetToLoading
+        ? const AsyncValue.loading()
+        : const AsyncLoading<WorkStatus>().copyWithPrevious(state);
+    state = await AsyncValue.guard(() async {
+      final repository = ref.read(timeTrackingRepositoryProvider);
+      final status = await action(repository);
+      if (invalidateShifts || (prevClockedIn && status.isClockedOut)) {
+        ref.invalidate(shiftsProvider);
+      }
+      _syncWidget(status);
+      return status;
+    });
+  }
+
   @override
   Future<WorkStatus> build() async {
     final repository = ref.watch(timeTrackingRepositoryProvider);
@@ -47,64 +67,54 @@ class CurrentStatusNotifier extends AsyncNotifier<WorkStatus> {
     return status;
   }
 
-  Future<void> refreshStatus() async {
-    state = const AsyncLoading<WorkStatus>().copyWithPrevious(state);
-    state = await AsyncValue.guard(() async {
-      final repository = ref.read(timeTrackingRepositoryProvider);
-      final status = await repository.fetchCurrentStatus();
-      _syncWidget(status);
-      return status;
-    });
-  }
+  Future<void> refreshStatus() => _runStatusTransition(
+        (repo) => repo.fetchCurrentStatus(),
+        invalidateShifts: false,
+      );
 
-  Future<void> resetAndRefresh() async {
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
-      final repository = ref.read(timeTrackingRepositoryProvider);
-      final status = await repository.fetchCurrentStatus();
-      _syncWidget(status);
-      return status;
-    });
-  }
+  Future<void> resetAndRefresh() => _runStatusTransition(
+        (repo) => repo.fetchCurrentStatus(),
+        invalidateShifts: false,
+        resetToLoading: true,
+      );
 
   Future<void> clockIn({
     int? offsetMinutes,
     String location = 'remote',
-  }) async {
-    state = const AsyncLoading<WorkStatus>().copyWithPrevious(state);
-    state = await AsyncValue.guard(() async {
-      final repository = ref.read(timeTrackingRepositoryProvider);
-      final res = await repository.clockIn(
-        offsetMinutes: offsetMinutes,
-        location: location,
+    int? targetMinutes,
+  }) =>
+      _runStatusTransition(
+        (repo) => repo.clockIn(
+          offsetMinutes: offsetMinutes,
+          location: location,
+          targetMinutes: targetMinutes,
+        ),
       );
-      ref.invalidate(shiftsProvider);
-      _syncWidget(res);
-      return res;
-    });
+
+  Future<WorkStatus> updateShiftTarget({
+    int? deltaMinutes,
+    int? targetMinutes,
+    bool clearTarget = false,
+  }) async {
+    final repository = ref.read(timeTrackingRepositoryProvider);
+    final updated = await repository.updateShiftTarget(
+      deltaMinutes: deltaMinutes,
+      targetMinutes: targetMinutes,
+      clearTarget: clearTarget,
+    );
+    state = AsyncData(updated);
+    _syncWidget(updated);
+    return updated;
   }
 
-  Future<void> clockOut({String? note, int? offsetMinutes}) async {
-    state = const AsyncLoading<WorkStatus>().copyWithPrevious(state);
-    state = await AsyncValue.guard(() async {
-      final repository = ref.read(timeTrackingRepositoryProvider);
-      final res = await repository.clockOut(note: note, offsetMinutes: offsetMinutes);
-      ref.invalidate(shiftsProvider);
-      _syncWidget(res);
-      return res;
-    });
-  }
+  Future<void> clockOut({String? note, int? offsetMinutes}) =>
+      _runStatusTransition(
+        (repo) => repo.clockOut(note: note, offsetMinutes: offsetMinutes),
+      );
 
-  Future<void> undo(String eventId) async {
-    state = const AsyncLoading<WorkStatus>().copyWithPrevious(state);
-    state = await AsyncValue.guard(() async {
-      final repository = ref.read(timeTrackingRepositoryProvider);
-      final result = await repository.undo(eventId);
-      ref.invalidate(shiftsProvider);
-      _syncWidget(result.status);
-      return result.status;
-    });
-  }
+  Future<void> undo(String eventId) => _runStatusTransition(
+        (repo) async => (await repo.undo(eventId)).status,
+      );
 }
 
 final currentStatusProvider =

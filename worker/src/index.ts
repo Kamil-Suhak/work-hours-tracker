@@ -1,19 +1,20 @@
 import type { Env } from './types';
 import { AppError, errorResponse, jsonResponse } from './errors';
-import { authenticateDevice, authenticateAdmin } from './auth';
+import { authenticateDevice } from './auth';
 import {
   handleClockIn,
   handleClockOut,
   handleUndo,
+  handleUpdateTarget,
+  materializeAutoClockOutIfDue,
   validateClockRequest,
   validateUndoRequest,
+  validateUpdateTargetRequest,
   DEFAULT_USER_ID,
 } from './clock';
 import { getStatus } from './status';
 import {
   handleGetEvents,
-  handleAdminManualEvent,
-  validateManualEventRequest,
   handleUpdateEventNote,
   validateUpdateNoteRequest,
 } from './events';
@@ -53,6 +54,14 @@ async function parseJsonBody(request: Request, correlationId: string): Promise<u
   }
 }
 
+function safeDecodePathSegment(raw: string, correlationId: string): string {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    throw new AppError('VALIDATION_ERROR', 'Malformed URL encoding in path segment.', 400, correlationId);
+  }
+}
+
 function getAllowedOrigin(request: Request, env: Env): string | null {
   const origin = request.headers.get('Origin');
   if (!origin) return null;
@@ -84,6 +93,317 @@ function getAllowedOrigin(request: Request, env: Env): string | null {
     }
   } catch {
     return null;
+  }
+
+  return null;
+}
+
+interface ApiRouteContext {
+  request: Request;
+  env: Env;
+  url: URL;
+  pathname: string;
+  method: string;
+  correlationId: string;
+  startTime: number;
+  standardHeaders: Record<string, string>;
+}
+
+type AuthenticatedRouteHandler = (deviceId: string) => Promise<Response>;
+
+/**
+ * Matches an API pathname + method to its authenticated route handler so that
+ * every matched endpoint passes through device authentication and lazy
+ * auto-clock-out materialization in one uniform place.
+ */
+function matchAuthenticatedApiRoute(ctx: ApiRouteContext): AuthenticatedRouteHandler | null {
+  const { request, env, url, pathname, method, correlationId, startTime, standardHeaders } = ctx;
+
+  if (pathname === '/api/v1/status' && method === 'GET') {
+    return async (deviceId) => {
+      const status = await getStatus(env.DB, DEFAULT_USER_ID);
+      console.log(
+        JSON.stringify({
+          correlationId,
+          operation: 'status',
+          deviceId,
+          latencyMs: Date.now() - startTime,
+          result: 'ok',
+        })
+      );
+      return jsonResponse(status, 200, standardHeaders);
+    };
+  }
+
+  if (pathname === '/api/v1/clock-in' && method === 'POST') {
+    return async (deviceId) => {
+      const rawBody = await parseJsonBody(request, correlationId);
+      const clockReq = validateClockRequest(rawBody);
+      const result = await handleClockIn(env.DB, deviceId, clockReq);
+
+      console.log(
+        JSON.stringify({
+          correlationId,
+          operation: 'clock-in',
+          deviceId,
+          source: clockReq.source,
+          changed: result.changed,
+          latencyMs: Date.now() - startTime,
+          result: result.changed ? 'changed' : 'no_change',
+        })
+      );
+
+      return jsonResponse(result, 200, standardHeaders);
+    };
+  }
+
+  if (pathname === '/api/v1/clock-out' && method === 'POST') {
+    return async (deviceId) => {
+      const rawBody = await parseJsonBody(request, correlationId);
+      const clockReq = validateClockRequest(rawBody);
+      const result = await handleClockOut(env.DB, deviceId, clockReq);
+
+      console.log(
+        JSON.stringify({
+          correlationId,
+          operation: 'clock-out',
+          deviceId,
+          source: clockReq.source,
+          changed: result.changed,
+          latencyMs: Date.now() - startTime,
+          result: result.changed ? 'changed' : 'no_change',
+        })
+      );
+
+      return jsonResponse(result, 200, standardHeaders);
+    };
+  }
+
+  if (pathname === '/api/v1/shift/target' && method === 'PATCH') {
+    return async (deviceId) => {
+      const rawBody = await parseJsonBody(request, correlationId);
+      const targetReq = validateUpdateTargetRequest(rawBody);
+      const result = await handleUpdateTarget(env.DB, targetReq);
+
+      console.log(
+        JSON.stringify({
+          correlationId,
+          operation: 'update-shift-target',
+          deviceId,
+          targetClockOutUtc: result.targetClockOutUtc,
+          latencyMs: Date.now() - startTime,
+          result: 'ok',
+        })
+      );
+
+      return jsonResponse(result, 200, standardHeaders);
+    };
+  }
+
+  if (pathname === '/api/v1/undo' && method === 'POST') {
+    return async (deviceId) => {
+      const rawBody = await parseJsonBody(request, correlationId);
+      const undoReq = validateUndoRequest(rawBody);
+      const result = await handleUndo(env.DB, undoReq);
+
+      console.log(
+        JSON.stringify({
+          correlationId,
+          operation: 'undo',
+          deviceId,
+          undoneEventId: result.undoneEventId,
+          restoredState: result.restoredState,
+          latencyMs: Date.now() - startTime,
+          result: 'ok',
+        })
+      );
+
+      return jsonResponse(result, 200, standardHeaders);
+    };
+  }
+
+  if (pathname === '/api/v1/events' && method === 'GET') {
+    return async (deviceId) => {
+      const events = await handleGetEvents(env.DB, DEFAULT_USER_ID, url);
+
+      console.log(
+        JSON.stringify({
+          correlationId,
+          operation: 'get-events',
+          deviceId,
+          count: events.length,
+          latencyMs: Date.now() - startTime,
+          result: 'ok',
+        })
+      );
+
+      return jsonResponse(events, 200, standardHeaders);
+    };
+  }
+
+  const eventNoteMatch = pathname.match(/^\/api\/v1\/events\/([^/]+)\/note$/);
+  if (eventNoteMatch && (method === 'PATCH' || method === 'POST')) {
+    return async (deviceId) => {
+      const eventId = safeDecodePathSegment(eventNoteMatch[1], correlationId);
+      const rawBody = await parseJsonBody(request, correlationId);
+      const { note } = validateUpdateNoteRequest(rawBody);
+      const result = await handleUpdateEventNote(env.DB, DEFAULT_USER_ID, eventId, note);
+
+      console.log(
+        JSON.stringify({
+          correlationId,
+          operation: 'update-event-note',
+          deviceId,
+          eventId,
+          hasNote: Boolean(note),
+          latencyMs: Date.now() - startTime,
+          result: 'ok',
+        })
+      );
+
+      return jsonResponse(result, 200, standardHeaders);
+    };
+  }
+
+  if (pathname === '/api/v1/reports/generate' && method === 'POST') {
+    return async (deviceId) => {
+      const rawBody = await parseJsonBody(request, correlationId);
+      const reportReq = validateReportRequest(rawBody);
+      const reportResult = await generateReport(
+        env.DB,
+        DEFAULT_USER_ID,
+        reportReq,
+        env.REPORTS_BUCKET
+      );
+
+      console.log(
+        JSON.stringify({
+          correlationId,
+          operation: 'generate-report',
+          deviceId,
+          format: reportReq.format ?? 'xlsx',
+          preset: reportReq.preset,
+          totalHours: reportResult.stats.totalHours,
+          shiftsCount: reportResult.stats.totalShifts,
+          latencyMs: Date.now() - startTime,
+          result: 'ok',
+        })
+      );
+
+      return new Response(reportResult.buffer, {
+        status: 200,
+        headers: {
+          ...standardHeaders,
+          'Content-Type': reportResult.contentType,
+          'Content-Disposition': `attachment; filename="${reportResult.filename}"`,
+          'X-Total-Hours': reportResult.stats.totalHours.toString(),
+          'X-Total-Shifts': reportResult.stats.totalShifts.toString(),
+        },
+      });
+    };
+  }
+
+  if (pathname === '/api/v1/reports/latest' && method === 'GET') {
+    return async (deviceId) => {
+      const latest = await getLatestReport(env.REPORTS_BUCKET);
+
+      if (!latest) {
+        throw new AppError(
+          'NO_REPORTS_FOUND',
+          'No automated reports have been generated yet.',
+          404,
+          correlationId
+        );
+      }
+
+      console.log(
+        JSON.stringify({
+          correlationId,
+          operation: 'get-latest-report',
+          deviceId,
+          filename: latest.filename,
+          latencyMs: Date.now() - startTime,
+          result: 'ok',
+        })
+      );
+
+      return jsonResponse(latest, 200, standardHeaders);
+    };
+  }
+
+  if (pathname === '/api/v1/reports/contract-profile' && method === 'GET') {
+    return async (deviceId) => {
+      const profile = await getContractProfile(env.REPORTS_BUCKET);
+
+      console.log(
+        JSON.stringify({
+          correlationId,
+          operation: 'get-contract-profile',
+          deviceId,
+          monthlyHours: profile?.monthlyHours ?? 80,
+          latencyMs: Date.now() - startTime,
+          result: 'ok',
+        })
+      );
+
+      return jsonResponse(profile ?? { monthlyHours: 80 }, 200, standardHeaders);
+    };
+  }
+
+  if (pathname.startsWith('/api/v1/reports/download/') && method === 'GET') {
+    return async (deviceId) => {
+      if (!env.REPORTS_BUCKET) {
+        throw new AppError(
+          'STORAGE_NOT_CONFIGURED',
+          'Cloud storage bucket is not configured on the server.',
+          503,
+          correlationId
+        );
+      }
+
+      const rawFilename = pathname.replace('/api/v1/reports/download/', '');
+      const filename = safeDecodePathSegment(rawFilename, correlationId).trim();
+
+      // Reject directory traversal or path separators
+      if (filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
+        throw new AppError('INVALID_FILENAME', 'Invalid report filename requested.', 400, correlationId);
+      }
+
+      // Strict filename validation:
+      // Matches work-hours-YYYY-MM-(formal|full).xlsx or work-hours-YYYY-MM-DD-to-YYYY-MM-DD-(formal|full).xlsx
+      const SAFE_REPORT_FILENAME_REGEX =
+        /^work-hours-(?:\d{4}-\d{2}|\d{4}-\d{2}-\d{2}-to-\d{4}-\d{2}-\d{2})-(?:formal|full)\.xlsx$/;
+      if (!SAFE_REPORT_FILENAME_REGEX.test(filename)) {
+        throw new AppError('INVALID_FILENAME', 'Invalid report filename requested.', 400, correlationId);
+      }
+
+      const key = `reports/${filename}`;
+      const object = await env.REPORTS_BUCKET.get(key);
+
+      if (!object) {
+        throw new AppError('REPORT_NOT_FOUND', 'Requested report file was not found.', 404, correlationId);
+      }
+
+      console.log(
+        JSON.stringify({
+          correlationId,
+          operation: 'download-report',
+          deviceId,
+          key,
+          latencyMs: Date.now() - startTime,
+          result: 'ok',
+        })
+      );
+
+      return new Response(object.body, {
+        status: 200,
+        headers: {
+          ...standardHeaders,
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="${filename}"`,
+        },
+      });
+    };
   }
 
   return null;
@@ -128,283 +448,36 @@ export default {
     }
 
     try {
-      if (pathname === '/api/v1/status' && method === 'GET') {
-        const { deviceId } = await authenticateDevice(request, env);
-        const status = await getStatus(env.DB, DEFAULT_USER_ID);
+      const { deviceId } = await authenticateDevice(request, env);
+
+      const routeHandler = matchAuthenticatedApiRoute({
+        request,
+        env,
+        url,
+        pathname,
+        method,
+        correlationId,
+        startTime,
+        standardHeaders,
+      });
+
+      if (!routeHandler) {
+        return errorResponse('NOT_FOUND', 'The requested resource was not found.', 404, correlationId, standardHeaders);
+      }
+
+      const autoStopped = await materializeAutoClockOutIfDue(env.DB, DEFAULT_USER_ID);
+      if (autoStopped) {
         console.log(
           JSON.stringify({
             correlationId,
-            operation: 'status',
+            operation: 'auto-clock-out',
             deviceId,
-            latencyMs: Date.now() - startTime,
-            result: 'ok',
+            userId: DEFAULT_USER_ID,
           })
         );
-        return jsonResponse(status, 200, standardHeaders);
       }
 
-      if (pathname === '/api/v1/clock-in' && method === 'POST') {
-        const { deviceId } = await authenticateDevice(request, env);
-        const rawBody = await parseJsonBody(request, correlationId);
-        const clockReq = validateClockRequest(rawBody);
-        const result = await handleClockIn(env.DB, deviceId, clockReq);
-
-        console.log(
-          JSON.stringify({
-            correlationId,
-            operation: 'clock-in',
-            deviceId,
-            source: clockReq.source,
-            changed: result.changed,
-            latencyMs: Date.now() - startTime,
-            result: result.changed ? 'changed' : 'no_change',
-          })
-        );
-
-        return jsonResponse(result, 200, standardHeaders);
-      }
-
-      if (pathname === '/api/v1/clock-out' && method === 'POST') {
-        const { deviceId } = await authenticateDevice(request, env);
-        const rawBody = await parseJsonBody(request, correlationId);
-        const clockReq = validateClockRequest(rawBody);
-        const result = await handleClockOut(env.DB, deviceId, clockReq);
-
-        console.log(
-          JSON.stringify({
-            correlationId,
-            operation: 'clock-out',
-            deviceId,
-            source: clockReq.source,
-            changed: result.changed,
-            latencyMs: Date.now() - startTime,
-            result: result.changed ? 'changed' : 'no_change',
-          })
-        );
-
-        return jsonResponse(result, 200, standardHeaders);
-      }
-
-      if (pathname === '/api/v1/undo' && method === 'POST') {
-        const { deviceId } = await authenticateDevice(request, env);
-        const rawBody = await parseJsonBody(request, correlationId);
-        const undoReq = validateUndoRequest(rawBody);
-        const result = await handleUndo(env.DB, undoReq);
-
-        console.log(
-          JSON.stringify({
-            correlationId,
-            operation: 'undo',
-            deviceId,
-            undoneEventId: result.undoneEventId,
-            restoredState: result.restoredState,
-            latencyMs: Date.now() - startTime,
-            result: 'ok',
-          })
-        );
-
-        return jsonResponse(result, 200, standardHeaders);
-      }
-
-      if (pathname === '/api/v1/events' && method === 'GET') {
-        const { deviceId } = await authenticateDevice(request, env);
-        const events = await handleGetEvents(env.DB, DEFAULT_USER_ID, url);
-
-        console.log(
-          JSON.stringify({
-            correlationId,
-            operation: 'get-events',
-            deviceId,
-            count: events.length,
-            latencyMs: Date.now() - startTime,
-            result: 'ok',
-          })
-        );
-
-        return jsonResponse(events, 200, standardHeaders);
-      }
-
-      if (pathname === '/api/v1/admin/events/manual' && method === 'POST') {
-        await authenticateAdmin(request, env);
-        const rawBody = await parseJsonBody(request, correlationId);
-        const manualReq = validateManualEventRequest(rawBody);
-        const result = await handleAdminManualEvent(env.DB, manualReq);
-
-        console.log(
-          JSON.stringify({
-            correlationId,
-            operation: 'admin-manual-event',
-            clockInAt: manualReq.clockInAt,
-            clockOutAt: manualReq.clockOutAt,
-            latencyMs: Date.now() - startTime,
-            result: 'ok',
-          })
-        );
-
-        return jsonResponse(result, 200, standardHeaders);
-      }
-
-      const eventNoteMatch = pathname.match(/^\/api\/v1\/events\/([^/]+)\/note$/);
-      if (eventNoteMatch && (method === 'PATCH' || method === 'POST')) {
-        const { deviceId } = await authenticateDevice(request, env);
-        const eventId = decodeURIComponent(eventNoteMatch[1]);
-        const rawBody = await parseJsonBody(request, correlationId);
-        const { note } = validateUpdateNoteRequest(rawBody);
-        const result = await handleUpdateEventNote(env.DB, DEFAULT_USER_ID, eventId, note);
-
-        console.log(
-          JSON.stringify({
-            correlationId,
-            operation: 'update-event-note',
-            deviceId,
-            eventId,
-            hasNote: Boolean(note),
-            latencyMs: Date.now() - startTime,
-            result: 'ok',
-          })
-        );
-
-        return jsonResponse(result, 200, standardHeaders);
-      }
-
-      if (pathname === '/api/v1/reports/generate' && method === 'POST') {
-        const { deviceId } = await authenticateDevice(request, env);
-        const rawBody = await parseJsonBody(request, correlationId);
-        const reportReq = validateReportRequest(rawBody);
-        const reportResult = await generateReport(
-          env.DB,
-          DEFAULT_USER_ID,
-          reportReq,
-          env.REPORTS_BUCKET
-        );
-
-        console.log(
-          JSON.stringify({
-            correlationId,
-            operation: 'generate-report',
-            deviceId,
-            format: reportReq.format ?? 'xlsx',
-            preset: reportReq.preset,
-            totalHours: reportResult.stats.totalHours,
-            shiftsCount: reportResult.stats.totalShifts,
-            latencyMs: Date.now() - startTime,
-            result: 'ok',
-          })
-        );
-
-        return new Response(reportResult.buffer, {
-          status: 200,
-          headers: {
-            ...standardHeaders,
-            'Content-Type': reportResult.contentType,
-            'Content-Disposition': `attachment; filename="${reportResult.filename}"`,
-            'X-Total-Hours': reportResult.stats.totalHours.toString(),
-            'X-Total-Shifts': reportResult.stats.totalShifts.toString(),
-          },
-        });
-      }
-
-      if (pathname === '/api/v1/reports/latest' && method === 'GET') {
-        const { deviceId } = await authenticateDevice(request, env);
-        const latest = await getLatestReport(env.REPORTS_BUCKET);
-
-        if (!latest) {
-          throw new AppError(
-            'NO_REPORTS_FOUND',
-            'No automated reports have been generated yet.',
-            404,
-            correlationId
-          );
-        }
-
-        console.log(
-          JSON.stringify({
-            correlationId,
-            operation: 'get-latest-report',
-            deviceId,
-            filename: latest.filename,
-            latencyMs: Date.now() - startTime,
-            result: 'ok',
-          })
-        );
-
-        return jsonResponse(latest, 200, standardHeaders);
-      }
-
-      if (pathname === '/api/v1/reports/contract-profile' && method === 'GET') {
-        const { deviceId } = await authenticateDevice(request, env);
-        const profile = await getContractProfile(env.REPORTS_BUCKET);
-
-        console.log(
-          JSON.stringify({
-            correlationId,
-            operation: 'get-contract-profile',
-            deviceId,
-            monthlyHours: profile?.monthlyHours ?? 80,
-            latencyMs: Date.now() - startTime,
-            result: 'ok',
-          })
-        );
-
-        return jsonResponse(profile ?? { monthlyHours: 80 }, 200, standardHeaders);
-      }
-
-      if (pathname.startsWith('/api/v1/reports/download/') && method === 'GET') {
-        const { deviceId } = await authenticateDevice(request, env);
-        if (!env.REPORTS_BUCKET) {
-          throw new AppError(
-            'STORAGE_NOT_CONFIGURED',
-            'Cloud storage bucket is not configured on the server.',
-            503,
-            correlationId
-          );
-        }
-
-        const rawFilename = pathname.replace('/api/v1/reports/download/', '');
-        const filename = decodeURIComponent(rawFilename).trim();
-
-        // Reject directory traversal or path separators
-        if (filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
-          throw new AppError('INVALID_FILENAME', 'Invalid report filename requested.', 400, correlationId);
-        }
-
-        // Strict filename validation:
-        // Matches work-hours-YYYY-MM-(formal|full).xlsx or work-hours-YYYY-MM-DD-to-YYYY-MM-DD-(formal|full).xlsx
-        const SAFE_REPORT_FILENAME_REGEX =
-          /^work-hours-(?:\d{4}-\d{2}|\d{4}-\d{2}-\d{2}-to-\d{4}-\d{2}-\d{2})-(?:formal|full)\.xlsx$/;
-        if (!SAFE_REPORT_FILENAME_REGEX.test(filename)) {
-          throw new AppError('INVALID_FILENAME', 'Invalid report filename requested.', 400, correlationId);
-        }
-
-        const key = `reports/${filename}`;
-        const object = await env.REPORTS_BUCKET.get(key);
-
-        if (!object) {
-          throw new AppError('REPORT_NOT_FOUND', 'Requested report file was not found.', 404, correlationId);
-        }
-
-        console.log(
-          JSON.stringify({
-            correlationId,
-            operation: 'download-report',
-            deviceId,
-            key,
-            latencyMs: Date.now() - startTime,
-            result: 'ok',
-          })
-        );
-
-        return new Response(object.body, {
-          status: 200,
-          headers: {
-            ...standardHeaders,
-            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'Content-Disposition': `attachment; filename="${filename}"`,
-          },
-        });
-      }
-
-      return errorResponse('NOT_FOUND', 'The requested resource was not found.', 404, correlationId, standardHeaders);
+      return await routeHandler(deviceId);
     } catch (err: unknown) {
       const latencyMs = Date.now() - startTime;
       if (err instanceof AppError) {
@@ -440,7 +513,21 @@ export default {
     ctx: { waitUntil: (promise: Promise<unknown>) => void }
   ): Promise<void> {
     ctx.waitUntil(
-      runScheduledMonthlyReport(env.DB, env.REPORTS_BUCKET)
+      materializeAutoClockOutIfDue(env.DB, DEFAULT_USER_ID)
+        .then((autoStopped) => {
+          if (autoStopped) {
+            console.log(
+              JSON.stringify({
+                operation: 'auto-clock-out',
+                trigger: 'scheduled',
+                cron: event.cron,
+                scheduledTime: event.scheduledTime,
+                userId: DEFAULT_USER_ID,
+              })
+            );
+          }
+          return runScheduledMonthlyReport(env.DB, env.REPORTS_BUCKET);
+        })
         .then((res) => {
           console.log(
             JSON.stringify({

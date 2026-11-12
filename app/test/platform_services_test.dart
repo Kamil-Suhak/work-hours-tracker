@@ -86,39 +86,32 @@ void main() {
     });
   });
 
-  group('CredentialStore Security Tests', () {
-    test('WebCredentialStore keeps admin_auth_token in memory only', () async {
+  group('CredentialStore Tests', () {
+    test('WebCredentialStore delegates device token persistence and reports isWeb', () async {
       final fakeStorage = _FakeSecureStorageGateway();
       final store = WebCredentialStore(fakeStorage);
 
       expect(store.isWeb, isTrue);
+      expect(store.defaultBaseUrl, isNotEmpty);
 
-      // 1. Write device token -> should be written to storage
       await store.write('device_auth_token', 'dev-token-abc');
       expect(await store.read('device_auth_token'), equals('dev-token-abc'));
       expect(fakeStorage.containsKey('device_auth_token'), isTrue);
 
-      // 2. Write admin token -> MUST NOT be written to storage (in-memory only)
-      await store.write('admin_auth_token', 'super-secret-admin');
-      expect(await store.read('admin_auth_token'), equals('super-secret-admin'));
-      expect(fakeStorage.containsKey('admin_auth_token'), isFalse);
-
-      // 3. Delete admin token clears in-memory state
-      await store.delete('admin_auth_token');
-      expect(await store.read('admin_auth_token'), isNull);
+      await store.delete('device_auth_token');
+      expect(await store.read('device_auth_token'), isNull);
+      expect(fakeStorage.containsKey('device_auth_token'), isFalse);
     });
 
-    test('MobileCredentialStore persists both tokens to storage', () async {
+    test('MobileCredentialStore persists device tokens and reports !isWeb', () async {
       final fakeStorage = _FakeSecureStorageGateway();
       final store = MobileCredentialStore(fakeStorage);
 
       expect(store.isWeb, isFalse);
 
       await store.write('device_auth_token', 'dev-token-123');
-      await store.write('admin_auth_token', 'admin-token-456');
-
+      expect(await store.read('device_auth_token'), equals('dev-token-123'));
       expect(fakeStorage.containsKey('device_auth_token'), isTrue);
-      expect(fakeStorage.containsKey('admin_auth_token'), isTrue);
     });
   });
 }

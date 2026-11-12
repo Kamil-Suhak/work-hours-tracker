@@ -88,6 +88,7 @@ class ApiClient {
     String source = 'flutter_app',
     int? offsetMinutes,
     String location = 'remote',
+    int? targetMinutes,
   }) async {
     final uri = Uri.parse('$baseUrl/api/v1/clock-in');
     final headers = await _buildHeaders();
@@ -96,11 +97,45 @@ class ApiClient {
       'source': source,
       'location': location,
       if (offsetMinutes != null) 'offsetMinutes': offsetMinutes,
+      if (targetMinutes != null) 'targetMinutes': targetMinutes,
     });
 
     final response = await _httpClient.post(uri, headers: headers, body: body);
     if (response.statusCode == 200) {
       return WorkStatus.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+    }
+    _handleError(response);
+  }
+
+  Future<WorkStatus> updateShiftTarget({
+    int? deltaMinutes,
+    int? targetMinutes,
+    bool clearTarget = false,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/v1/shift/target');
+    final headers = await _buildHeaders();
+    final payload = <String, dynamic>{};
+    if (clearTarget) {
+      payload['targetMinutes'] = null;
+    } else if (deltaMinutes != null) {
+      payload['deltaMinutes'] = deltaMinutes;
+    } else if (targetMinutes != null) {
+      payload['targetMinutes'] = targetMinutes;
+    } else {
+      throw ArgumentError(
+        'Provide deltaMinutes, targetMinutes, or clearTarget: true.',
+      );
+    }
+
+    final response = await _httpClient.patch(
+      uri,
+      headers: headers,
+      body: jsonEncode(payload),
+    );
+    if (response.statusCode == 200) {
+      return WorkStatus.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
     }
     _handleError(response);
   }
@@ -183,34 +218,6 @@ class ApiClient {
       return UndoResult.fromJson(
         jsonDecode(response.body) as Map<String, dynamic>,
       );
-    }
-    _handleError(response);
-  }
-
-  Future<Map<String, dynamic>> submitManualShift({
-    required DateTime clockInAt,
-    required DateTime clockOutAt,
-    required String reason,
-    required String requestId,
-    String location = 'remote',
-    String? adminToken,
-  }) async {
-    final uri = Uri.parse('$baseUrl/api/v1/admin/events/manual');
-    final headers = await _buildHeaders();
-    if (adminToken != null && adminToken.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $adminToken';
-    }
-    final body = jsonEncode({
-      'clockInAt': clockInAt.toUtc().toIso8601String(),
-      'clockOutAt': clockOutAt.toUtc().toIso8601String(),
-      'reason': reason,
-      'requestId': requestId,
-      'location': location,
-    });
-
-    final response = await _httpClient.post(uri, headers: headers, body: body);
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body) as Map<String, dynamic>;
     }
     _handleError(response);
   }

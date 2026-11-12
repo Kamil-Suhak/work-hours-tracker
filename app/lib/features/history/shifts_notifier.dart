@@ -13,7 +13,7 @@ class ShiftsNotifier extends AsyncNotifier<List<ShiftRecord>> {
     final repository = ref.read(timeTrackingRepositoryProvider);
     final now = DateTime.now().toUtc();
     final from = DateTime.utc(now.year, now.month - 1, 1);
-    final to = now.add(const Duration(hours: 1));
+    final to = now.add(const Duration(hours: 3));
 
     final events = await repository.fetchEvents(from, to);
     return pairEventsIntoShifts(events);

@@ -55,7 +55,6 @@ class MobileCredentialStore implements CredentialStore {
 
 class WebCredentialStore implements CredentialStore {
   final SecureStorageGateway _storage;
-  String? _inMemoryAdminToken;
 
   WebCredentialStore([this._storage = const DefaultSecureStorageGateway()]);
 
@@ -63,35 +62,22 @@ class WebCredentialStore implements CredentialStore {
   bool get isWeb => true;
 
   @override
-  String get defaultBaseUrl => Uri.base.origin;
-
-  @override
-  Future<String?> read(String key) async {
-    // Admin token is kept in-memory only during the active web session
-    if (key == AppConfig.adminAuthTokenKey) {
-      return _inMemoryAdminToken;
+  String get defaultBaseUrl {
+    final scheme = Uri.base.scheme.toLowerCase();
+    if (scheme == 'http' || scheme == 'https') {
+      return Uri.base.origin;
     }
-    return _storage.read(key);
+    return AppConfig.defaultApiBaseUrl;
   }
 
   @override
-  Future<void> write(String key, String value) async {
-    // Never persist admin token to browser storage
-    if (key == AppConfig.adminAuthTokenKey) {
-      _inMemoryAdminToken = value;
-      return;
-    }
-    return _storage.write(key, value);
-  }
+  Future<String?> read(String key) => _storage.read(key);
 
   @override
-  Future<void> delete(String key) async {
-    if (key == AppConfig.adminAuthTokenKey) {
-      _inMemoryAdminToken = null;
-      return;
-    }
-    return _storage.delete(key);
-  }
+  Future<void> write(String key, String value) => _storage.write(key, value);
+
+  @override
+  Future<void> delete(String key) => _storage.delete(key);
 }
 
 final credentialStoreProvider = Provider<CredentialStore>((ref) {

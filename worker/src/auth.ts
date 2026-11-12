@@ -57,15 +57,3 @@ export async function authenticateDevice(
 
   return { deviceId: row.id };
 }
-
-export async function authenticateAdmin(request: Request, env: Env): Promise<void> {
-  const adminToken = env.ADMIN_API_TOKEN;
-  if (!adminToken) {
-    throw new AppError('SERVER_MISCONFIGURED', 'Admin token is not configured on server.', 500);
-  }
-
-  const token = getBearerToken(request);
-  if (!token || !timingSafeEqual(token, adminToken)) {
-    throw new AppError('UNAUTHORIZED', 'Invalid or missing admin token.', 401);
-  }
-}

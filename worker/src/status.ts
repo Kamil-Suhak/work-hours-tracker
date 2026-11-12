@@ -236,7 +236,7 @@ export async function calculateDurations(
     .prepare(
       `SELECT * FROM events 
        WHERE user_id = ? AND occurred_at_utc >= ? 
-       ORDER BY occurred_at_utc ASC, id ASC`
+       ORDER BY occurred_at_utc ASC, created_at_utc ASC, rowid ASC`
     )
     .bind(userId, queryStartUtc)
     .all<EventRow>();
@@ -290,19 +290,22 @@ export async function getStatus(
 ): Promise<StatusResponse> {
   const stateRow = await db
     .prepare(
-      'SELECT user_id, state, active_since_utc, version, updated_at_utc FROM work_state WHERE user_id = ?'
+      'SELECT user_id, state, active_since_utc, target_clock_out_utc, version, updated_at_utc FROM work_state WHERE user_id = ?'
     )
     .bind(userId)
     .first<{
       user_id: string;
       state: WorkState;
       active_since_utc: string | null;
+      target_clock_out_utc: string | null;
       version: number;
       updated_at_utc: string;
     }>();
 
   const currentState: WorkState = stateRow?.state ?? 'clocked_out';
   const activeSince = stateRow?.active_since_utc ?? null;
+  const targetClockOutUtc =
+    currentState === 'clocked_in' ? (stateRow?.target_clock_out_utc ?? null) : null;
 
   const { todaySeconds, monthSeconds } = await calculateDurations(
     db,
@@ -314,7 +317,7 @@ export async function getStatus(
 
   const latestEventRow = await db
     .prepare(
-      'SELECT id, event_type, occurred_at_utc, created_at_utc FROM events WHERE user_id = ? ORDER BY occurred_at_utc DESC, id DESC LIMIT 1'
+      'SELECT id, event_type, occurred_at_utc, created_at_utc FROM events WHERE user_id = ? ORDER BY occurred_at_utc DESC, created_at_utc DESC, rowid DESC LIMIT 1'
     )
     .bind(userId)
     .first<{
@@ -336,6 +339,7 @@ export async function getStatus(
   return {
     state: currentState,
     activeSince,
+    targetClockOutUtc,
     serverTime: now.toISOString(),
     todaySeconds,
     monthSeconds,

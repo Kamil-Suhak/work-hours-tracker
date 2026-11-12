@@ -6,7 +6,7 @@ A low-friction, single-user work hours tracking platform with authoritative serv
 
 ## Project Status
 
-- **Current Version:** `v1.2.2` (see [CHANGELOG.md](CHANGELOG.md))
+- **Current Version:** `v1.3.0` (see [CHANGELOG.md](CHANGELOG.md))
 - **Status:** Personal production, actively used
 - **Supported Platforms:** Android (App + Native Widget), Web (Desktop/Mobile browser), Cloudflare Workers (Backend + Static Assets)
 
@@ -58,7 +58,7 @@ Detailed specifications, runbooks, and contracts have been separated into dedica
 |             (Riverpod State / Dark Modern UI)             |
 +-----------------------------+-----------------------------+
                               |
-                              | HTTPS JSON API (Device / Admin Token)
+                              | HTTPS JSON API (Device Token)
                               v
 +-----------------------------------------------------------+
 |               Unified Cloudflare Worker                   |
@@ -98,12 +98,12 @@ Detailed specifications, runbooks, and contracts have been separated into dedica
 
 ### Flutter Client (Android & Responsive Web)
 - **Shared Codebase:** Riverpod state management, domain models, and API clients are 100% shared across mobile and browser.
-- **Planned Shift Lengths & Progress Ring:** Clock in with planned duration pills (4h, 6h, 8h, or custom), displaying a glowing animated progress bar, countdown timer, and overtime indicator.
+- **Server-Authoritative Shift Target & Auto-Stop:** Clock in with an optional shift duration target (`1h`–`24h`), nudge `targetClockOutUtc` live via `-10m` / `+10m` or a custom dialog (`PATCH /api/v1/shift/target`), and rely on lazy server-side auto-clock-out at target even when the client app is closed.
 - **Shift End Reminders:** Configurable notifications (5m, 10m, 15m lead times) scheduled natively via Android `AlarmManager` and HTML5 Web Notification API.
 - **Environment Switcher:** In-app server settings dialog allows seamless switching between Production and Staging with fully isolated secure storage and locked, non-editable API base URLs.
 - **Responsive 4-Quadrant Desktop View:** Viewports `>= 900px` render Current Tracker, Note Editor, Markdown Preview, and Recent Shifts side-by-side. Clicking past shifts loads their notes directly for retroactive viewing/editing, with auto-drafting and dual-save clock-out protection.
 - **Shift Notes & Inline Editing:** Markdown-capable notes editor with live preview, autosaved drafts, and retroactive editing for past shifts.
-- **Historical Backfill:** Admin dialog to record missed past shifts with date/time pickers and overlap validation.
+- **Direct D1 Shift CLI (`db:shift`):** Local dry-run-first Node CLI (`worker/scripts/shifts.mjs`) calling `wrangler d1 execute` to list, add, edit, close, or delete shifts when manual recovery is needed.
 
 ### Native Android Home-Screen Widget
 - **Independent API Client:** The Kotlin widget communicates directly with the Worker API via OkHttp without requiring the Flutter engine to run.

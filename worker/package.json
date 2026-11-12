@@ -1,6 +1,6 @@
 {
   "name": "work-hours-api",
-  "version": "1.2.6",
+  "version": "1.3.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,7 +13,8 @@
     "db:purge-all": "wrangler d1 execute work-hours-prod --remote --file=sql/purge-all.sql",
     "db:devices": "wrangler d1 execute work-hours-prod --remote --file=sql/list-devices.sql",
     "db:status": "wrangler d1 execute work-hours-prod --remote --file=sql/inspect-state.sql",
-    "db:shifts": "wrangler d1 execute work-hours-prod --remote --file=sql/recent-shifts.sql"
+    "db:shifts": "wrangler d1 execute work-hours-prod --remote --file=sql/recent-shifts.sql",
+    "db:shift": "node scripts/shifts.mjs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261003.1",

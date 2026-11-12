@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.3.0] - 2026-11-12
+
+### Added
+- **Server-Authoritative Shift Target & Lazy Auto-Stop:** Added D1 migration `0004_add_target_clock_out.sql` (`work_state.target_clock_out_utc`), optional `targetMinutes` on `POST /api/v1/clock-in`, and `PATCH /api/v1/shift/target` supporting relative `deltaMinutes` nudges, explicit `targetMinutes`, or clearing the target. Any authenticated Worker request (and the monthly cron) materializes `clock_out` at `max(activeSince, targetClockOutUtc)` with reason `"Auto-stopped at target"` when due.
+- **Flutter Target Controls & Notification Sync:** Added quick `-10m` / `+10m` nudge buttons and `ShiftTargetDialog` in the active tracker UI, synchronized shift-end reminder notifications with live `targetClockOutUtc` updates, and triggered status refresh when reaching the target.
+- **Direct D1 Shift CLI (`db:shift`):** Added `worker/scripts/shifts.mjs` (`npm --prefix worker run db:shift`) to `list`, `add`, `edit`, `close`, and `delete` shifts directly in Cloudflare D1 with `Europe/Warsaw` parsing, overlap validation, automatic `work_state` resynchronization, and dry-run output by default (`--apply` to execute writes).
+
+### Removed
+- **Admin Backfill API & UI:** Removed `POST /api/v1/admin/events/manual`, `ADMIN_API_TOKEN` verification/config, `ManualShiftDialog`, legacy admin token storage, and client-only `plannedShiftProvider`.
+
+### Fixed & Hardened
+- **Worker Concurrency & Route Safety:** Guarded `handleClockIn`, `handleClockOut`, and `handleUndo` `db.batch()` writes with optimistic `work_state.version` / existence predicates and concurrent idempotency replay; filtered auto-stop lookup to `clock_in` events; added safe path segment decoding (`400 VALIDATION_ERROR`) and auth checks ahead of unknown-route `404` responses.
+- **Client & Widget Reliability:** Fixed `SettingsNotifier.isConfigured` token/URL validation and legacy key cleanup, serialized `ShiftNotesCard` draft saves across active shifts, throttled auto-stop status polling in `CurrentShiftTimerCard`, bounded `ShiftsNotifier` future queries, surfaced fallback `reason` strings in `RecentShiftsView`, and guarded Android widget status handling in `WorkHoursWidgetReceiver`.
+
+### Changed
+- **Version Bumps:** Bumped Flutter bundle version to `1.3.0+15`, synchronized `AppConfig.appVersion` (`1.3.0`) for the Android update check badge, and bumped Cloudflare Worker API to `1.3.0`.
+
+---
+
 ## [1.2.6] - 2026-11-06
 
 ### Fixed

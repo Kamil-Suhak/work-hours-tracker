@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import worker from '../src/index';
 import type { Env } from '../src/types';
 import { hashDeviceToken } from '../src/auth';
+import { materializeAutoClockOutIfDue } from '../src/clock';
 import { MockD1Database } from './mock-d1';
 import type { D1Database } from '@cloudflare/workers-types';
 
@@ -9,7 +10,6 @@ describe('Worker End-to-End Integration Suite', () => {
   let mockDb: MockD1Database;
   let env: Env;
   const validToken = 'test-device-token-12345';
-  const adminToken = 'admin-secret-token-67890';
   let deviceTokenHash: string;
 
   beforeEach(async () => {
@@ -27,7 +27,6 @@ describe('Worker End-to-End Integration Suite', () => {
 
     env = {
       DB: mockDb as unknown as D1Database,
-      ADMIN_API_TOKEN: adminToken,
       DEVICE_TOKEN_PEPPER: '',
     };
   });
@@ -64,6 +63,23 @@ describe('Worker End-to-End Integration Suite', () => {
       expect(res.status).toBe(401);
       const data = await res.json() as { error: { code: string } };
       expect(data.error.code).toBe('UNAUTHORIZED');
+    });
+
+    it('rejects unauthenticated unknown routes with 401 instead of 404', async () => {
+      const req = createRequest('/api/v1/does-not-exist', { token: '' });
+      const res = await worker.fetch(req, env);
+      expect(res.status).toBe(401);
+    });
+
+    it('returns 400 instead of 500 on malformed URL encoding in event note path', async () => {
+      const req = createRequest('/api/v1/events/%E0%A4%A/note', {
+        method: 'PATCH',
+        body: { note: 'hello' },
+      });
+      const res = await worker.fetch(req, env);
+      expect(res.status).toBe(400);
+      const data = await res.json() as { error: { code: string } };
+      expect(data.error.code).toBe('VALIDATION_ERROR');
     });
 
     it('rejects requests with an unknown token with 401', async () => {
@@ -350,106 +366,283 @@ describe('Worker End-to-End Integration Suite', () => {
     });
   });
 
-  describe('Admin Manual Shift Backfill', () => {
-    it('rejects manual backfill with device token (requires admin token)', async () => {
+  describe('Removed Admin Surface & Shift Target Auto-Stop', () => {
+    it('returns 404 for removed /api/v1/admin/events/manual endpoint', async () => {
       const res = await worker.fetch(
         createRequest('/api/v1/admin/events/manual', {
           method: 'POST',
-          token: validToken, // device token, not admin token
           body: {
             clockInAt: '2026-10-01T08:00:00Z',
             clockOutAt: '2026-10-01T16:00:00Z',
-            reason: 'Test backfill',
-            requestId: 'req-backfill-1',
+            reason: 'Removed endpoint check',
+            requestId: 'req-removed-admin',
           },
         }),
         env
       );
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(404);
     });
 
-    it('inserts matched shift pair when authenticated with admin token', async () => {
+    it('rejects admin_manual source on /api/v1/clock-in', async () => {
       const res = await worker.fetch(
-        createRequest('/api/v1/admin/events/manual', {
+        createRequest('/api/v1/clock-in', {
           method: 'POST',
-          token: adminToken,
-          body: {
-            clockInAt: '2026-10-01T08:00:00Z',
-            clockOutAt: '2026-10-01T16:00:00Z',
-            reason: 'Backfill worked day',
-            requestId: 'req-admin-1',
-          },
+          body: { requestId: 'req-admin-src', source: 'admin_manual' },
         }),
         env
       );
-      expect(res.status).toBe(200);
-      const data = await res.json() as { success: boolean; durationSeconds: number };
-      expect(data.success).toBe(true);
-      expect(data.durationSeconds).toBe(8 * 3600);
-
-      // Verify pair created in D1
-      expect(mockDb.events).toHaveLength(2);
-      expect(mockDb.events[0].source).toBe('admin_manual');
-      expect(mockDb.events[0].location).toBe('remote');
-      expect(mockDb.events[1].source).toBe('admin_manual');
-      expect(mockDb.events[1].location).toBe('remote');
-    });
-
-    it('stores in-office location for manual shift backfill when specified', async () => {
-      const res = await worker.fetch(
-        createRequest('/api/v1/admin/events/manual', {
-          method: 'POST',
-          token: adminToken,
-          body: {
-            clockInAt: '2026-10-02T08:00:00Z',
-            clockOutAt: '2026-10-02T16:00:00Z',
-            reason: 'Worked in office',
-            requestId: 'req-admin-office',
-            location: 'in-office',
-          },
-        }),
-        env
-      );
-      expect(res.status).toBe(200);
-      expect(mockDb.events).toHaveLength(2);
-      expect(mockDb.events[0].location).toBe('in-office');
-      expect(mockDb.events[1].location).toBe('in-office');
-    });
-
-    it('rejects overlapping shift with existing shifts', async () => {
-      // First backfill
-      await worker.fetch(
-        createRequest('/api/v1/admin/events/manual', {
-          method: 'POST',
-          token: adminToken,
-          body: {
-            clockInAt: '2026-10-01T08:00:00Z',
-            clockOutAt: '2026-10-01T16:00:00Z',
-            reason: 'Initial shift',
-            requestId: 'req-admin-initial',
-          },
-        }),
-        env
-      );
-
-      // Overlapping backfill (12:00 to 18:00)
-      const res = await worker.fetch(
-        createRequest('/api/v1/admin/events/manual', {
-          method: 'POST',
-          token: adminToken,
-          body: {
-            clockInAt: '2026-10-01T12:00:00Z',
-            clockOutAt: '2026-10-01T18:00:00Z',
-            reason: 'Overlapping shift',
-            requestId: 'req-admin-overlap',
-          },
-        }),
-        env
-      );
-
       expect(res.status).toBe(400);
       const data = await res.json() as { error: { code: string } };
-      expect(data.error.code).toBe('OVERLAPPING_SHIFT');
+      expect(data.error.code).toBe('INVALID_SOURCE');
+    });
+
+    it('stores targetClockOutUtc on clock-in and adjusts it via PATCH /api/v1/shift/target', async () => {
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date('2026-11-10T09:00:15.000Z'));
+
+        const clockInRes = await worker.fetch(
+          createRequest('/api/v1/clock-in', {
+            method: 'POST',
+            body: {
+              requestId: 'req-target-in',
+              source: 'flutter_app',
+              targetMinutes: 120,
+              location: 'in-office',
+            },
+          }),
+          env
+        );
+        expect(clockInRes.status).toBe(200);
+        const clockInData = await clockInRes.json() as {
+          state: string;
+          activeSince: string;
+          targetClockOutUtc: string | null;
+        };
+        expect(clockInData.state).toBe('clocked_in');
+        expect(clockInData.activeSince).toBe('2026-11-10T09:00:00.000Z');
+        expect(clockInData.targetClockOutUtc).toBe('2026-11-10T11:00:00.000Z');
+
+        // Nudge +10m -> 11:10
+        const plusRes = await worker.fetch(
+          createRequest('/api/v1/shift/target', {
+            method: 'PATCH',
+            body: { deltaMinutes: 10 },
+          }),
+          env
+        );
+        expect(plusRes.status).toBe(200);
+        const plusData = await plusRes.json() as { targetClockOutUtc: string | null };
+        expect(plusData.targetClockOutUtc).toBe('2026-11-10T11:10:00.000Z');
+
+        // Advance to 10:56; nudge -20m would land at 10:50 (in the past) -> clamps at nowMinute + 1m (10:57)
+        vi.setSystemTime(new Date('2026-11-10T10:56:40.000Z'));
+        const clampRes = await worker.fetch(
+          createRequest('/api/v1/shift/target', {
+            method: 'PATCH',
+            body: { deltaMinutes: -20 },
+          }),
+          env
+        );
+        expect(clampRes.status).toBe(200);
+        const clampData = await clampRes.json() as {
+          state: string;
+          targetClockOutUtc: string | null;
+        };
+        expect(clampData.state).toBe('clocked_in');
+        expect(clampData.targetClockOutUtc).toBe('2026-11-10T10:57:00.000Z');
+
+        // Clear target -> open-ended shift
+        const clearRes = await worker.fetch(
+          createRequest('/api/v1/shift/target', {
+            method: 'PATCH',
+            body: { targetMinutes: null },
+          }),
+          env
+        );
+        expect(clearRes.status).toBe(200);
+        const clearData = await clearRes.json() as { targetClockOutUtc: string | null };
+        expect(clearData.targetClockOutUtc).toBeNull();
+
+        // Incremental delta while no target set fails cleanly
+        const noTargetRes = await worker.fetch(
+          createRequest('/api/v1/shift/target', {
+            method: 'PATCH',
+            body: { deltaMinutes: 10 },
+          }),
+          env
+        );
+        expect(noTargetRes.status).toBe(400);
+
+        // Set custom targetMinutes (180 -> 09:00 + 3h = 12:00)
+        const customRes = await worker.fetch(
+          createRequest('/api/v1/shift/target', {
+            method: 'PATCH',
+            body: { targetMinutes: 180 },
+          }),
+          env
+        );
+        expect(customRes.status).toBe(200);
+        const customData = await customRes.json() as { targetClockOutUtc: string | null };
+        expect(customData.targetClockOutUtc).toBe('2026-11-10T12:00:00.000Z');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('rejects PATCH /api/v1/shift/target when clocked out or exceeding 24h', async () => {
+      const outRes = await worker.fetch(
+        createRequest('/api/v1/shift/target', {
+          method: 'PATCH',
+          body: { targetMinutes: 60 },
+        }),
+        env
+      );
+      expect(outRes.status).toBe(409);
+
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date('2026-11-10T08:00:00.000Z'));
+        await worker.fetch(
+          createRequest('/api/v1/clock-in', {
+            method: 'POST',
+            body: {
+              requestId: 'req-max-target',
+              source: 'flutter_app',
+              targetMinutes: 1440,
+            },
+          }),
+          env
+        );
+
+        const overRes = await worker.fetch(
+          createRequest('/api/v1/shift/target', {
+            method: 'PATCH',
+            body: { deltaMinutes: 10 },
+          }),
+          env
+        );
+        expect(overRes.status).toBe(400);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('materializes auto-stop cleanly when target is reached, handles concurrent calls and subsequent clock actions', async () => {
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date('2026-11-10T09:00:00.000Z'));
+        await worker.fetch(
+          createRequest('/api/v1/clock-in', {
+            method: 'POST',
+            body: {
+              requestId: 'req-auto-in',
+              source: 'android_widget',
+              targetMinutes: 120,
+              location: 'in-office',
+            },
+          }),
+          env
+        );
+
+        // Advance past target (11:00 -> 14:30)
+        vi.setSystemTime(new Date('2026-11-10T14:30:00.000Z'));
+
+        // Concurrent materialization should insert only ONE synthetic clock_out event
+        const results = await Promise.all([
+          materializeAutoClockOutIfDue(mockDb as unknown as D1Database),
+          materializeAutoClockOutIfDue(mockDb as unknown as D1Database),
+        ]);
+        expect(results.filter(Boolean)).toHaveLength(1);
+        expect(mockDb.events).toHaveLength(2);
+
+        const autoOut = mockDb.events[1];
+        expect(autoOut.event_type).toBe('clock_out');
+        expect(autoOut.occurred_at_utc).toBe('2026-11-10T11:00:00.000Z');
+        expect(autoOut.source).toBe('android_widget');
+        expect(autoOut.device_id).toBe('dev-1');
+        expect(autoOut.location).toBe('in-office');
+        expect(autoOut.reason).toBe('Auto-stopped at target');
+
+        // Subsequent GET /status shows clocked_out and accurate 2h duration
+        const statusRes = await worker.fetch(createRequest('/api/v1/status'), env);
+        expect(statusRes.status).toBe(200);
+        const statusData = await statusRes.json() as {
+          state: string;
+          targetClockOutUtc: string | null;
+          todaySeconds: number;
+          latestEvent: { id: string; eventType: string } | null;
+        };
+        expect(statusData.state).toBe('clocked_out');
+        expect(statusData.targetClockOutUtc).toBeNull();
+        expect(statusData.todaySeconds).toBe(2 * 3600);
+        expect(statusData.latestEvent?.eventType).toBe('clock_out');
+
+        // Tapping manual clock-out after auto-stop returns changed: false with latestEvent pointing to auto-stop
+        const lateOutRes = await worker.fetch(
+          createRequest('/api/v1/clock-out', {
+            method: 'POST',
+            body: { requestId: 'req-late-out', source: 'flutter_app' },
+          }),
+          env
+        );
+        expect(lateOutRes.status).toBe(200);
+        const lateOutData = await lateOutRes.json() as {
+          changed: boolean;
+          latestEvent?: { id: string; eventType: string };
+        };
+        expect(lateOutData.changed).toBe(false);
+        expect(lateOutData.latestEvent?.id).toBe(autoOut.id);
+
+        // Fresh clock-in immediately starts a new shift after auto-stop
+        const nextInRes = await worker.fetch(
+          createRequest('/api/v1/clock-in', {
+            method: 'POST',
+            body: { requestId: 'req-next-in', source: 'flutter_app', targetMinutes: 60 },
+          }),
+          env
+        );
+        expect(nextInRes.status).toBe(200);
+        const nextInData = await nextInRes.json() as {
+          state: string;
+          changed: boolean;
+          targetClockOutUtc: string | null;
+        };
+        expect(nextInData.state).toBe('clocked_in');
+        expect(nextInData.changed).toBe(true);
+        expect(nextInData.targetClockOutUtc).toBe('2026-11-10T15:30:00.000Z');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('runs auto-stop materialization before scheduled monthly report generation', async () => {
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date('2026-11-10T09:00:00.000Z'));
+        await worker.fetch(
+          createRequest('/api/v1/clock-in', {
+            method: 'POST',
+            body: { requestId: 'req-sched-in', source: 'flutter_app', targetMinutes: 60 },
+          }),
+          env
+        );
+
+        vi.setSystemTime(new Date('2026-11-10T12:00:00.000Z'));
+        const pending: Promise<unknown>[] = [];
+        await worker.scheduled(
+          { cron: '0 6 1 * *', scheduledTime: Date.now() },
+          env,
+          { waitUntil: (p: Promise<unknown>) => pending.push(p) }
+        );
+        await Promise.all(pending);
+
+        expect(mockDb.events).toHaveLength(2);
+        expect(mockDb.events[1].occurred_at_utc).toBe('2026-11-10T10:00:00.000Z');
+        expect(mockDb.workState.get('default-user')?.state).toBe('clocked_out');
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 

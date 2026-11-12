@@ -15,7 +15,7 @@ import 'widgets/current_shift_timer_card.dart';
 import 'widgets/cyber_orbit_badge.dart';
 import 'widgets/shift_notes_card.dart';
 import 'widgets/clock_action_button.dart';
-import 'planned_shift_provider.dart';
+import 'widgets/shift_target_dialog.dart';
 import '../history/recent_shifts_view.dart';
 import 'widgets/current_tracker_quadrant.dart';
 import 'widgets/note_editor_quadrant.dart';
@@ -42,6 +42,17 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
   Timer? _pastShiftSaveDebounce;
   bool _isSavingPastNote = false;
   bool _pastNoteSaved = false;
+  bool _isUpdatingTarget = false;
+  bool _isManualClockOut = false;
+  bool _isRefreshingTargetReached = false;
+  String? _lastReminderSignature;
+  Future<void> _reminderSyncQueue = Future<void>.value();
+
+  Future<void> _enqueueReminderOp(Future<void> Function() op) {
+    final next = _reminderSyncQueue.then((_) => op());
+    _reminderSyncQueue = next.then((_) {}, onError: (_) {});
+    return next;
+  }
 
   @override
   void initState() {
@@ -185,6 +196,24 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
             behavior: SnackBarBehavior.floating,
           ),
         );
+      } else if (next.hasValue && !next.isLoading) {
+        final status = next.value!;
+        _syncReminderIfNeeded(status);
+        final justAutoStopped =
+            !_isManualClockOut &&
+            previous?.value?.isClockedIn == true &&
+            status.isClockedOut &&
+            status.latestEvent?.eventType == 'clock_out';
+        if (justAutoStopped) {
+          unawaited(_flushDraftToAutoStoppedEvent(status.latestEvent!.id));
+        }
+      }
+    });
+
+    ref.listen<AsyncValue<AppSettings>>(settingsProvider, (_, next) {
+      final status = ref.read(currentStatusProvider).value;
+      if (next.hasValue && status != null) {
+        _syncReminderIfNeeded(status);
       }
     });
 
@@ -199,33 +228,30 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
             );
           },
         ),
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Work Hours Tracker'),
-            if (isStaging) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.amber.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: Colors.amber, width: 1),
-                ),
-                child: const Text(
-                  'STAGING',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.amber,
-                    letterSpacing: 0.5,
+        title: isStaging
+            ? const Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Work Hours Tracker',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                   ),
-                ),
+                  Text(
+                    'STAGING',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFFFBBF24),
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                ],
+              )
+            : const Text(
+                'Work Hours Tracker',
+                overflow: TextOverflow.ellipsis,
               ),
-            ],
-          ],
-        ),
         centerTitle: true,
         actions: [
           IconButton(
@@ -369,70 +395,13 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
                     status: status,
                     isLoading: isLoading,
                     enableAnimations: widget.enableAnimations,
-                    plannedDuration: ref.watch(plannedShiftDurationProvider),
-                    onClockIn: ({
-                      int? offsetMinutes,
-                      Duration? plannedDuration,
-                      String location = 'remote',
-                    }) async {
-                      _triggerHapticIfEnabled();
-                      await ref
-                          .read(plannedShiftDurationProvider.notifier)
-                          .setDuration(plannedDuration);
-                      await ref
-                          .read(currentStatusProvider.notifier)
-                          .clockIn(
-                            offsetMinutes: offsetMinutes,
-                            location: location,
-                          );
-                      if (plannedDuration != null) {
-                        _scheduleShiftReminderIfConfigured(
-                          plannedDuration,
-                          offsetMinutes: offsetMinutes,
-                        );
-                      }
-                    },
-                    onClockOut: ({int? offsetMinutes}) async {
-                      _triggerHapticIfEnabled();
-                      await ref
-                          .read(plannedShiftDurationProvider.notifier)
-                          .clear();
-                      await ref
-                          .read(notificationServiceProvider)
-                          .cancelShiftReminder();
-
-                      String noteToSaveOnClockOut = '';
-                      if (_selectedPastShift != null) {
-                        // Dual-save edge case: save past shift note first, then retrieve active draft
-                        await _savePastShiftNote(
-                            _selectedPastShift!, _notesController.text);
-                        noteToSaveOnClockOut = _activeShiftDraft ??
-                            (await ShiftNotesCard.loadSavedDraft()) ??
-                            '';
-                      } else {
-                        noteToSaveOnClockOut = _notesController.text.trim();
-                      }
-
-                      await ref
-                          .read(currentStatusProvider.notifier)
-                          .clockOut(
-                            note: noteToSaveOnClockOut.isNotEmpty
-                                ? noteToSaveOnClockOut
-                                : null,
-                            offsetMinutes: offsetMinutes,
-                          );
-
-                      _activeShiftDraft = null;
-                      _selectedPastShift = null;
-                      _notesController.clear();
-                      await ShiftNotesCard.clearDraft();
-                      unawaited(ref
-                          .read(widgetSyncServiceProvider)
-                          .syncActiveNote(''));
-
-                      // Refresh history so the newly ended shift appears immediately
-                      ref.read(shiftsProvider.notifier).refresh();
-                    },
+                    isAdjustingTarget: _isUpdatingTarget,
+                    onAdjustTargetDelta: (delta) =>
+                        _applyTargetUpdate(deltaMinutes: delta),
+                    onOpenCustomTarget: () => _openCustomTargetDialog(status),
+                    onTargetReached: _handleTargetReached,
+                    onClockIn: _handleClockIn,
+                    onClockOut: _handleClockOut,
                     onUndo: (event) =>
                         _showUndoConfirmationDialog(context, event),
                     onViewHistory: () => RecentShiftsSheet.show(context),
@@ -496,11 +465,16 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
         CurrentShiftTimerCard(
           isClockedIn: isClockedIn,
           activeSince: status.activeSince,
+          targetClockOutUtc: status.targetClockOutUtc,
           serverTime: status.serverTime,
           todaySeconds: status.todaySeconds,
           monthSeconds: status.monthSeconds,
           enablePeriodicTimer: widget.enableAnimations,
-          plannedDuration: ref.watch(plannedShiftDurationProvider),
+          isAdjustingTarget: _isUpdatingTarget,
+          onAdjustTargetDelta: (delta) =>
+              _applyTargetUpdate(deltaMinutes: delta),
+          onOpenCustomTarget: () => _openCustomTargetDialog(status),
+          onTargetReached: _handleTargetReached,
           onViewHistory: () => RecentShiftsSheet.show(context),
         ),
         const SizedBox(height: 36),
@@ -514,28 +488,7 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
                 isLoading: isLoading && !isClockedIn,
                 isEnabled: !isLoading && !isClockedIn,
                 padding: const EdgeInsets.symmetric(vertical: 18),
-                onAction: ({
-                  int? offsetMinutes,
-                  Duration? plannedDuration,
-                  String location = 'remote',
-                }) async {
-                  _triggerHapticIfEnabled();
-                  await ref
-                      .read(plannedShiftDurationProvider.notifier)
-                      .setDuration(plannedDuration);
-                  await ref
-                      .read(currentStatusProvider.notifier)
-                      .clockIn(
-                        offsetMinutes: offsetMinutes,
-                        location: location,
-                      );
-                  if (plannedDuration != null) {
-                    _scheduleShiftReminderIfConfigured(
-                      plannedDuration,
-                      offsetMinutes: offsetMinutes,
-                    );
-                  }
-                },
+                onAction: _handleClockIn,
               ),
             ),
             const SizedBox(width: 16),
@@ -549,21 +502,8 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
                   int? offsetMinutes,
                   Duration? plannedDuration,
                   String location = 'remote',
-                }) async {
-                  _triggerHapticIfEnabled();
-                  await ref.read(plannedShiftDurationProvider.notifier).clear();
-                  await ref.read(notificationServiceProvider).cancelShiftReminder();
-                  final note = _notesController.text.trim();
-                  await ref
-                      .read(currentStatusProvider.notifier)
-                      .clockOut(
-                        note: note.isNotEmpty ? note : null,
-                        offsetMinutes: offsetMinutes,
-                      );
-                  _notesController.clear();
-                  await ShiftNotesCard.clearDraft();
-                  unawaited(ref.read(widgetSyncServiceProvider).syncActiveNote(''));
-                },
+                }) =>
+                    _handleClockOut(offsetMinutes: offsetMinutes),
               ),
             ),
           ],
@@ -630,20 +570,223 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
     }
   }
 
-  Future<void> _scheduleShiftReminderIfConfigured(
-    Duration plannedDuration, {
+  Future<void> _handleClockIn({
     int? offsetMinutes,
+    Duration? plannedDuration,
+    String location = 'remote',
   }) async {
-    final settingsAsync = ref.read(settingsProvider);
-    final reminderMinutes = settingsAsync.value?.shiftReminderMinutes ?? 0;
-    if (reminderMinutes > 0) {
-      final now = truncateToMinute(DateTime.now());
-      final effectiveStart = now.add(Duration(minutes: offsetMinutes ?? 0));
-      final targetEndTime = effectiveStart.add(plannedDuration);
-      await ref.read(notificationServiceProvider).scheduleShiftReminder(
-            targetEndTime: targetEndTime,
-            minutesBefore: reminderMinutes,
+    _triggerHapticIfEnabled();
+    await ref.read(currentStatusProvider.notifier).clockIn(
+          offsetMinutes: offsetMinutes,
+          location: location,
+          targetMinutes: plannedDuration?.inMinutes,
+        );
+    final statusAsync = ref.read(currentStatusProvider);
+    if (!statusAsync.hasError && mounted) {
+      _activeShiftDraft = null;
+      if (_selectedPastShift == null) {
+        _notesController.clear();
+      }
+      await ShiftNotesCard.clearDraft();
+      unawaited(ref.read(widgetSyncServiceProvider).syncActiveNote(''));
+    }
+  }
+
+  Future<void> _handleClockOut({int? offsetMinutes}) async {
+    _triggerHapticIfEnabled();
+    _isManualClockOut = true;
+    try {
+      _lastReminderSignature = null;
+      await _enqueueReminderOp(
+        () => ref.read(notificationServiceProvider).cancelShiftReminder(),
+      );
+
+      String noteToSaveOnClockOut = '';
+      if (_selectedPastShift != null) {
+        // Dual-save edge case: save past shift note first, then retrieve active draft
+        await _savePastShiftNote(_selectedPastShift!, _notesController.text);
+        noteToSaveOnClockOut =
+            _activeShiftDraft ?? (await ShiftNotesCard.loadSavedDraft()) ?? '';
+      } else {
+        noteToSaveOnClockOut = _notesController.text.trim();
+      }
+
+      await ref.read(currentStatusProvider.notifier).clockOut(
+            note: noteToSaveOnClockOut.isNotEmpty ? noteToSaveOnClockOut : null,
+            offsetMinutes: offsetMinutes,
           );
+
+      final statusAsync = ref.read(currentStatusProvider);
+      if (statusAsync.hasError) return;
+
+      final updated = statusAsync.value;
+      // If server just auto-stopped right before manual tap, still persist typed shift note
+      if (updated != null &&
+          !updated.changed &&
+          updated.latestEvent?.eventType == 'clock_out' &&
+          noteToSaveOnClockOut.isNotEmpty) {
+        try {
+          await ref.read(apiClientProvider).updateEventNote(
+                eventId: updated.latestEvent!.id,
+                note: noteToSaveOnClockOut,
+              );
+        } catch (e) {
+          ref.read(shiftsProvider.notifier).refresh();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Shift was already stopped, but failed to save note (draft kept): $e',
+                ),
+                backgroundColor: Colors.orangeAccent,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+          return;
+        }
+      }
+
+      _activeShiftDraft = null;
+      _selectedPastShift = null;
+      _notesController.clear();
+      await ShiftNotesCard.clearDraft();
+      unawaited(ref.read(widgetSyncServiceProvider).syncActiveNote(''));
+      ref.read(shiftsProvider.notifier).refresh();
+    } finally {
+      _isManualClockOut = false;
+    }
+  }
+
+  Future<void> _applyTargetUpdate({
+    int? deltaMinutes,
+    int? targetMinutes,
+    bool clearTarget = false,
+  }) async {
+    if (!mounted || _isUpdatingTarget) return;
+    _triggerHapticIfEnabled();
+    setState(() => _isUpdatingTarget = true);
+    try {
+      await ref.read(currentStatusProvider.notifier).updateShiftTarget(
+            deltaMinutes: deltaMinutes,
+            targetMinutes: targetMinutes,
+            clearTarget: clearTarget,
+          );
+    } catch (e) {
+      if (e is ApiException &&
+          (e.statusCode == 409 ||
+              e.code == 'NOT_CLOCKED_IN' ||
+              e.code == 'STATE_CONFLICT')) {
+        unawaited(ref.read(currentStatusProvider.notifier).refreshStatus());
+      }
+      if (mounted) {
+        final message = (e is ApiException)
+            ? '${e.message} (${e.code})'
+            : 'Failed to update target: $e';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUpdatingTarget = false);
+      }
+    }
+  }
+
+  Future<void> _openCustomTargetDialog(WorkStatus status) async {
+    if (status.activeSince == null) return;
+    final result = await ShiftTargetDialog.show(
+      context,
+      activeSince: status.activeSince!,
+      currentTargetUtc: status.targetClockOutUtc,
+    );
+    if (result == null || !mounted) return;
+    await _applyTargetUpdate(
+      targetMinutes: result.targetMinutes,
+      clearTarget: result.clearTarget,
+    );
+  }
+
+  Future<void> _handleTargetReached() async {
+    if (!mounted || _isRefreshingTargetReached) return;
+    _isRefreshingTargetReached = true;
+    try {
+      await ref.read(currentStatusProvider.notifier).refreshStatus();
+    } finally {
+      _isRefreshingTargetReached = false;
+    }
+  }
+
+  Future<void> _flushDraftToAutoStoppedEvent(String clockOutEventId) async {
+    final bool editingActiveDraft = _selectedPastShift == null;
+    final rawDraft = editingActiveDraft
+        ? (_notesController.text.isNotEmpty
+            ? _notesController.text
+            : (_activeShiftDraft ?? await ShiftNotesCard.loadSavedDraft() ?? ''))
+        : (_activeShiftDraft ?? await ShiftNotesCard.loadSavedDraft() ?? '');
+    final draft = rawDraft.trim();
+    if (draft.isNotEmpty) {
+      try {
+        await ref.read(apiClientProvider).updateEventNote(
+              eventId: clockOutEventId,
+              note: draft,
+            );
+        ref.read(shiftsProvider.notifier).refresh();
+      } catch (_) {
+        // Keep local draft intact if network fails
+        return;
+      }
+    }
+    if (!mounted) return;
+    _activeShiftDraft = null;
+    final userTypedNewDraft = _selectedPastShift == null &&
+        _notesController.text != rawDraft &&
+        _notesController.text.isNotEmpty;
+    if (!userTypedNewDraft) {
+      if (_selectedPastShift == null) {
+        _notesController.clear();
+      }
+      await ShiftNotesCard.clearDraft();
+      unawaited(ref.read(widgetSyncServiceProvider).syncActiveNote(''));
+    }
+  }
+
+  void _syncReminderIfNeeded(WorkStatus status) {
+    final reminderMinutes =
+        ref.read(settingsProvider).value?.shiftReminderMinutes ?? 0;
+    final sig =
+        '${status.isClockedIn}|${status.targetClockOutUtc?.toUtc().toIso8601String()}|$reminderMinutes';
+    if (_lastReminderSignature == sig) return;
+    _lastReminderSignature = sig;
+    unawaited(
+      _enqueueReminderOp(
+        () => _applyShiftReminderSync(status, reminderMinutes, sig),
+      ),
+    );
+  }
+
+  Future<void> _applyShiftReminderSync(
+    WorkStatus status,
+    int reminderMinutes,
+    String expectedSig,
+  ) async {
+    if (_lastReminderSignature != expectedSig) return;
+    final notificationService = ref.read(notificationServiceProvider);
+    await notificationService.cancelShiftReminder();
+    if (_lastReminderSignature != expectedSig) return;
+    if (status.isClockedIn &&
+        status.targetClockOutUtc != null &&
+        reminderMinutes > 0 &&
+        status.targetClockOutUtc!.toLocal().isAfter(DateTime.now())) {
+      await notificationService.scheduleShiftReminder(
+        targetEndTime: status.targetClockOutUtc!.toLocal(),
+        minutesBefore: reminderMinutes,
+      );
     }
   }
 
@@ -660,51 +803,22 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFF334155), width: 1.2),
+        ),
         title: const Row(
           children: [
-            Icon(Icons.undo, color: Colors.amber),
+            Icon(Icons.undo, color: Color(0xFFFBBF24)),
             SizedBox(width: 8),
             Text('Revert Action'),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Are you sure you want to revert your last action?'),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: Colors.grey.withValues(alpha: 0.3),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Event: $eventTypeLabel',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  Text('Recorded at: $timeStr'),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Event ID: ${event.id.length > 8 ? event.id.substring(0, 8) : event.id}...',
-                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'This action is only available within the 5-minute grace period.',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-          ],
+        content: Text(
+          'Revert $eventTypeLabel recorded at $timeStr?',
+          style: const TextStyle(color: Color(0xFFE2E8F0)),
         ),
         actions: [
           TextButton(
@@ -713,8 +827,9 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.amber[800],
-              foregroundColor: Colors.white,
+              backgroundColor: const Color(0xFFF59E0B),
+              foregroundColor: Colors.black,
+              textStyle: const TextStyle(fontWeight: FontWeight.w700),
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('Confirm Undo'),
@@ -727,8 +842,18 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
       _triggerHapticIfEnabled();
       try {
         await ref.read(currentStatusProvider.notifier).undo(event.id);
-        await ref.read(plannedShiftDurationProvider.notifier).clear();
-        await ref.read(notificationServiceProvider).cancelShiftReminder();
+        final statusAfterUndo = ref.read(currentStatusProvider);
+        if (statusAfterUndo.hasError) {
+          return;
+        }
+        _lastReminderSignature = null;
+        if (statusAfterUndo.value != null) {
+          _syncReminderIfNeeded(statusAfterUndo.value!);
+        } else {
+          await _enqueueReminderOp(
+            () => ref.read(notificationServiceProvider).cancelShiftReminder(),
+          );
+        }
         if (mounted) {
           messenger.showSnackBar(
             SnackBar(
@@ -791,7 +916,8 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
                   label: const Text('Retry'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
+                    foregroundColor: Colors.black,
+                    textStyle: const TextStyle(fontWeight: FontWeight.w700),
                     padding:
                         const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   ),

@@ -101,6 +101,58 @@ void main() {
       expect(shifts[0].duration, equals(const Duration(hours: 4)));
     });
 
+    test('breaks same-minute occurredAtUtc ties using createdAtUtc', () {
+      final events = [
+        TrackingEvent(
+          id: 'evt-in-1',
+          requestId: 'req-1',
+          userId: 'user-1',
+          eventType: 'clock_in',
+          source: 'flutter_app',
+          occurredAtUtc: DateTime.parse('2026-10-01T09:00:00Z'),
+          createdAtUtc: DateTime.parse('2026-10-01T09:00:05Z'),
+        ),
+        // Placed out of chronological creation order in raw list:
+        TrackingEvent(
+          id: 'evt-in-2',
+          requestId: 'req-3',
+          userId: 'user-1',
+          eventType: 'clock_in',
+          source: 'flutter_app',
+          occurredAtUtc: DateTime.parse('2026-10-01T12:00:00Z'),
+          createdAtUtc: DateTime.parse('2026-10-01T12:00:30Z'),
+        ),
+        TrackingEvent(
+          id: 'evt-out-1',
+          requestId: 'req-2',
+          userId: 'user-1',
+          eventType: 'clock_out',
+          source: 'flutter_app',
+          occurredAtUtc: DateTime.parse('2026-10-01T12:00:00Z'),
+          createdAtUtc: DateTime.parse('2026-10-01T12:00:05Z'),
+        ),
+        TrackingEvent(
+          id: 'evt-out-2',
+          requestId: 'req-4',
+          userId: 'user-1',
+          eventType: 'clock_out',
+          source: 'flutter_app',
+          occurredAtUtc: DateTime.parse('2026-10-01T14:00:00Z'),
+          createdAtUtc: DateTime.parse('2026-10-01T14:00:05Z'),
+        ),
+      ];
+
+      final shifts = pairEventsIntoShifts(events);
+
+      expect(shifts.length, equals(2));
+      expect(shifts[0].clockIn.id, equals('evt-in-2'));
+      expect(shifts[0].clockOut.id, equals('evt-out-2'));
+      expect(shifts[0].duration, equals(const Duration(hours: 2)));
+      expect(shifts[1].clockIn.id, equals('evt-in-1'));
+      expect(shifts[1].clockOut.id, equals('evt-out-1'));
+      expect(shifts[1].duration, equals(const Duration(hours: 3)));
+    });
+
     test('orders shifts newest first', () {
       final events = [
         TrackingEvent(

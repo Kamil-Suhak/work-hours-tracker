@@ -48,18 +48,21 @@ class _WorkHoursAppState extends ConsumerState<WorkHoursApp> with WidgetsBinding
     return MaterialApp(
       title: 'Work Hours Tracker',
       debugShowCheckedModeBanner: false,
+      themeMode: ThemeMode.dark,
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF0F766E), // Teal primary
+          seedColor: const Color(0xFF10B981),
           brightness: Brightness.light,
         ),
       ),
       darkTheme: ThemeData(
         useMaterial3: true,
+        scaffoldBackgroundColor: const Color(0xFF0F172A),
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF0F766E),
+          seedColor: const Color(0xFF10B981),
           brightness: Brightness.dark,
+          surface: const Color(0xFF1E293B),
         ),
       ),
       home: const ClockScreen(),

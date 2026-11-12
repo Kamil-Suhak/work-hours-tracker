@@ -12,7 +12,6 @@ export type WorkLocation = 'remote' | 'in-office';
 
 export interface Env {
   DB: D1Database;
-  ADMIN_API_TOKEN?: string;
   DEVICE_TOKEN_PEPPER?: string;
   REPORTS_BUCKET?: R2Bucket;
   ASSETS?: Fetcher;
@@ -31,6 +30,7 @@ export interface WorkStateRow {
   user_id: string;
   state: WorkState;
   active_since_utc: string | null;
+  target_clock_out_utc: string | null;
   version: number;
   updated_at_utc: string;
 }
@@ -63,6 +63,7 @@ export interface ClockRequestBody {
   note?: string;
   offsetMinutes?: number;
   location?: WorkLocation;
+  targetMinutes?: number;
 }
 
 export interface LatestEventInfo {
@@ -76,6 +77,7 @@ export interface CommandResponse {
   state: WorkState;
   changed: boolean;
   activeSince: string | null;
+  targetClockOutUtc: string | null;
   serverTime: string;
   todaySeconds: number;
   monthSeconds: number;
@@ -85,29 +87,16 @@ export interface CommandResponse {
 export interface StatusResponse {
   state: WorkState;
   activeSince: string | null;
+  targetClockOutUtc: string | null;
   serverTime: string;
   todaySeconds: number;
   monthSeconds: number;
   latestEvent?: LatestEventInfo | null;
 }
 
-export interface ManualEventRequestBody {
-  clockInAt: string;
-  clockOutAt: string;
-  reason: string;
-  requestId: string;
-  note?: string;
-  location?: WorkLocation;
-}
-
-export interface ManualEventResponse {
-  success: boolean;
-  clockInEventId: string;
-  clockOutEventId: string;
-  clockInAt: string;
-  clockOutAt: string;
-  durationSeconds: number;
-}
+export type UpdateTargetRequestBody =
+  | { deltaMinutes: number }
+  | { targetMinutes: number | null };
 
 export interface UndoRequestBody {
   requestId: string;
@@ -129,6 +118,7 @@ export interface UndoResponse {
   undoneEventId: string;
   restoredState: WorkState;
   activeSince: string | null;
+  targetClockOutUtc: string | null;
   serverTime: string;
   todaySeconds: number;
   monthSeconds: number;

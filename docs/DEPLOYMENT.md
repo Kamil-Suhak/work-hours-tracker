@@ -91,13 +91,10 @@ npx wrangler d1 migrations apply work-hours-prod --remote
 
 ## 4. Production Secrets Configuration
 
-Configure the required server-side secrets using Wrangler:
+Configure the required server-side secret using Wrangler:
 
 ```bash
-# 1. Administrative API token for shift backfill (/api/v1/admin/events/manual)
-npx wrangler secret put ADMIN_API_TOKEN
-
-# 2. Cryptographic pepper added to raw device tokens before SHA-256 hashing
+# Cryptographic pepper added to raw device tokens before SHA-256 hashing
 npx wrangler secret put DEVICE_TOKEN_PEPPER
 ```
 
@@ -246,6 +243,26 @@ Retrieve the 25 most recent clock-in and clock-out events with associated device
 npm --prefix worker run db:shifts
 # Or:
 npx wrangler d1 execute work-hours-prod --remote --file=worker/sql/recent-shifts.sql
+```
+
+### 8.6 Direct Shift Management CLI (`worker/scripts/shifts.mjs`)
+Add, edit, close, or delete shifts directly in Cloudflare D1 with `Europe/Warsaw` timestamp parsing, overlap validation, and automatic `work_state` resynchronization. **Runs in dry-run mode by default** (prints the generated SQL); pass `--apply` to execute writes, and `--staging` or `--local` to target non-production databases:
+
+```bash
+# Inspect paired shifts and active work_state (read-only)
+npm --prefix worker run db:shift -- list
+
+# Close an accidentally open shift
+npm --prefix worker run db:shift -- close --out "2026-11-10 12:00" --reason "Forgot to clock out" --apply
+
+# Edit an existing shift's clock-out or start time (pass either event ID from `list`)
+npm --prefix worker run db:shift -- edit --id <event-id> --out "2026-11-10 12:00" --reason "Fixed end time" --apply
+
+# Insert a missed completed shift pair
+npm --prefix worker run db:shift -- add --in "2026-11-08 09:00" --out "2026-11-08 17:00" --reason "Missed shift" --apply
+
+# Delete a shift (or open clock-in) and resync work_state
+npm --prefix worker run db:shift -- delete --id <event-id> --apply
 ```
 
 

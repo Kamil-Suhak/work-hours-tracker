@@ -7,7 +7,7 @@ class AppConfig {
 
   // --- App Metadata ---
   static const String appName = 'Work Hours Tracker';
-  static const String appVersion = '1.2.4';
+  static const String appVersion = '1.3.0';
 
   // --- API Configuration ---
   /// Default base URL for API communication.
@@ -26,17 +26,13 @@ class AppConfig {
   static const String apiBaseUrlKey = 'api_base_url';
   static const String prodDeviceTokenKey = 'prod_device_auth_token';
   static const String prodApiBaseUrlKey = 'prod_api_base_url';
-  static const String adminAuthTokenKey = 'admin_auth_token';
   static const String vibrationsEnabledKey = 'vibrations_enabled';
   static const String activeShiftNoteKey = 'active_shift_note';
   static const String legacyPersistedNotesKey = 'local_persisted_shift_notes';
-  static const String plannedShiftMinutesKey = 'planned_shift_minutes';
   static const String shiftReminderMinutesKey = 'shift_reminder_minutes';
   static const String environmentKey = 'selected_environment';
   static const String stagingTokenKey = 'staging_device_auth_token';
   static const String stagingUrlKey = 'staging_api_base_url';
-  static const String prodAdminTokenKey = 'prod_admin_auth_token';
-  static const String stagingAdminTokenKey = 'staging_admin_auth_token';
   static const String prodShiftReminderKey = 'prod_shift_reminder_minutes';
   static const String stagingShiftReminderKey = 'staging_shift_reminder_minutes';
   static const String prodVibrationsKey = 'prod_vibrations_enabled';

@@ -14,6 +14,7 @@ SELECT
     user_id,
     state,
     COALESCE(active_since_utc, 'None (clocked out)') AS active_since,
+    COALESCE(target_clock_out_utc, 'None') AS target_clock_out_utc,
     version,
     updated_at_utc
 FROM work_state;
@@ -25,5 +26,5 @@ SELECT
     occurred_at_utc,
     COALESCE(note, '') AS note
 FROM events
-ORDER BY occurred_at_utc DESC
+ORDER BY occurred_at_utc DESC, created_at_utc DESC, rowid DESC
 LIMIT 5;

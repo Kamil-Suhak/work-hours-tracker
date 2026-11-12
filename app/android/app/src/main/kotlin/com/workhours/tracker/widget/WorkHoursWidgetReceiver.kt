@@ -239,25 +239,56 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
                 .build()
 
             try {
-                val response = client.newCall(request).execute()
-                val responseBody = response.body?.string() ?: "{}"
-                val json = JSONObject(responseBody)
-                val state = json.optString("state", "unknown")
-                val isClockedIn = state == "clocked_in"
-                prefs.edit().putBoolean(KEY_IS_CLOCKED_IN, isClockedIn).apply()
-                if (!isClockedIn) {
-                    prefs.edit().putString(KEY_ACTIVE_NOTE, "").apply()
-                }
-                val syncTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
-
-                withContext(Dispatchers.Main) {
-                    updateAllWidgets(context, isClockedIn, syncTime)
+                client.newCall(request).execute().use { response ->
+                    handleWidgetStateResponse(context, prefs, response, errorSyncText = "Err")
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     updateAllWidgets(context, isClockedIn = null, syncText = "Err")
                 }
             }
+        }
+    }
+
+    private suspend fun handleWidgetStateResponse(
+        context: Context,
+        prefs: android.content.SharedPreferences,
+        response: okhttp3.Response,
+        errorSyncText: String
+    ) {
+        val responseBody = response.body?.string()
+        if (!response.isSuccessful || responseBody.isNullOrBlank()) {
+            withContext(Dispatchers.Main) {
+                updateAllWidgets(context, isClockedIn = null, syncText = errorSyncText)
+            }
+            return
+        }
+
+        val json = JSONObject(responseBody)
+        if (!json.has("state")) {
+            withContext(Dispatchers.Main) {
+                updateAllWidgets(context, isClockedIn = null, syncText = errorSyncText)
+            }
+            return
+        }
+
+        val state = json.optString("state", "")
+        if (state != "clocked_in" && state != "clocked_out") {
+            withContext(Dispatchers.Main) {
+                updateAllWidgets(context, isClockedIn = null, syncText = errorSyncText)
+            }
+            return
+        }
+
+        val isClockedIn = state == "clocked_in"
+        prefs.edit().putBoolean(KEY_IS_CLOCKED_IN, isClockedIn).apply()
+        if (!isClockedIn) {
+            prefs.edit().putString(KEY_ACTIVE_NOTE, "").apply()
+        }
+        val syncTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+
+        withContext(Dispatchers.Main) {
+            updateAllWidgets(context, isClockedIn, syncTime)
         }
     }
 
@@ -283,19 +314,8 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
                 .build()
 
             try {
-                val response = client.newCall(request).execute()
-                val responseBody = response.body?.string() ?: "{}"
-                val json = JSONObject(responseBody)
-                val state = json.optString("state", "clocked_out")
-                val isClockedIn = state == "clocked_in"
-                prefs.edit().putBoolean(KEY_IS_CLOCKED_IN, isClockedIn).apply()
-                if (!isClockedIn) {
-                    prefs.edit().putString(KEY_ACTIVE_NOTE, "").apply()
-                }
-                val syncTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
-
-                withContext(Dispatchers.Main) {
-                    updateAllWidgets(context, isClockedIn, syncTime)
+                client.newCall(request).execute().use { response ->
+                    handleWidgetStateResponse(context, prefs, response, errorSyncText = "Err")
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {

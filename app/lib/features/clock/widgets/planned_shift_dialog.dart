@@ -51,7 +51,10 @@ class _PlannedShiftDialogState extends State<PlannedShiftDialog> {
     if (_isCustom) {
       final hours = double.tryParse(_customController.text.trim());
       if (hours != null && hours > 0 && hours <= 24) {
-        return Duration(minutes: (hours * 60).round());
+        final minutes = (hours * 60).round();
+        if (minutes >= 1 && minutes <= 1440) {
+          return Duration(minutes: minutes);
+        }
       }
       return null;
     }

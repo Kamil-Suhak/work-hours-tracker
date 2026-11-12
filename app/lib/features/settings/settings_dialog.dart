@@ -29,19 +29,15 @@ class SettingsDialog extends ConsumerStatefulWidget {
 class _SettingsDialogState extends ConsumerState<SettingsDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _tokenController;
-  late final TextEditingController _adminTokenController;
   bool _obscureToken = true;
-  bool _obscureAdminToken = true;
   bool _isSaving = false;
   String _environment = 'production';
 
   String _prodToken = '';
-  String _prodAdminToken = '';
   int _prodReminderMinutes = 0;
   bool _prodVibrationsEnabled = true;
 
   String _stagingToken = '';
-  String _stagingAdminToken = '';
   int _stagingReminderMinutes = 0;
   bool _stagingVibrationsEnabled = true;
 
@@ -75,24 +71,19 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
         (settings?.environment == 'staging') ? 'staging' : 'production';
 
     _prodToken = settings?.prodToken ?? '';
-    _prodAdminToken = settings?.prodAdminToken ?? settings?.adminToken ?? '';
     _prodReminderMinutes =
         settings?.prodReminderMinutes ?? settings?.shiftReminderMinutes ?? 0;
     _prodVibrationsEnabled =
         settings?.prodVibrationsEnabled ?? settings?.vibrationsEnabled ?? true;
 
     _stagingToken = settings?.stagingToken ?? '';
-    _stagingAdminToken = settings?.stagingAdminToken ?? '';
     _stagingReminderMinutes = settings?.stagingReminderMinutes ?? 0;
     _stagingVibrationsEnabled = settings?.stagingVibrationsEnabled ?? true;
 
     final initialToken =
         _environment == 'staging' ? _stagingToken : _prodToken;
-    final initialAdminToken =
-        _environment == 'staging' ? _stagingAdminToken : _prodAdminToken;
 
     _tokenController = TextEditingController(text: initialToken);
-    _adminTokenController = TextEditingController(text: initialAdminToken);
   }
 
   void _switchEnvironment(String targetEnv) {
@@ -100,28 +91,20 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
 
     if (_environment == 'production') {
       _prodToken = _tokenController.text.trim();
-      _prodAdminToken = _adminTokenController.text.trim();
     } else {
       _stagingToken = _tokenController.text.trim();
-      _stagingAdminToken = _adminTokenController.text.trim();
     }
 
     setState(() {
       _environment = targetEnv;
-      if (targetEnv == 'production') {
-        _tokenController.text = _prodToken;
-        _adminTokenController.text = _prodAdminToken;
-      } else {
-        _tokenController.text = _stagingToken;
-        _adminTokenController.text = _stagingAdminToken;
-      }
+      _tokenController.text =
+          targetEnv == 'production' ? _prodToken : _stagingToken;
     });
   }
 
   @override
   void dispose() {
     _tokenController.dispose();
-    _adminTokenController.dispose();
     super.dispose();
   }
 
@@ -140,24 +123,17 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
     setState(() => _isSaving = true);
     try {
       final currentToken = _tokenController.text.trim();
-      final currentAdminToken = _adminTokenController.text.trim();
 
       if (_environment == 'production') {
         _prodToken = currentToken;
-        _prodAdminToken = currentAdminToken;
       } else {
         _stagingToken = currentToken;
-        _stagingAdminToken = currentAdminToken;
       }
 
       await ref.read(settingsProvider.notifier).saveSettings(
             prodToken: _prodToken,
             stagingToken: _stagingToken,
             environment: _environment,
-            prodAdminToken:
-                _prodAdminToken.isNotEmpty ? _prodAdminToken : null,
-            stagingAdminToken:
-                _stagingAdminToken.isNotEmpty ? _stagingAdminToken : null,
             prodVibrationsEnabled: _prodVibrationsEnabled,
             stagingVibrationsEnabled: _stagingVibrationsEnabled,
             prodShiftReminderMinutes: _prodReminderMinutes,
@@ -225,15 +201,21 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      backgroundColor: const Color(0xFF1E293B),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Color(0xFF334155), width: 1.2),
+      ),
       title: const Row(
         children: [
-          Icon(Icons.tune, color: Color(0xFF0F766E)),
+          Icon(Icons.tune, color: Color(0xFF10B981)),
           SizedBox(width: 8),
-          Text('Server & Credentials'),
+          Flexible(child: Text('Server & Credentials')),
         ],
       ),
-      content: SizedBox(
-        width: 400,
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400),
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
@@ -241,11 +223,6 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text(
-                  'Configure your Cloudflare Worker URL and device Bearer token to connect your app and home screen widget.',
-                  style: TextStyle(fontSize: 13, color: Colors.grey),
-                ),
-                const SizedBox(height: 16),
                 SegmentedButton<String>(
                   key: const Key('environment_selector'),
                   segments: const [
@@ -261,8 +238,9 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                     ),
                   ],
                   selected: {_environment},
-                  onSelectionChanged: (selectedSet) =>
-                      _switchEnvironment(selectedSet.first),
+                  onSelectionChanged: _isSaving
+                      ? null
+                      : (selectedSet) => _switchEnvironment(selectedSet.first),
                 ),
                 const SizedBox(height: 16),
                 AnimatedSwitcher(
@@ -296,52 +274,36 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         if (_environment == 'staging') ...[
-                          InkWell(
-                            key: const Key('staging_web_link'),
-                            borderRadius: BorderRadius.circular(8),
-                            onTap: () {
-                              final uri =
-                                  Uri.tryParse(AppConfig.stagingApiBaseUrl);
-                              if (uri != null) {
-                                launchUrl(uri,
-                                    mode: LaunchMode.externalApplication);
-                              }
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 10),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF0F766E)
-                                    .withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: const Color(0xFF0F766E)
-                                      .withValues(alpha: 0.4),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton.icon(
+                              key: const Key('staging_web_link'),
+                              icon: const Icon(Icons.open_in_browser, size: 16),
+                              label: const Text(
+                                'Open Staging Web in Browser',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              child: const Row(
-                                children: [
-                                  Icon(Icons.open_in_browser,
-                                      size: 18, color: Color(0xFF14B8A6)),
-                                  SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      'Open Staging Web in Browser',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Color(0xFF14B8A6),
-                                        fontWeight: FontWeight.w600,
-                                        decoration: TextDecoration.underline,
-                                      ),
-                                    ),
-                                  ),
-                                  Icon(Icons.chevron_right,
-                                      size: 16, color: Color(0xFF14B8A6)),
-                                ],
+                              style: TextButton.styleFrom(
+                                foregroundColor: const Color(0xFF34D399),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 6,
+                                ),
                               ),
+                              onPressed: () {
+                                final uri =
+                                    Uri.tryParse(AppConfig.stagingApiBaseUrl);
+                                if (uri != null) {
+                                  launchUrl(uri,
+                                      mode: LaunchMode.externalApplication);
+                                }
+                              },
                             ),
                           ),
-                          const SizedBox(height: 14),
+                          const SizedBox(height: 8),
                         ],
                         // Locked API Base URL Card
                         Container(
@@ -349,38 +311,38 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                               horizontal: 12, vertical: 10),
                           decoration: BoxDecoration(
                             color: const Color(0xFF0F172A),
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(10),
                             border: Border.all(color: const Color(0xFF334155)),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.lock_outline,
-                                          size: 14, color: Color(0xFF94A3B8)),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        _environment == 'staging'
-                                            ? 'Staging API Base URL'
-                                            : 'API Base URL',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: Color(0xFF94A3B8),
-                                        ),
+                                  const Icon(Icons.lock_outline,
+                                      size: 14, color: Color(0xFF94A3B8)),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      _environment == 'staging'
+                                          ? 'Staging API Base URL'
+                                          : 'API Base URL',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF94A3B8),
                                       ),
-                                    ],
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
                                   IconButton(
                                     icon: const Icon(Icons.content_copy,
                                         size: 16, color: Color(0xFF94A3B8)),
                                     padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
+                                    constraints: const BoxConstraints(
+                                      minWidth: 36,
+                                      minHeight: 36,
+                                    ),
                                     tooltip: 'Copy API URL',
                                     onPressed: () {
                                       final url = _environment == 'staging'
@@ -418,16 +380,13 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: _tokenController,
+                          enabled: !_isSaving,
                           obscureText: _obscureToken,
                           decoration: InputDecoration(
                             labelText: _environment == 'staging'
-                                ? 'Staging Device Bearer Token'
+                                ? 'Bearer Token (Staging)'
                                 : 'Device Bearer Token',
-                            hintText:
-                                '64-character hex token from provision script',
-                            helperText:
-                                'Paste the raw Bearer Token (do NOT paste the token_hash)',
-                            helperMaxLines: 2,
+                            hintText: '64-char hex token',
                             border: const OutlineInputBorder(),
                             suffixIcon: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -438,13 +397,17 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                                         ? Icons.visibility
                                         : Icons.visibility_off,
                                   ),
-                                  onPressed: () => setState(
-                                      () => _obscureToken = !_obscureToken),
+                                  onPressed: _isSaving
+                                      ? null
+                                      : () => setState(
+                                          () => _obscureToken = !_obscureToken),
                                 ),
                                 IconButton(
                                   icon: const Icon(Icons.content_paste),
                                   tooltip: 'Paste from clipboard',
-                                  onPressed: () => _pasteTo(_tokenController),
+                                  onPressed: _isSaving
+                                      ? null
+                                      : () => _pasteTo(_tokenController),
                                 ),
                               ],
                             ),
@@ -457,47 +420,11 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                           },
                         ),
                         const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _adminTokenController,
-                          obscureText: _obscureAdminToken,
-                          decoration: InputDecoration(
-                            labelText: _environment == 'staging'
-                                ? 'Staging Admin API Token (Optional)'
-                                : 'Admin API Token (Optional)',
-                            hintText: 'Used for manual shift backfills',
-                            border: const OutlineInputBorder(),
-                            suffixIcon: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: Icon(
-                                    _obscureAdminToken
-                                        ? Icons.visibility
-                                        : Icons.visibility_off,
-                                  ),
-                                  onPressed: () => setState(
-                                    () =>
-                                        _obscureAdminToken = !_obscureAdminToken,
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.content_paste),
-                                  tooltip: 'Paste from clipboard',
-                                  onPressed: () =>
-                                      _pasteTo(_adminTokenController),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
                         DropdownButtonFormField<int>(
                           key: const Key('shift_reminder_dropdown'),
                           initialValue: _currentReminderMinutes,
                           decoration: const InputDecoration(
-                            labelText: 'Clock-out Reminder',
-                            helperText:
-                                'Notify before planned shift length ends',
+                            labelText: 'Target End Reminder',
                             border: OutlineInputBorder(),
                             prefixIcon: Icon(
                               Icons.notifications_active_outlined,
@@ -513,14 +440,17 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                             DropdownMenuItem(
                                 value: 15, child: Text('15 minutes before')),
                           ],
-                          onChanged: (val) {
-                            if (val != null) {
-                              setState(() => _currentReminderMinutes = val);
-                            }
-                          },
+                          onChanged: _isSaving
+                              ? null
+                              : (val) {
+                                  if (val != null) {
+                                    setState(
+                                        () => _currentReminderMinutes = val);
+                                  }
+                                },
                         ),
                         if (ref.watch(hapticServiceProvider).isSupported) ...[
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 8),
                           SwitchListTile.adaptive(
                             contentPadding: EdgeInsets.zero,
                             title: const Text(
@@ -528,15 +458,12 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                               style: TextStyle(
                                   fontSize: 14, fontWeight: FontWeight.w600),
                             ),
-                            subtitle: const Text(
-                              'Vibrate on clock actions in app and home widget',
-                              style:
-                                  TextStyle(fontSize: 12, color: Colors.grey),
-                            ),
                             value: _currentVibrationsEnabled,
-                            onChanged: (val) => setState(
-                                () => _currentVibrationsEnabled = val),
-                            activeTrackColor: const Color(0xFF0F766E),
+                            onChanged: _isSaving
+                                ? null
+                                : (val) => setState(
+                                    () => _currentVibrationsEnabled = val),
+                            activeTrackColor: const Color(0xFF10B981),
                           ),
                         ],
                       ],
@@ -559,7 +486,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                           ? const Color(0xFFFBBF24)
                           : (versionInfo.isUpToDate
                               ? const Color(0xFF10B981)
-                              : const Color(0xFF64748B));
+                              : const Color(0xFF94A3B8));
 
                       return InkWell(
                         key: const Key('android_version_badge'),
@@ -569,17 +496,9 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                           mode: LaunchMode.externalApplication,
                         ),
                         borderRadius: BorderRadius.circular(8),
-                        child: Container(
+                        child: Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF0F172A),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: const Color(0xFF334155),
-                              width: 1,
-                            ),
-                          ),
+                              horizontal: 4, vertical: 6),
                           child: Text.rich(
                             TextSpan(
                               children: [
@@ -608,8 +527,10 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                   ),
                   const SizedBox(height: 8),
                 ],
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  spacing: 8,
+                  runSpacing: 4,
                   children: [
                     TextButton.icon(
                       icon: const Icon(Icons.code, size: 16),
@@ -621,17 +542,19 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                         mode: LaunchMode.externalApplication,
                       ),
                     ),
-                    TextButton.icon(
-                      icon: const Icon(Icons.download_for_offline_outlined,
-                          size: 16),
-                      label: const Text('Download APK',
-                          style: TextStyle(fontSize: 12)),
-                      onPressed: () => launchUrl(
-                        Uri.parse(
-                            'https://github.com/Kamil-Suhak/work-hours-tracker/releases/latest'),
-                        mode: LaunchMode.externalApplication,
+                    if (!kIsWeb &&
+                        defaultTargetPlatform == TargetPlatform.android)
+                      TextButton.icon(
+                        icon: const Icon(Icons.download_for_offline_outlined,
+                            size: 16),
+                        label: const Text('Download APK',
+                            style: TextStyle(fontSize: 12)),
+                        onPressed: () => launchUrl(
+                          Uri.parse(
+                              'https://github.com/Kamil-Suhak/work-hours-tracker/releases/latest'),
+                          mode: LaunchMode.externalApplication,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ],
@@ -646,8 +569,9 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF0F766E),
-            foregroundColor: Colors.white,
+            backgroundColor: const Color(0xFF10B981),
+            foregroundColor: Colors.black,
+            textStyle: const TextStyle(fontWeight: FontWeight.w700),
           ),
           onPressed: _isSaving ? null : _handleSave,
           child: _isSaving

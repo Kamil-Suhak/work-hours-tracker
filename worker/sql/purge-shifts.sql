@@ -17,5 +17,6 @@ DELETE FROM processed_requests;
 UPDATE work_state
 SET state = 'clocked_out',
     active_since_utc = NULL,
+    target_clock_out_utc = NULL,
     version = 1,
     updated_at_utc = datetime('now');

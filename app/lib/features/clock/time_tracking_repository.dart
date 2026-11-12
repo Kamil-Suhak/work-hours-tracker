@@ -15,12 +15,26 @@ class TimeTrackingRepository {
   Future<WorkStatus> clockIn({
     int? offsetMinutes,
     String location = 'remote',
+    int? targetMinutes,
   }) async {
     final requestId = _uuid.v4();
     return await _apiClient.clockIn(
       requestId: requestId,
       offsetMinutes: offsetMinutes,
       location: location,
+      targetMinutes: targetMinutes,
+    );
+  }
+
+  Future<WorkStatus> updateShiftTarget({
+    int? deltaMinutes,
+    int? targetMinutes,
+    bool clearTarget = false,
+  }) async {
+    return await _apiClient.updateShiftTarget(
+      deltaMinutes: deltaMinutes,
+      targetMinutes: targetMinutes,
+      clearTarget: clearTarget,
     );
   }
 
@@ -40,23 +54,5 @@ class TimeTrackingRepository {
   Future<UndoResult> undo(String eventId) async {
     final requestId = _uuid.v4();
     return await _apiClient.undo(eventId: eventId, requestId: requestId);
-  }
-
-  Future<Map<String, dynamic>> submitManualShift({
-    required DateTime clockInAt,
-    required DateTime clockOutAt,
-    required String reason,
-    String location = 'remote',
-    String? adminToken,
-  }) async {
-    final requestId = _uuid.v4();
-    return await _apiClient.submitManualShift(
-      clockInAt: clockInAt,
-      clockOutAt: clockOutAt,
-      reason: reason,
-      requestId: requestId,
-      location: location,
-      adminToken: adminToken,
-    );
   }
 }

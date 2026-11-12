@@ -65,6 +65,7 @@ class WorkStatus {
   final WorkState state;
   final bool changed;
   final DateTime? activeSince;
+  final DateTime? targetClockOutUtc;
   final DateTime serverTime;
   final int todaySeconds;
   final int monthSeconds;
@@ -74,6 +75,7 @@ class WorkStatus {
     required this.state,
     this.changed = false,
     this.activeSince,
+    this.targetClockOutUtc,
     required this.serverTime,
     required this.todaySeconds,
     required this.monthSeconds,
@@ -87,6 +89,9 @@ class WorkStatus {
       activeSince: json['activeSince'] != null
           ? DateTime.parse(json['activeSince'] as String)
           : null,
+      targetClockOutUtc: json['targetClockOutUtc'] != null
+          ? DateTime.parse(json['targetClockOutUtc'] as String)
+          : null,
       serverTime: DateTime.parse(json['serverTime'] as String),
       todaySeconds: json['todaySeconds'] as int? ?? 0,
       monthSeconds: json['monthSeconds'] as int? ?? 0,
@@ -98,6 +103,15 @@ class WorkStatus {
 
   bool get isClockedIn => state == WorkState.clockedIn;
   bool get isClockedOut => state == WorkState.clockedOut;
+
+  /// Target shift duration implied by [activeSince] and [targetClockOutUtc].
+  Duration? get targetDuration {
+    if (!isClockedIn || activeSince == null || targetClockOutUtc == null) {
+      return null;
+    }
+    final diff = targetClockOutUtc!.difference(activeSince!);
+    return diff.isNegative ? Duration.zero : diff;
+  }
 }
 
 class TrackingEvent {

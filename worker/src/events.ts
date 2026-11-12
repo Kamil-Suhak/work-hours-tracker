@@ -1,19 +1,12 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import type {
   EventRow,
-  ManualEventRequestBody,
-  ManualEventResponse,
-  ProcessedRequestRow,
   UpdateNoteRequestBody,
   UpdateNoteResponse,
-  WorkLocation,
 } from './types';
 import { AppError } from './errors';
-import { DEFAULT_USER_ID, VALID_LOCATIONS } from './clock';
-import { pairShifts, formatDuration, truncateToMinute } from './status';
 
 const MAX_QUERY_RANGE_DAYS = 93;
-const MAX_SHIFT_DURATION_SECONDS = 24 * 60 * 60; // 24 hours
 
 export function validateIsoDate(dateString: string, fieldName: string): Date {
   const date = new Date(dateString);
@@ -63,191 +56,12 @@ export async function handleGetEvents(
     .prepare(
       `SELECT * FROM events
        WHERE user_id = ? AND occurred_at_utc >= ? AND occurred_at_utc <= ?
-       ORDER BY occurred_at_utc ASC, id ASC`
+       ORDER BY occurred_at_utc ASC, created_at_utc ASC, rowid ASC`
     )
     .bind(userId, fromDate.toISOString(), toDate.toISOString())
     .all<EventRow>();
 
   return results ?? [];
-}
-
-export function validateManualEventRequest(body: unknown): ManualEventRequestBody {
-  if (!body || typeof body !== 'object') {
-    throw new AppError('VALIDATION_ERROR', 'Request body must be a JSON object.', 400);
-  }
-
-  const { clockInAt, clockOutAt, reason, requestId } = body as Record<string, unknown>;
-
-  if (typeof requestId !== 'string' || requestId.trim().length === 0) {
-    throw new AppError('INVALID_REQUEST_ID', 'requestId must be a non-empty string.', 400);
-  }
-
-  if (typeof clockInAt !== 'string' || typeof clockOutAt !== 'string') {
-    throw new AppError(
-      'VALIDATION_ERROR',
-      'clockInAt and clockOutAt must be ISO 8601 strings.',
-      400,
-      requestId
-    );
-  }
-
-  if (typeof reason !== 'string' || reason.trim().length === 0) {
-    throw new AppError(
-      'VALIDATION_ERROR',
-      'reason is required and cannot be empty.',
-      400,
-      requestId
-    );
-  }
-
-  const inDate = truncateToMinute(validateIsoDate(clockInAt, 'clockInAt'));
-  const outDate = truncateToMinute(validateIsoDate(clockOutAt, 'clockOutAt'));
-
-  if (outDate.getTime() <= inDate.getTime()) {
-    throw new AppError(
-      'VALIDATION_ERROR',
-      'clockOutAt must be strictly greater than clockInAt.',
-      400,
-      requestId
-    );
-  }
-
-  const durationSeconds = Math.floor((outDate.getTime() - inDate.getTime()) / 1000);
-  if (durationSeconds > MAX_SHIFT_DURATION_SECONDS) {
-    throw new AppError(
-      'INVALID_DURATION',
-      `Shift duration (${formatDuration(durationSeconds)}) exceeds the maximum allowed ${formatDuration(MAX_SHIFT_DURATION_SECONDS)}.`,
-      400,
-      requestId
-    );
-  }
-
-  const note = typeof (body as Record<string, unknown>).note === 'string'
-    ? ((body as Record<string, unknown>).note as string).trim()
-    : undefined;
-
-  if (note !== undefined && note.length > 4000) {
-    throw new AppError(
-      'NOTE_TOO_LONG',
-      'Note must not exceed 4,000 characters',
-      400,
-      requestId
-    );
-  }
-
-  const rawLocation = (body as Record<string, unknown>).location;
-  let location: WorkLocation | undefined;
-  if (rawLocation !== undefined && rawLocation !== null) {
-    if (typeof rawLocation !== 'string' || !VALID_LOCATIONS.has(rawLocation as WorkLocation)) {
-      throw new AppError(
-        'INVALID_LOCATION',
-        `location must be one of: ${Array.from(VALID_LOCATIONS).join(', ')}`,
-        400,
-        requestId
-      );
-    }
-    location = rawLocation as WorkLocation;
-  }
-
-  return {
-    clockInAt: inDate.toISOString(),
-    clockOutAt: outDate.toISOString(),
-    reason: reason.trim(),
-    requestId: requestId.trim(),
-    ...(note !== undefined && note.length > 0 ? { note } : {}),
-    ...(location !== undefined ? { location } : {}),
-  };
-}
-
-export async function handleAdminManualEvent(
-  db: D1Database,
-  req: ManualEventRequestBody,
-  now: Date = new Date()
-): Promise<ManualEventResponse> {
-  const { clockInAt, clockOutAt, reason, requestId } = req;
-  const nowIso = now.toISOString();
-
-  // 1. Idempotency check
-  const cached = await db
-    .prepare('SELECT response_json FROM processed_requests WHERE request_id = ?')
-    .bind(requestId)
-    .first<Pick<ProcessedRequestRow, 'response_json'>>();
-
-  if (cached) {
-    return JSON.parse(cached.response_json) as ManualEventResponse;
-  }
-
-  // 2. Check for overlapping shifts
-  // Query existing events around the proposed timeframe
-  const bufferFrom = new Date(new Date(clockInAt).getTime() - 24 * 60 * 60 * 1000).toISOString();
-  const bufferTo = new Date(new Date(clockOutAt).getTime() + 24 * 60 * 60 * 1000).toISOString();
-
-  const { results: existingEvents } = await db
-    .prepare(
-      `SELECT * FROM events
-       WHERE user_id = ? AND occurred_at_utc >= ? AND occurred_at_utc <= ?
-       ORDER BY occurred_at_utc ASC, id ASC`
-    )
-    .bind(DEFAULT_USER_ID, bufferFrom, bufferTo)
-    .all<EventRow>();
-
-  const existingShifts = pairShifts(existingEvents ?? []);
-  const proposedIn = truncateToMinute(clockInAt).getTime();
-  const proposedOut = truncateToMinute(clockOutAt).getTime();
-
-  for (const shift of existingShifts) {
-    const shiftIn = truncateToMinute(shift.clockIn.occurred_at_utc).getTime();
-    const shiftOut = truncateToMinute(shift.clockOut.occurred_at_utc).getTime();
-    if (Math.max(proposedIn, shiftIn) < Math.min(proposedOut, shiftOut)) {
-      throw new AppError(
-        'OVERLAPPING_SHIFT',
-        `Proposed shift overlaps with existing shift (${shift.clockIn.occurred_at_utc} to ${shift.clockOut.occurred_at_utc}).`,
-        400,
-        requestId
-      );
-    }
-  }
-
-  // 3. Insert matched pair in atomic batch
-  const clockInId = crypto.randomUUID();
-  const clockOutId = crypto.randomUUID();
-  const durationSeconds = Math.floor((proposedOut - proposedIn) / 1000);
-
-  const response: ManualEventResponse = {
-    success: true,
-    clockInEventId: clockInId,
-    clockOutEventId: clockOutId,
-    clockInAt,
-    clockOutAt,
-    durationSeconds,
-  };
-
-  const responseJson = JSON.stringify(response);
-
-  const location = req.location ?? 'remote';
-
-  await db.batch([
-    db
-      .prepare(
-        `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, reason, note, location)
-         VALUES (?, ?, ?, NULL, 'clock_in', 'admin_manual', ?, ?, ?, ?, ?)`
-      )
-      .bind(clockInId, `${requestId}_in`, DEFAULT_USER_ID, clockInAt, nowIso, reason, req.note ?? null, location),
-    db
-      .prepare(
-        `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, reason, note, location)
-         VALUES (?, ?, ?, NULL, 'clock_out', 'admin_manual', ?, ?, ?, ?, ?)`
-      )
-      .bind(clockOutId, `${requestId}_out`, DEFAULT_USER_ID, clockOutAt, nowIso, reason, req.note ?? null, location),
-    db
-      .prepare(
-        `INSERT INTO processed_requests (request_id, user_id, operation, response_json, created_at_utc)
-         VALUES (?, ?, ?, ?, ?)`
-      )
-      .bind(requestId, DEFAULT_USER_ID, 'admin_manual', responseJson, nowIso),
-  ]);
-
-  return response;
 }
 
 export function validateUpdateNoteRequest(body: unknown): UpdateNoteRequestBody {

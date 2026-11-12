@@ -31,7 +31,11 @@ class ShiftRecord {
 
 List<ShiftRecord> pairEventsIntoShifts(List<TrackingEvent> events) {
   final sorted = List<TrackingEvent>.from(events)
-    ..sort((a, b) => a.occurredAtUtc.compareTo(b.occurredAtUtc));
+    ..sort((a, b) {
+      final byOccurred = a.occurredAtUtc.compareTo(b.occurredAtUtc);
+      if (byOccurred != 0) return byOccurred;
+      return a.createdAtUtc.compareTo(b.createdAtUtc);
+    });
 
   final shifts = <ShiftRecord>[];
   TrackingEvent? pendingClockIn;

@@ -66,9 +66,14 @@ function escapeXml(str: string): string {
 }
 
 export function pairEventsIntoReportShifts(events: EventRow[]): ShiftSummaryItem[] {
-  const sorted = [...events].sort(
-    (a, b) => new Date(a.occurred_at_utc).getTime() - new Date(b.occurred_at_utc).getTime()
-  );
+  const sorted = [...events].sort((a, b) => {
+    const occurredDiff =
+      new Date(a.occurred_at_utc).getTime() - new Date(b.occurred_at_utc).getTime();
+    if (occurredDiff !== 0) return occurredDiff;
+    return (
+      new Date(a.created_at_utc).getTime() - new Date(b.created_at_utc).getTime()
+    );
+  });
 
   return pairShifts(sorted).map(({ clockIn, clockOut, durationSeconds }) => {
     const inDate = truncateToMinute(clockIn.occurred_at_utc);
