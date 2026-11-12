@@ -284,8 +284,7 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
         child: LayoutBuilder(
           builder: (context, constraints) {
             final isDesktop = constraints.maxWidth >= 900;
-            final showContent = statusAsync.hasValue &&
-                (!statusAsync.hasError || isLoading);
+            final showContent = statusAsync.hasValue;
 
             if (isDesktop) {
               return showContent

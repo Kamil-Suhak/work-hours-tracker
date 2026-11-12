@@ -1,12 +1,21 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:work_hours_mobile/api/api_client.dart';
 import 'package:work_hours_mobile/api/models.dart';
 import 'package:work_hours_mobile/features/clock/clock_notifier.dart';
 import 'package:work_hours_mobile/features/clock/clock_screen.dart';
+import 'package:work_hours_mobile/features/settings/settings_notifier.dart';
+import 'package:work_hours_mobile/features/settings/version_check_provider.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('ClockScreen Widget Tests', () {
     testWidgets(
         'displays clocked-out state with clock-in enabled and clock-out disabled',
@@ -111,6 +120,53 @@ void main() {
     });
 
     testWidgets(
+        'keeps cached content visible when subsequent refresh fails with error',
+        (WidgetTester tester) async {
+      int calls = 0;
+      final mockClient = MockClient((request) async {
+        calls++;
+        if (calls == 1) {
+          return http.Response(
+            jsonEncode({
+              'state': 'clocked_out',
+              'serverTime': '2026-10-03T10:00:00Z',
+              'todaySeconds': 14400,
+              'monthSeconds': 72000,
+            }),
+            200,
+          );
+        }
+        return http.Response('Service Unavailable', 503);
+      });
+
+      FlutterSecureStorage.setMockInitialValues({});
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            httpClientProvider.overrideWithValue(mockClient),
+            settingsProvider.overrideWith(() => _StaticSettingsNotifier()),
+          ],
+          child: const MaterialApp(
+            home: ClockScreen(enableAnimations: false),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+      expect(find.text('CLOCKED OUT'), findsOneWidget);
+      expect(find.textContaining('4h 0m'), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.refresh));
+      await tester.pumpAndSettle();
+
+      // Cached content remains visible instead of being replaced by full-screen error
+      expect(find.text('CLOCKED OUT'), findsOneWidget);
+      expect(find.textContaining('4h 0m'), findsOneWidget);
+      expect(find.text('Connection or Server Error'), findsNothing);
+    });
+
+    testWidgets(
         'displays undo button and opens confirmation dialog when within grace period',
         (WidgetTester tester) async {
       final now = DateTime.now().toUtc();
@@ -155,6 +211,34 @@ void main() {
       expect(find.text('Cancel'), findsOneWidget);
     });
   });
+
+  group('ApiClient Timeout Tests', () {
+    test('ApiClient throws TimeoutException when HTTP request hangs', () async {
+      final hangingClient = MockClient((request) {
+        return Completer<http.Response>().future;
+      });
+
+      final client = ApiClient(
+        baseUrl: 'https://mock.work.com',
+        token: 'tok',
+        httpClient: hangingClient,
+        requestTimeout: const Duration(milliseconds: 20),
+      );
+
+      await expectLater(
+        client.getStatus(),
+        throwsA(isA<TimeoutException>()),
+      );
+    });
+  });
+}
+
+class _StaticSettingsNotifier extends SettingsNotifier {
+  @override
+  Future<AppSettings> build() async => const AppSettings(
+        baseUrl: 'https://mock.work.com',
+        deviceToken: 'tok-test',
+      );
 }
 
 class _MockStatusNotifier extends CurrentStatusNotifier {

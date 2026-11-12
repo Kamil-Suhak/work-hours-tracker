@@ -11,6 +11,7 @@ import '../../config/app_config.dart';
 import '../../services/platform/platform_services.dart';
 import '../history/shifts_notifier.dart';
 import '../settings/settings_notifier.dart';
+import '../settings/version_check_provider.dart';
 
 // Configurable base URL provider wired to user settings
 final apiBaseUrlProvider = Provider<String>((ref) {
@@ -21,7 +22,12 @@ final apiBaseUrlProvider = Provider<String>((ref) {
 final apiClientProvider = Provider<ApiClient>((ref) {
   final baseUrl = ref.watch(apiBaseUrlProvider);
   final settings = ref.watch(settingsProvider).value;
-  return ApiClient(baseUrl: baseUrl, token: settings?.deviceToken);
+  final httpClient = ref.watch(httpClientProvider);
+  return ApiClient(
+    baseUrl: baseUrl,
+    token: settings?.deviceToken,
+    httpClient: httpClient,
+  );
 });
 
 final timeTrackingRepositoryProvider = Provider<TimeTrackingRepository>((ref) {

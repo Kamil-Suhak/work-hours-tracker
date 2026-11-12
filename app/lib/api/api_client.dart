@@ -6,10 +6,15 @@ import '../config/app_config.dart';
 import 'models.dart';
 
 class ApiClient {
+  static const Duration defaultRequestTimeout = Duration(seconds: 15);
+  static const Duration defaultReportTimeout = Duration(seconds: 30);
+
   final String baseUrl;
   final String? token;
   final http.Client _httpClient;
   final FlutterSecureStorage _storage;
+  final Duration requestTimeout;
+  final Duration reportTimeout;
 
   static const String _tokenStorageKey = AppConfig.deviceTokenKey;
   static const String _baseUrlStorageKey = AppConfig.apiBaseUrlKey;
@@ -19,6 +24,8 @@ class ApiClient {
     this.token,
     http.Client? httpClient,
     FlutterSecureStorage? storage,
+    this.requestTimeout = defaultRequestTimeout,
+    this.reportTimeout = defaultReportTimeout,
   })  : _httpClient = httpClient ?? http.Client(),
         _storage = storage ?? const FlutterSecureStorage();
 
@@ -75,7 +82,8 @@ class ApiClient {
   Future<WorkStatus> getStatus() async {
     final uri = Uri.parse('$baseUrl/api/v1/status');
     final headers = await _buildHeaders();
-    final response = await _httpClient.get(uri, headers: headers);
+    final response =
+        await _httpClient.get(uri, headers: headers).timeout(requestTimeout);
 
     if (response.statusCode == 200) {
       return WorkStatus.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
@@ -100,7 +108,9 @@ class ApiClient {
       if (targetMinutes != null) 'targetMinutes': targetMinutes,
     });
 
-    final response = await _httpClient.post(uri, headers: headers, body: body);
+    final response = await _httpClient
+        .post(uri, headers: headers, body: body)
+        .timeout(requestTimeout);
     if (response.statusCode == 200) {
       return WorkStatus.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
     }
@@ -127,11 +137,13 @@ class ApiClient {
       );
     }
 
-    final response = await _httpClient.patch(
-      uri,
-      headers: headers,
-      body: jsonEncode(payload),
-    );
+    final response = await _httpClient
+        .patch(
+          uri,
+          headers: headers,
+          body: jsonEncode(payload),
+        )
+        .timeout(requestTimeout);
     if (response.statusCode == 200) {
       return WorkStatus.fromJson(
         jsonDecode(response.body) as Map<String, dynamic>,
@@ -158,7 +170,9 @@ class ApiClient {
     }
     final body = jsonEncode(payload);
 
-    final response = await _httpClient.post(uri, headers: headers, body: body);
+    final response = await _httpClient
+        .post(uri, headers: headers, body: body)
+        .timeout(requestTimeout);
     if (response.statusCode == 200) {
       return WorkStatus.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
     }
@@ -174,7 +188,8 @@ class ApiClient {
       'to': to.toUtc().toIso8601String(),
     });
     final headers = await _buildHeaders();
-    final response = await _httpClient.get(uri, headers: headers);
+    final response =
+        await _httpClient.get(uri, headers: headers).timeout(requestTimeout);
 
     if (response.statusCode == 200) {
       final list = jsonDecode(response.body) as List<dynamic>;
@@ -195,7 +210,9 @@ class ApiClient {
       'note': note,
     });
 
-    final response = await _httpClient.patch(uri, headers: headers, body: body);
+    final response = await _httpClient
+        .patch(uri, headers: headers, body: body)
+        .timeout(requestTimeout);
     if (response.statusCode == 200) {
       return;
     }
@@ -213,7 +230,9 @@ class ApiClient {
       'requestId': requestId,
     });
 
-    final response = await _httpClient.post(uri, headers: headers, body: body);
+    final response = await _httpClient
+        .post(uri, headers: headers, body: body)
+        .timeout(requestTimeout);
     if (response.statusCode == 200) {
       return UndoResult.fromJson(
         jsonDecode(response.body) as Map<String, dynamic>,
@@ -252,11 +271,13 @@ class ApiClient {
       payload['plannedShifts'] = plannedShifts;
     }
 
-    final response = await _httpClient.post(
-      uri,
-      headers: headers,
-      body: jsonEncode(payload),
-    );
+    final response = await _httpClient
+        .post(
+          uri,
+          headers: headers,
+          body: jsonEncode(payload),
+        )
+        .timeout(reportTimeout);
     if (response.statusCode == 200) {
       final cd = response.headers['content-disposition'] ?? '';
       final fnMatch = RegExp(r'filename="([^"]+)"').firstMatch(cd);
@@ -280,7 +301,8 @@ class ApiClient {
   Future<Map<String, dynamic>?> getLatestReport() async {
     final uri = Uri.parse('$baseUrl/api/v1/reports/latest');
     final headers = await _buildHeaders();
-    final response = await _httpClient.get(uri, headers: headers);
+    final response =
+        await _httpClient.get(uri, headers: headers).timeout(requestTimeout);
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
@@ -293,7 +315,8 @@ class ApiClient {
   Future<Map<String, dynamic>> getContractProfile() async {
     final uri = Uri.parse('$baseUrl/api/v1/reports/contract-profile');
     final headers = await _buildHeaders();
-    final response = await _httpClient.get(uri, headers: headers);
+    final response =
+        await _httpClient.get(uri, headers: headers).timeout(requestTimeout);
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
@@ -304,7 +327,8 @@ class ApiClient {
     final encoded = Uri.encodeComponent(filename);
     final uri = Uri.parse('$baseUrl/api/v1/reports/download/$encoded');
     final headers = await _buildHeaders();
-    final response = await _httpClient.get(uri, headers: headers);
+    final response =
+        await _httpClient.get(uri, headers: headers).timeout(reportTimeout);
     if (response.statusCode == 200) {
       return response.bodyBytes;
     }
