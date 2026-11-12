@@ -60,8 +60,27 @@ android {
 
     buildTypes {
         release {
-            def isConfigured = signingConfigs.release.storeFile != null && signingConfigs.release.storeFile.exists()
-            signingConfig = isConfigured ? signingConfigs.release : signingConfigs.debug
+            signingConfig = signingConfigs.release
+        }
+    }
+}
+
+gradle.taskGraph.whenReady { graph ->
+    def buildingRelease = graph.allTasks.any { task ->
+        def name = task.name.toLowerCase()
+        name.contains("release") && (
+            name.contains("assemble") ||
+            name.contains("bundle") ||
+            name.contains("package") ||
+            name.contains("sign")
+        )
+    }
+    if (buildingRelease) {
+        def releaseSigning = android.signingConfigs.release
+        if (releaseSigning.storeFile == null || !releaseSigning.storeFile.exists()) {
+            throw new GradleException(
+                "Release signing keystore is missing or not configured. Provide KEYSTORE_PATH/KEYSTORE_PASSWORD/KEY_ALIAS/KEY_PASSWORD or key.properties."
+            )
         }
     }
 }
