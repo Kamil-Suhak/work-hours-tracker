@@ -248,6 +248,25 @@ class ApiClient {
     return '$y-$m-$d';
   }
 
+  static String sanitizeReportFilename(
+    String? raw, {
+    String fallback = 'work-hours-report.xlsx',
+  }) {
+    if (raw == null) return fallback;
+    final segment = raw.split(RegExp(r'[/\\]')).last.trim();
+    if (segment.isEmpty ||
+        segment == '.' ||
+        segment == '..' ||
+        segment.contains('..')) {
+      return fallback;
+    }
+    final safe = segment.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+    if (safe.isEmpty || safe.startsWith('.')) {
+      return fallback;
+    }
+    return safe;
+  }
+
   Future<({Uint8List bytes, String filename, double totalHours, int totalShifts})> generateReport({
     DateTime? startDate,
     DateTime? endDate,
@@ -284,7 +303,10 @@ class ApiClient {
       final defaultName = format == 'docx'
           ? 'zalaczniki-umowa-zlecenie.docx'
           : 'work-hours-report.xlsx';
-      final filename = fnMatch != null ? fnMatch.group(1)! : defaultName;
+      final filename = sanitizeReportFilename(
+        fnMatch?.group(1),
+        fallback: defaultName,
+      );
       final totalHours = double.tryParse(response.headers['x-total-hours'] ?? '0') ?? 0.0;
       final totalShifts = int.tryParse(response.headers['x-total-shifts'] ?? '0') ?? 0;
 

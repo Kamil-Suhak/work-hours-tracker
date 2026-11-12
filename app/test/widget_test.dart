@@ -230,6 +230,41 @@ void main() {
         throwsA(isA<TimeoutException>()),
       );
     });
+
+    test('ApiClient sanitizes path traversal from Content-Disposition filenames', () async {
+      expect(
+        ApiClient.sanitizeReportFilename('../../secret.xlsx'),
+        equals('secret.xlsx'),
+      );
+      expect(
+        ApiClient.sanitizeReportFilename('..', fallback: 'fallback.xlsx'),
+        equals('fallback.xlsx'),
+      );
+      expect(
+        ApiClient.sanitizeReportFilename('.hidden', fallback: 'fallback.xlsx'),
+        equals('fallback.xlsx'),
+      );
+
+      final client = ApiClient(
+        baseUrl: 'https://mock.work.com',
+        token: 'tok',
+        httpClient: MockClient((request) async {
+          return http.Response.bytes(
+            [1, 2, 3],
+            200,
+            headers: {
+              'content-disposition':
+                  'attachment; filename="../../outside/evil name?.xlsx"',
+              'x-total-hours': '8',
+              'x-total-shifts': '1',
+            },
+          );
+        }),
+      );
+
+      final result = await client.generateReport();
+      expect(result.filename, equals('evil_name_.xlsx'));
+    });
   });
 }
 
