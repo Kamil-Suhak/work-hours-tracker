@@ -45,12 +45,9 @@ class CurrentStatusNotifier extends AsyncNotifier<WorkStatus> {
   Future<void> _runStatusTransition(
     Future<WorkStatus> Function(TimeTrackingRepository repo) action, {
     bool invalidateShifts = true,
-    bool resetToLoading = false,
   }) async {
     final prevClockedIn = state.value?.isClockedIn ?? false;
-    state = resetToLoading
-        ? const AsyncValue.loading()
-        : const AsyncLoading<WorkStatus>().copyWithPrevious(state);
+    state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
       final repository = ref.read(timeTrackingRepositoryProvider);
       final status = await action(repository);
@@ -78,7 +75,6 @@ class CurrentStatusNotifier extends AsyncNotifier<WorkStatus> {
   Future<void> resetAndRefresh() => _runStatusTransition(
         (repo) => repo.fetchCurrentStatus(),
         invalidateShifts: false,
-        resetToLoading: true,
       );
 
   Future<void> clockIn({
