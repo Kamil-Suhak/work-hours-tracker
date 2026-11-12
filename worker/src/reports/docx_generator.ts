@@ -165,6 +165,10 @@ export async function unzipBuffer(
   const decoder = new TextDecoder();
   const entries: { path: string; data: Uint8Array }[] = [];
 
+  if (buf.length < 22) {
+    throw new Error('Invalid ZIP archive: End of Central Directory not found.');
+  }
+
   // Locate End of Central Directory (EOCD) record from the end of the buffer
   let eocdPos = -1;
   for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65557); i--) {
@@ -179,9 +183,17 @@ export async function unzipBuffer(
   }
 
   const totalEntries = view.getUint16(eocdPos + 10, true);
+  const cdSize = view.getUint32(eocdPos + 12, true);
   let cdPos = view.getUint32(eocdPos + 16, true);
 
+  if (cdPos > buf.length || cdPos + cdSize > buf.length) {
+    throw new Error('Invalid ZIP archive: Central Directory out of bounds.');
+  }
+
   for (let i = 0; i < totalEntries; i++) {
+    if (cdPos + 46 > buf.length) {
+      throw new Error('Invalid ZIP archive: truncated Central Directory header.');
+    }
     if (view.getUint32(cdPos, true) !== 0x02014b50) {
       throw new Error('Invalid ZIP Central Directory header signature.');
     }
@@ -192,12 +204,26 @@ export async function unzipBuffer(
     const commentLen = view.getUint16(cdPos + 32, true);
     const localHeaderOffset = view.getUint32(cdPos + 42, true);
 
+    if (cdPos + 46 + nameLen + extraLen + commentLen > buf.length) {
+      throw new Error('Invalid ZIP archive: Central Directory entry exceeds buffer.');
+    }
+
     const path = decoder.decode(buf.subarray(cdPos + 46, cdPos + 46 + nameLen));
     cdPos += 46 + nameLen + extraLen + commentLen;
+
+    if (localHeaderOffset + 30 > buf.length) {
+      throw new Error('Invalid ZIP archive: local file header out of bounds.');
+    }
+    if (view.getUint32(localHeaderOffset, true) !== 0x04034b50) {
+      throw new Error('Invalid ZIP archive: invalid local file header signature.');
+    }
 
     const localNameLen = view.getUint16(localHeaderOffset + 26, true);
     const localExtraLen = view.getUint16(localHeaderOffset + 28, true);
     const dataStart = localHeaderOffset + 30 + localNameLen + localExtraLen;
+    if (dataStart > buf.length || dataStart + compressedSize > buf.length) {
+      throw new Error('Invalid ZIP archive: compressed entry data out of bounds.');
+    }
     const rawSlice = buf.subarray(dataStart, dataStart + compressedSize);
 
     let data: Uint8Array;

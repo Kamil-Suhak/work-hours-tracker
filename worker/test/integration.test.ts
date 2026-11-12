@@ -1305,6 +1305,30 @@ describe('Worker End-to-End Integration Suite', () => {
       expect(res.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin');
       expect(res.headers.get('Permissions-Policy')).toContain('camera=()');
     });
+
+    it('rejects multi-byte UTF-8 payloads exceeding 64 KB even when UTF-16 length is under 64K', async () => {
+      // Each U+20AC Euro sign is 1 UTF-16 code unit but 3 UTF-8 bytes (~90 KB total).
+      const largeUnicodeNote = '€'.repeat(30000);
+      const rawBody = JSON.stringify({ requestId: 'req-utf8-limit', note: largeUnicodeNote });
+      expect(rawBody.length).toBeLessThan(64 * 1024);
+      expect(new TextEncoder().encode(rawBody).byteLength).toBeGreaterThan(64 * 1024);
+
+      const res = await worker.fetch(
+        new Request('https://work-hours.local/api/v1/clock-out', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${validToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: rawBody,
+        }),
+        env
+      );
+
+      expect(res.status).toBe(413);
+      const data = await res.json() as { error: { code: string } };
+      expect(data.error.code).toBe('PAYLOAD_TOO_LARGE');
+    });
   });
 });
 

@@ -39,7 +39,7 @@ async function parseJsonBody(request: Request, correlationId: string): Promise<u
   }
 
   const text = await request.text();
-  if (text.length > MAX_BODY_BYTES) {
+  if (new TextEncoder().encode(text).byteLength > MAX_BODY_BYTES) {
     throw new AppError('PAYLOAD_TOO_LARGE', 'Request body exceeds size limit.', 413, correlationId);
   }
 

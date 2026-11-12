@@ -840,5 +840,27 @@ describe('Reports Engine Unit Tests', () => {
     expect(sheetXml).toContain('<drawing r:id="rId1"/>');
     expect(sheetXml).toContain('LOCATION BREAKDOWN');
   });
-});
 
+  it('unzipBuffer rejects truncated archives, invalid local headers, and out-of-bounds slices', async () => {
+    await expect(unzipBuffer(new Uint8Array([0x50, 0x4b]))).rejects.toThrow(
+      /End of Central Directory/
+    );
+
+    const validZip = createZipBuffer([
+      { path: 'test.txt', data: new TextEncoder().encode('hello') },
+    ]);
+
+    // Corrupt local header signature (offset 0)
+    const badLocalSig = new Uint8Array(validZip);
+    badLocalSig[0] = 0x00;
+    await expect(unzipBuffer(badLocalSig)).rejects.toThrow(/local file header signature/i);
+
+    // Corrupt compressed size in Central Directory so slice goes past buffer
+    const outOfBoundsSize = new Uint8Array(validZip);
+    const eocdOffset = outOfBoundsSize.length - 22;
+    const view = new DataView(outOfBoundsSize.buffer);
+    const cdOffset = view.getUint32(eocdOffset + 16, true);
+    view.setUint32(cdOffset + 20, 0x0fffffff, true);
+    await expect(unzipBuffer(outOfBoundsSize)).rejects.toThrow(/out of bounds/i);
+  });
+});
