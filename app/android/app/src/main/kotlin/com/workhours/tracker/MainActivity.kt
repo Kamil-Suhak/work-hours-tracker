@@ -75,9 +75,9 @@ class MainActivity: FlutterActivity() {
                     )
                     prefs.edit()
                         .putString(WorkHoursWidgetReceiver.KEY_API_URL, baseUrl)
-                        .putString(WorkHoursWidgetReceiver.KEY_TOKEN, deviceToken)
                         .putBoolean(WorkHoursWidgetReceiver.KEY_HAPTICS, vibrationsEnabled)
                         .apply()
+                    WorkHoursWidgetReceiver.saveDeviceToken(applicationContext, deviceToken)
 
                     val isClockedIn = if (prefs.contains(WorkHoursWidgetReceiver.KEY_IS_CLOCKED_IN)) prefs.getBoolean(WorkHoursWidgetReceiver.KEY_IS_CLOCKED_IN, false) else null
                     WorkHoursWidgetReceiver.updateAllWidgets(applicationContext, isClockedIn, "")
@@ -90,7 +90,7 @@ class MainActivity: FlutterActivity() {
                         Context.MODE_PRIVATE
                     )
                     val baseUrl = prefs.getString(WorkHoursWidgetReceiver.KEY_API_URL, "") ?: ""
-                    val token = prefs.getString(WorkHoursWidgetReceiver.KEY_TOKEN, "") ?: ""
+                    val token = WorkHoursWidgetReceiver.loadDeviceToken(applicationContext)
                     val vibrationsEnabled = prefs.getBoolean(WorkHoursWidgetReceiver.KEY_HAPTICS, true)
                     result.success(mapOf("baseUrl" to baseUrl, "deviceToken" to token, "vibrationsEnabled" to vibrationsEnabled))
                 }

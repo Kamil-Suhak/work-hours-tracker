@@ -27,11 +27,19 @@ import org.json.JSONObject
 import android.os.Bundle
 import android.view.View
 import android.content.BroadcastReceiver.PendingResult
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import android.util.Base64
+import java.security.KeyStore
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
 
 class WorkHoursWidgetReceiver : AppWidgetProvider() {
 
@@ -42,9 +50,14 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
         const val PREFS_NAME = "work_hours_widget_prefs"
         const val KEY_API_URL = "api_base_url"
         const val KEY_TOKEN = "device_token"
+        const val KEY_TOKEN_ENCRYPTED = "device_token_enc"
         const val KEY_HAPTICS = "vibrations_enabled"
         const val KEY_ACTIVE_NOTE = "active_shift_note"
         const val KEY_IS_CLOCKED_IN = "is_clocked_in"
+        private const val KEYSTORE_PROVIDER = "AndroidKeyStore"
+        private const val KEYSTORE_ALIAS = "work_hours_widget_token_key"
+        private const val AES_GCM_TRANSFORMATION = "AES/GCM/NoPadding"
+        private const val GCM_TAG_LENGTH_BITS = 128
 
         private val client = OkHttpClient.Builder()
             .connectTimeout(5, TimeUnit.SECONDS)
@@ -53,6 +66,81 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
             .callTimeout(8, TimeUnit.SECONDS)
             .build()
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+        private val keystoreLock = Any()
+
+        private fun getOrCreateTokenKey(): SecretKey {
+            synchronized(keystoreLock) {
+                val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
+                val existing = keyStore.getKey(KEYSTORE_ALIAS, null) as? SecretKey
+                if (existing != null) return existing
+
+                val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE_PROVIDER)
+                val spec = KeyGenParameterSpec.Builder(
+                    KEYSTORE_ALIAS,
+                    KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+                )
+                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                    .setKeySize(256)
+                    .build()
+                keyGenerator.init(spec)
+                return keyGenerator.generateKey()
+            }
+        }
+
+        fun saveDeviceToken(context: Context, token: String) {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val trimmed = token.trim()
+            if (trimmed.isEmpty()) {
+                prefs.edit()
+                    .remove(KEY_TOKEN_ENCRYPTED)
+                    .remove(KEY_TOKEN)
+                    .apply()
+                return
+            }
+
+            val cipher = Cipher.getInstance(AES_GCM_TRANSFORMATION)
+            cipher.init(Cipher.ENCRYPT_MODE, getOrCreateTokenKey())
+            val encrypted = cipher.doFinal(trimmed.toByteArray(Charsets.UTF_8))
+            val ivBase64 = Base64.encodeToString(cipher.iv, Base64.NO_WRAP)
+            val cipherBase64 = Base64.encodeToString(encrypted, Base64.NO_WRAP)
+
+            prefs.edit()
+                .putString(KEY_TOKEN_ENCRYPTED, "$ivBase64:$cipherBase64")
+                .remove(KEY_TOKEN)
+                .apply()
+        }
+
+        fun loadDeviceToken(context: Context): String {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val encryptedPayload = prefs.getString(KEY_TOKEN_ENCRYPTED, null)
+            if (!encryptedPayload.isNullOrBlank()) {
+                val parts = encryptedPayload.split(":", limit = 2)
+                if (parts.size == 2) {
+                    try {
+                        val iv = Base64.decode(parts[0], Base64.NO_WRAP)
+                        val cipherBytes = Base64.decode(parts[1], Base64.NO_WRAP)
+                        val cipher = Cipher.getInstance(AES_GCM_TRANSFORMATION)
+                        cipher.init(
+                            Cipher.DECRYPT_MODE,
+                            getOrCreateTokenKey(),
+                            GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv)
+                        )
+                        return String(cipher.doFinal(cipherBytes), Charsets.UTF_8)
+                    } catch (_: Exception) {
+                        return ""
+                    }
+                }
+                return ""
+            }
+
+            val legacyToken = prefs.getString(KEY_TOKEN, null)?.trim()
+            if (!legacyToken.isNullOrEmpty()) {
+                runCatching { saveDeviceToken(context, legacyToken) }
+                return legacyToken
+            }
+            return ""
+        }
 
         fun triggerHaptic(context: Context) {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -224,9 +312,9 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
             try {
                 val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 val baseUrl = prefs.getString(KEY_API_URL, null)?.trim()
-                val token = prefs.getString(KEY_TOKEN, null)?.trim()
+                val token = loadDeviceToken(context)
 
-                if (baseUrl.isNullOrEmpty() || token.isNullOrEmpty()) {
+                if (baseUrl.isNullOrEmpty() || token.isEmpty()) {
                     withContext(Dispatchers.Main) {
                         updateAllWidgets(context, isClockedIn = null, syncText = "Setup")
                     }
@@ -309,9 +397,9 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
             try {
                 val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 val baseUrl = prefs.getString(KEY_API_URL, null)?.trim()
-                val token = prefs.getString(KEY_TOKEN, null)?.trim()
+                val token = loadDeviceToken(context)
 
-                if (baseUrl.isNullOrEmpty() || token.isNullOrEmpty()) {
+                if (baseUrl.isNullOrEmpty() || token.isEmpty()) {
                     withContext(Dispatchers.Main) {
                         updateAllWidgets(context, isClockedIn = null, syncText = "Setup")
                     }
