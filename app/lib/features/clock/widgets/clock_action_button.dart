@@ -133,203 +133,10 @@ class _ClockActionButtonState extends State<ClockActionButton> {
     }
   }
 
-  Future<int?> _showCustomOffsetDialog() async {
-    final textController = TextEditingController(text: '-15');
-    final timeFormat = DateFormat('HH:mm');
-
+  Future<int?> _showCustomOffsetDialog() {
     return showDialog<int>(
       context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (dialogCtx, setDialogState) {
-            final rawText = textController.text.trim();
-            final parsedOffset = int.tryParse(rawText);
-            final isOutOfRange =
-                parsedOffset != null && (parsedOffset < -120 || parsedOffset > 120);
-            final isValid =
-                parsedOffset != null && parsedOffset >= -120 && parsedOffset <= 120;
-            final now = DateTime.now();
-            final targetTime =
-                isValid ? now.add(Duration(minutes: parsedOffset)) : null;
-
-            return AlertDialog(
-              backgroundColor: const Color(0xFF1E293B),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: Color(0xFF334155)),
-              ),
-              title: Row(
-                children: [
-                  const Icon(Icons.tune, color: Color(0xFF38BDF8), size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    widget.isClockIn ? 'Custom Clock In' : 'Custom Clock Out',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  TextField(
-                    key: const Key('custom_offset_input'),
-                    controller: textController,
-                    keyboardType: const TextInputType.numberWithOptions(signed: true),
-                    autofocus: true,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    decoration: InputDecoration(
-                      labelText: 'Offset (minutes)',
-                      labelStyle: const TextStyle(color: Color(0xFF94A3B8)),
-                      suffixText: 'min',
-                      suffixStyle: const TextStyle(color: Color(0xFF64748B)),
-                      helperText: 'Allowed range: -120 to +120 min (±2h)',
-                      helperStyle: const TextStyle(
-                        color: Color(0xFF64748B),
-                        fontSize: 11,
-                      ),
-                      errorText: isOutOfRange
-                          ? 'Limit is -120 to +120 min (±2h)'
-                          : null,
-                      errorStyle: const TextStyle(
-                        color: Color(0xFFF59E0B),
-                        fontSize: 11,
-                      ),
-                      filled: true,
-                      fillColor: const Color(0xFF0F172A),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: Color(0xFF334155)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: Color(0xFF38BDF8)),
-                      ),
-                      errorBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: Color(0xFFF59E0B)),
-                      ),
-                      focusedErrorBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(
-                          color: Color(0xFFF59E0B),
-                          width: 1.5,
-                        ),
-                      ),
-                    ),
-                    onChanged: (_) => setDialogState(() {}),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: const [-30, -15, -5, 5, 15, 30].map((val) {
-                      final isSelected = isValid && parsedOffset == val;
-                      return ChoiceChip(
-                        label: Text('${val > 0 ? "+$val" : val}m'),
-                        selected: isSelected,
-                        onSelected: (selected) {
-                          if (selected) {
-                            final text = val.toString();
-                            textController.value = TextEditingValue(
-                              text: text,
-                              selection: TextSelection.collapsed(
-                                offset: text.length,
-                              ),
-                            );
-                            setDialogState(() {});
-                          }
-                        },
-                        backgroundColor: const Color(0xFF0F172A),
-                        selectedColor: const Color(0xFF0284C7),
-                        labelStyle: TextStyle(
-                          color: isSelected
-                              ? Colors.white
-                              : const Color(0xFF94A3B8),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0F172A),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFF334155)),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Target event time:',
-                          style: TextStyle(
-                            color: Color(0xFF94A3B8),
-                            fontSize: 11,
-                          ),
-                        ),
-                        Text(
-                          targetTime != null
-                              ? timeFormat.format(targetTime)
-                              : '--:--',
-                          style: TextStyle(
-                            color: targetTime != null
-                                ? const Color(0xFF38BDF8)
-                                : const Color(0xFF64748B),
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(null),
-                  child: const Text(
-                    'Cancel',
-                    style: TextStyle(color: Color(0xFF94A3B8)),
-                  ),
-                ),
-                ElevatedButton(
-                  key: const Key('confirm_custom_offset_button'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF38BDF8),
-                    foregroundColor: const Color(0xFF0F172A),
-                    disabledBackgroundColor: const Color(0xFF334155),
-                    disabledForegroundColor: const Color(0xFF64748B),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  onPressed: isValid
-                      ? () => Navigator.of(ctx).pop(parsedOffset)
-                      : null,
-                  child: const Text(
-                    'Confirm',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (ctx) => _CustomOffsetDialog(isClockIn: widget.isClockIn),
     );
   }
 
@@ -426,6 +233,209 @@ class _ClockActionButtonState extends State<ClockActionButton> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _CustomOffsetDialog extends StatefulWidget {
+  final bool isClockIn;
+
+  const _CustomOffsetDialog({required this.isClockIn});
+
+  @override
+  State<_CustomOffsetDialog> createState() => _CustomOffsetDialogState();
+}
+
+class _CustomOffsetDialogState extends State<_CustomOffsetDialog> {
+  final TextEditingController _textController =
+      TextEditingController(text: '-15');
+  final DateFormat _timeFormat = DateFormat('HH:mm');
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rawText = _textController.text.trim();
+    final parsedOffset = int.tryParse(rawText);
+    final isOutOfRange =
+        parsedOffset != null && (parsedOffset < -120 || parsedOffset > 120);
+    final isValid =
+        parsedOffset != null && parsedOffset >= -120 && parsedOffset <= 120;
+    final now = DateTime.now();
+    final targetTime = isValid ? now.add(Duration(minutes: parsedOffset)) : null;
+
+    return AlertDialog(
+      backgroundColor: const Color(0xFF1E293B),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Color(0xFF334155)),
+      ),
+      title: Row(
+        children: [
+          const Icon(Icons.tune, color: Color(0xFF38BDF8), size: 20),
+          const SizedBox(width: 8),
+          Text(
+            widget.isClockIn ? 'Custom Clock In' : 'Custom Clock Out',
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            key: const Key('custom_offset_input'),
+            controller: _textController,
+            keyboardType: const TextInputType.numberWithOptions(signed: true),
+            autofocus: true,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+            ),
+            decoration: InputDecoration(
+              labelText: 'Offset (minutes)',
+              labelStyle: const TextStyle(color: Color(0xFF94A3B8)),
+              suffixText: 'min',
+              suffixStyle: const TextStyle(color: Color(0xFF64748B)),
+              helperText: 'Allowed range: -120 to +120 min (±2h)',
+              helperStyle: const TextStyle(
+                color: Color(0xFF64748B),
+                fontSize: 11,
+              ),
+              errorText:
+                  isOutOfRange ? 'Limit is -120 to +120 min (±2h)' : null,
+              errorStyle: const TextStyle(
+                color: Color(0xFFF59E0B),
+                fontSize: 11,
+              ),
+              filled: true,
+              fillColor: const Color(0xFF0F172A),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: Color(0xFF334155)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: Color(0xFF38BDF8)),
+              ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: Color(0xFFF59E0B)),
+              ),
+              focusedErrorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(
+                  color: Color(0xFFF59E0B),
+                  width: 1.5,
+                ),
+              ),
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: const [-30, -15, -5, 5, 15, 30].map((val) {
+              final isSelected = isValid && parsedOffset == val;
+              return ChoiceChip(
+                label: Text('${val > 0 ? "+$val" : val}m'),
+                selected: isSelected,
+                onSelected: (selected) {
+                  if (selected) {
+                    final text = val.toString();
+                    _textController.value = TextEditingValue(
+                      text: text,
+                      selection: TextSelection.collapsed(
+                        offset: text.length,
+                      ),
+                    );
+                    setState(() {});
+                  }
+                },
+                backgroundColor: const Color(0xFF0F172A),
+                selectedColor: const Color(0xFF0284C7),
+                labelStyle: TextStyle(
+                  color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 8,
+            ),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0F172A),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFF334155)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Target event time:',
+                  style: TextStyle(
+                    color: Color(0xFF94A3B8),
+                    fontSize: 11,
+                  ),
+                ),
+                Text(
+                  targetTime != null ? _timeFormat.format(targetTime) : '--:--',
+                  style: TextStyle(
+                    color: targetTime != null
+                        ? const Color(0xFF38BDF8)
+                        : const Color(0xFF64748B),
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(null),
+          child: const Text(
+            'Cancel',
+            style: TextStyle(color: Color(0xFF94A3B8)),
+          ),
+        ),
+        ElevatedButton(
+          key: const Key('confirm_custom_offset_button'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF38BDF8),
+            foregroundColor: const Color(0xFF0F172A),
+            disabledBackgroundColor: const Color(0xFF334155),
+            disabledForegroundColor: const Color(0xFF64748B),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          onPressed:
+              isValid ? () => Navigator.of(context).pop(parsedOffset) : null,
+          child: const Text(
+            'Confirm',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+      ],
     );
   }
 }

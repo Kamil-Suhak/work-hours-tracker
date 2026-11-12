@@ -1,4 +1,5 @@
 // ignore_for_file: avoid_web_libraries_in_flutter, deprecated_member_use
+import 'dart:async';
 import 'dart:html' as html;
 import 'dart:typed_data';
 import '../../config/app_config.dart';
@@ -23,6 +24,10 @@ bool openReportInBrowser(Uint8List bytes, String filename) {
     );
     final url = html.Url.createObjectUrlFromBlob(blob);
     html.window.open(url, '_blank');
+    unawaited(Future<void>.delayed(
+      const Duration(seconds: 60),
+      () => html.Url.revokeObjectUrl(url),
+    ));
     return true;
   } catch (_) {
     return false;
