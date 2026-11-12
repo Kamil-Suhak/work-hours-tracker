@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../config/app_config.dart';
-import '../../settings/widget_sync_service.dart';
+import '../../../services/platform/platform_services.dart';
 import 'markdown_renderer.dart';
 
-class ShiftNotesCard extends StatefulWidget {
+class ShiftNotesCard extends ConsumerStatefulWidget {
   final TextEditingController controller;
   final bool isInitiallyExpanded;
 
@@ -17,79 +17,93 @@ class ShiftNotesCard extends StatefulWidget {
   });
 
   static const String storageKey = AppConfig.activeShiftNoteKey;
-  static const FlutterSecureStorage _storage = FlutterSecureStorage();
+  static const CredentialStore _defaultStore = MobileCredentialStore();
+  static const WidgetSyncService _defaultWidgetSync = AndroidWidgetSyncService();
   static int _draftEpoch = 0;
   static String? _latestDesiredDraft;
 
-  static Future<String?> loadSavedDraft() async {
-    return await _storage.read(key: storageKey);
+  static Future<String?> loadSavedDraft({CredentialStore? store}) async {
+    return await (store ?? _defaultStore).read(storageKey);
   }
 
-  static Future<void> saveDraft(String note) async {
+  static Future<void> saveDraft(
+    String note, {
+    CredentialStore? store,
+  }) async {
+    final effectiveStore = store ?? _defaultStore;
     final epoch = ++_draftEpoch;
     final desired = note.trim().isEmpty ? null : note;
     _latestDesiredDraft = desired;
     if (desired == null) {
-      await _storage.delete(key: storageKey);
+      await effectiveStore.delete(storageKey);
     } else {
-      await _storage.write(key: storageKey, value: desired);
+      await effectiveStore.write(storageKey, desired);
     }
     if (epoch != _draftEpoch) {
-      await _reconcileLatestDraft();
+      await _reconcileLatestDraft(effectiveStore);
     }
   }
 
-  static Future<void> clearDraft() async {
+  static Future<void> clearDraft({
+    CredentialStore? store,
+    WidgetSyncService? widgetSync,
+  }) async {
+    final effectiveStore = store ?? _defaultStore;
+    final effectiveWidgetSync = widgetSync ?? _defaultWidgetSync;
     final epoch = ++_draftEpoch;
     _latestDesiredDraft = null;
-    await _storage.delete(key: storageKey);
-    await WidgetSyncService.syncActiveNote('');
+    await effectiveStore.delete(storageKey);
+    await effectiveWidgetSync.syncActiveNote('');
     if (epoch != _draftEpoch) {
-      await _reconcileLatestDraft();
+      await _reconcileLatestDraft(effectiveStore);
     }
   }
 
-  static Future<void> _reconcileLatestDraft() async {
+  static Future<void> _reconcileLatestDraft(CredentialStore store) async {
     // Re-apply the latest desired draft in case an older platform-channel write
     // completed after a newer saveDraft/clearDraft call.
     final latest = _latestDesiredDraft;
     if (latest == null) {
-      await _storage.delete(key: storageKey);
+      await store.delete(storageKey);
     } else {
-      await _storage.write(key: storageKey, value: latest);
+      await store.write(storageKey, latest);
     }
   }
 
   @override
-  State<ShiftNotesCard> createState() => _ShiftNotesCardState();
+  ConsumerState<ShiftNotesCard> createState() => _ShiftNotesCardState();
 }
 
-class _ShiftNotesCardState extends State<ShiftNotesCard> {
+class _ShiftNotesCardState extends ConsumerState<ShiftNotesCard> {
   late bool _isExpanded;
   bool _isPreviewMode = false;
   Timer? _syncDebounce;
   final FocusNode _focusNode = FocusNode();
   TextSelection _lastSelection = const TextSelection.collapsed(offset: 0);
+  late final CredentialStore _credentialStore;
+  late final WidgetSyncService _widgetSync;
 
   @override
   void initState() {
     super.initState();
+    _credentialStore = ref.read(credentialStoreProvider);
+    _widgetSync = ref.read(widgetSyncServiceProvider);
     _isExpanded = widget.isInitiallyExpanded;
     _loadDraft();
     widget.controller.addListener(_handleTextChange);
   }
 
   Future<void> _loadDraft() async {
-    final saved = await ShiftNotesCard.loadSavedDraft();
+    final saved = await ShiftNotesCard.loadSavedDraft(store: _credentialStore);
     if (saved != null && saved.isNotEmpty && mounted && widget.controller.text.isEmpty) {
       setState(() {
         widget.controller.text = saved;
         // If there's an existing draft, expand automatically
         _isExpanded = true;
       });
-      unawaited(WidgetSyncService.syncActiveNote(saved));
+      unawaited(_widgetSync.syncActiveNote(saved));
     } else if (widget.controller.text.isNotEmpty) {
-      unawaited(WidgetSyncService.syncActiveNote(widget.controller.text));
+      unawaited(_widgetSync.syncActiveNote(widget.controller.text));
     }
   }
 
@@ -98,10 +112,10 @@ class _ShiftNotesCardState extends State<ShiftNotesCard> {
         widget.controller.selection.baseOffset >= 0) {
       _lastSelection = widget.controller.selection;
     }
-    ShiftNotesCard.saveDraft(widget.controller.text);
+    ShiftNotesCard.saveDraft(widget.controller.text, store: _credentialStore);
     _syncDebounce?.cancel();
     _syncDebounce = Timer(const Duration(milliseconds: 500), () {
-      WidgetSyncService.syncActiveNote(widget.controller.text);
+      _widgetSync.syncActiveNote(widget.controller.text);
     });
     if (mounted) setState(() {});
   }
@@ -110,7 +124,7 @@ class _ShiftNotesCardState extends State<ShiftNotesCard> {
   void dispose() {
     if (_syncDebounce?.isActive ?? false) {
       _syncDebounce?.cancel();
-      WidgetSyncService.syncActiveNote(widget.controller.text);
+      _widgetSync.syncActiveNote(widget.controller.text);
     }
     widget.controller.removeListener(_handleTextChange);
     _focusNode.dispose();

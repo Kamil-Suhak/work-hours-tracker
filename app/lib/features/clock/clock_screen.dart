@@ -116,7 +116,10 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
 
     if (_selectedPastShift == null) {
       _activeShiftDraft = _notesController.text;
-      await ShiftNotesCard.saveDraft(_activeShiftDraft!);
+      await ShiftNotesCard.saveDraft(
+        _activeShiftDraft!,
+        store: ref.read(credentialStoreProvider),
+      );
     } else if (_selectedPastShift!.clockOut.id != shift.clockOut.id) {
       await _savePastShiftNote(_selectedPastShift!, _notesController.text);
     }
@@ -135,8 +138,11 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
       await _savePastShiftNote(_selectedPastShift!, _notesController.text);
     }
 
-    final activeDraft =
-        _activeShiftDraft ?? await ShiftNotesCard.loadSavedDraft() ?? '';
+    final activeDraft = _activeShiftDraft ??
+        await ShiftNotesCard.loadSavedDraft(
+          store: ref.read(credentialStoreProvider),
+        ) ??
+        '';
     setState(() {
       _selectedPastShift = null;
       _pastNoteSaved = false;
@@ -595,8 +601,10 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
       if (_selectedPastShift == null) {
         _notesController.clear();
       }
-      await ShiftNotesCard.clearDraft();
-      unawaited(ref.read(widgetSyncServiceProvider).syncActiveNote(''));
+      await ShiftNotesCard.clearDraft(
+        store: ref.read(credentialStoreProvider),
+        widgetSync: ref.read(widgetSyncServiceProvider),
+      );
     }
   }
 
@@ -613,8 +621,11 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
       if (_selectedPastShift != null) {
         // Dual-save edge case: save past shift note first, then retrieve active draft
         await _savePastShiftNote(_selectedPastShift!, _notesController.text);
-        noteToSaveOnClockOut =
-            _activeShiftDraft ?? (await ShiftNotesCard.loadSavedDraft()) ?? '';
+        noteToSaveOnClockOut = _activeShiftDraft ??
+            (await ShiftNotesCard.loadSavedDraft(
+              store: ref.read(credentialStoreProvider),
+            )) ??
+            '';
       } else {
         noteToSaveOnClockOut = _notesController.text.trim();
       }
@@ -656,10 +667,18 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
       }
 
       _activeShiftDraft = null;
-      _selectedPastShift = null;
+      if (mounted) {
+        setState(() {
+          _selectedPastShift = null;
+        });
+      } else {
+        _selectedPastShift = null;
+      }
       _notesController.clear();
-      await ShiftNotesCard.clearDraft();
-      unawaited(ref.read(widgetSyncServiceProvider).syncActiveNote(''));
+      await ShiftNotesCard.clearDraft(
+        store: ref.read(credentialStoreProvider),
+        widgetSync: ref.read(widgetSyncServiceProvider),
+      );
       ref.read(shiftsProvider.notifier).refresh();
     } finally {
       _isManualClockOut = false;
@@ -731,12 +750,17 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
   }
 
   Future<void> _flushDraftToAutoStoppedEvent(String clockOutEventId) async {
+    final store = ref.read(credentialStoreProvider);
     final bool editingActiveDraft = _selectedPastShift == null;
     final rawDraft = editingActiveDraft
         ? (_notesController.text.isNotEmpty
             ? _notesController.text
-            : (_activeShiftDraft ?? await ShiftNotesCard.loadSavedDraft() ?? ''))
-        : (_activeShiftDraft ?? await ShiftNotesCard.loadSavedDraft() ?? '');
+            : (_activeShiftDraft ??
+                await ShiftNotesCard.loadSavedDraft(store: store) ??
+                ''))
+        : (_activeShiftDraft ??
+            await ShiftNotesCard.loadSavedDraft(store: store) ??
+            '');
     final draft = rawDraft.trim();
     if (draft.isNotEmpty) {
       try {
@@ -759,8 +783,10 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
       if (_selectedPastShift == null) {
         _notesController.clear();
       }
-      await ShiftNotesCard.clearDraft();
-      unawaited(ref.read(widgetSyncServiceProvider).syncActiveNote(''));
+      await ShiftNotesCard.clearDraft(
+        store: store,
+        widgetSync: ref.read(widgetSyncServiceProvider),
+      );
     }
   }
 

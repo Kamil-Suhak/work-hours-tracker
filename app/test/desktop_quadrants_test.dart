@@ -141,9 +141,11 @@ void main() {
       final controller = TextEditingController();
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: NoteEditorQuadrant(controller: controller),
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: NoteEditorQuadrant(controller: controller),
+            ),
           ),
         ),
       );
@@ -165,6 +167,45 @@ void main() {
       expect(controller.text, '## ');
       expect(controller.selection.baseOffset, 3);
       expect(controller.selection.extentOffset, 3);
+    });
+
+    testWidgets('does not load active shift draft when read-only or editing a past shift',
+        (WidgetTester tester) async {
+      FlutterSecureStorage.setMockInitialValues({
+        'active_shift_note': 'Stale active shift draft',
+      });
+
+      final readOnlyController = TextEditingController();
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: NoteEditorQuadrant(
+                controller: readOnlyController,
+                isReadOnly: true,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(readOnlyController.text, isEmpty);
+
+      final pastShiftController = TextEditingController();
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: NoteEditorQuadrant(
+                controller: pastShiftController,
+                isEditingPastShift: true,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(pastShiftController.text, isEmpty);
     });
 
     testWidgets(

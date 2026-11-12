@@ -1,3 +1,4 @@
+// ignore_for_file: deprecated_member_use_from_same_package
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:work_hours_mobile/features/settings/widget_sync_service.dart';
