@@ -238,6 +238,7 @@ class _StaticSettingsNotifier extends SettingsNotifier {
   Future<AppSettings> build() async => const AppSettings(
         baseUrl: 'https://mock.work.com',
         deviceToken: 'tok-test',
+        isConfigured: true,
       );
 }
 
