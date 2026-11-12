@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:work_hours_mobile/api/api_client.dart';
 import 'package:work_hours_mobile/api/models.dart';
 import 'package:work_hours_mobile/features/clock/clock_notifier.dart';
 import 'package:work_hours_mobile/features/clock/clock_screen.dart';
@@ -291,7 +292,96 @@ void main() {
       final returnedTextField = tester.widget<TextField>(find.byType(TextField));
       expect(returnedTextField.readOnly, isTrue);
     });
+
+    testWidgets('clearing a past shift note also clears clockIn note when present',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final recordingClient = _RecordingApiClient();
+      final mockStatus = WorkStatus(
+        state: WorkState.clockedOut,
+        activeSince: null,
+        serverTime: DateTime.parse('2026-10-20T17:00:00Z'),
+        todaySeconds: 0,
+        monthSeconds: 0,
+      );
+
+      final pastShift = ShiftRecord(
+        clockIn: TrackingEvent(
+          id: 'evt-in-legacy',
+          requestId: 'req-1',
+          userId: 'user-1',
+          eventType: 'clock_in',
+          source: 'manual',
+          occurredAtUtc: DateTime.parse('2026-10-20T08:00:00Z'),
+          createdAtUtc: DateTime.parse('2026-10-20T08:00:00Z'),
+          note: 'Legacy clock-in note',
+        ),
+        clockOut: TrackingEvent(
+          id: 'evt-out-legacy',
+          requestId: 'req-2',
+          userId: 'user-1',
+          eventType: 'clock_out',
+          source: 'manual',
+          occurredAtUtc: DateTime.parse('2026-10-20T16:00:00Z'),
+          createdAtUtc: DateTime.parse('2026-10-20T16:00:00Z'),
+        ),
+        duration: const Duration(hours: 8),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          key: UniqueKey(),
+          overrides: [
+            apiClientProvider.overrideWithValue(recordingClient),
+            currentStatusProvider.overrideWith(
+              () => _MockStatusNotifier(AsyncValue.data(mockStatus)),
+            ),
+            shiftsProvider.overrideWith(
+              () => _MockShiftsWithDataNotifier([pastShift]),
+            ),
+          ],
+          child: const MaterialApp(
+            home: ClockScreen(enableAnimations: false),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.textContaining('Oct 20, 2026'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Clear Note'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Current Shift').first);
+      await tester.pumpAndSettle();
+
+      expect(
+        recordingClient.updatedNotes,
+        containsAllInOrder([
+          ('evt-out-legacy', null),
+          ('evt-in-legacy', null),
+        ]),
+      );
+    });
   });
+}
+
+class _RecordingApiClient extends ApiClient {
+  _RecordingApiClient() : super(baseUrl: 'https://mock.work.com');
+
+  final List<(String, String?)> updatedNotes = [];
+
+  @override
+  Future<void> updateEventNote({
+    required String eventId,
+    required String? note,
+  }) async {
+    updatedNotes.add((eventId, note));
+  }
 }
 
 class _MockShiftsWithDataNotifier extends AsyncNotifier<List<ShiftRecord>>

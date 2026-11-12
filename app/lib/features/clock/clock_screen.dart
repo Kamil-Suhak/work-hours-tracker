@@ -76,11 +76,20 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
     });
     try {
       final targetEventId = shift.clockOut.id;
+      final trimmedNote = noteText.trim();
       final apiClient = ref.read(apiClientProvider);
       await apiClient.updateEventNote(
         eventId: targetEventId,
-        note: noteText.trim().isNotEmpty ? noteText.trim() : null,
+        note: trimmedNote.isNotEmpty ? trimmedNote : null,
       );
+      if (trimmedNote.isEmpty &&
+          shift.clockIn.note != null &&
+          shift.clockIn.note!.trim().isNotEmpty) {
+        await apiClient.updateEventNote(
+          eventId: shift.clockIn.id,
+          note: null,
+        );
+      }
       ref.read(shiftsProvider.notifier).refresh();
       if (mounted) {
         setState(() {
