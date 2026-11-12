@@ -1008,6 +1008,50 @@ describe('Worker End-to-End Integration Suite', () => {
       expect(err.error.code).toBe('NO_REPORTS_FOUND');
     });
 
+    it('paginates bucket.list in getLatestReport fallback when latest.json is absent', async () => {
+      const seenCursors: Array<string | undefined> = [];
+      const paginatedEnv: Env = {
+        ...env,
+        REPORTS_BUCKET: {
+          get: async () => null,
+          list: async (opts?: { prefix?: string; limit?: number; cursor?: string }) => {
+            seenCursors.push(opts?.cursor);
+            if (!opts?.cursor) {
+              return {
+                objects: [
+                  {
+                    key: 'reports/work-hours-2026-01-full.xlsx',
+                    size: 1024,
+                    uploaded: new Date('2026-02-01T00:00:00.000Z'),
+                  },
+                ],
+                truncated: true,
+                cursor: 'page-2',
+              };
+            }
+            return {
+              objects: [
+                {
+                  key: 'reports/work-hours-2026-09-full.xlsx',
+                  size: 4096,
+                  uploaded: new Date('2026-10-01T00:00:00.000Z'),
+                },
+              ],
+              truncated: false,
+            };
+          },
+        } as any,
+      };
+
+      const res = await worker.fetch(createRequest('/api/v1/reports/latest'), paginatedEnv);
+      expect(res.status).toBe(200);
+      const data = await res.json() as { filename: string; month: string; sizeBytes: number };
+      expect(data.filename).toBe('reports/work-hours-2026-09-full.xlsx');
+      expect(data.month).toBe('2026-09');
+      expect(data.sizeBytes).toBe(4096);
+      expect(seenCursors).toEqual([undefined, 'page-2']);
+    });
+
     it('scheduled cron handler executes successfully without throwing', async () => {
       let waited = false;
       const ctx = {
@@ -1149,8 +1193,25 @@ describe('Worker End-to-End Integration Suite', () => {
   });
 
   describe('CORS and Security Headers', () => {
-    it('allows same-origin or localhost origins and adds security headers', async () => {
-      const res = await worker.fetch(
+    it('allows same-origin and gated localhost origins and adds security headers', async () => {
+      const sameOriginRes = await worker.fetch(
+        createRequest('/api/v1/status', {
+          headers: {
+            Origin: 'https://work-hours.local',
+          },
+        }),
+        env
+      );
+
+      expect(sameOriginRes.status).toBe(200);
+      expect(sameOriginRes.headers.get('Access-Control-Allow-Origin')).toBe('https://work-hours.local');
+      expect(sameOriginRes.headers.get('Vary')).toContain('Origin');
+      expect(sameOriginRes.headers.get('X-Content-Type-Options')).toBe('nosniff');
+      expect(sameOriginRes.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin');
+      expect(sameOriginRes.headers.get('Cache-Control')).toContain('no-store');
+
+      // Production worker host should not reflect localhost unless ALLOW_LOCALHOST_CORS is enabled
+      const prodLocalhostRes = await worker.fetch(
         createRequest('/api/v1/status', {
           headers: {
             Origin: 'http://localhost:3000',
@@ -1158,13 +1219,34 @@ describe('Worker End-to-End Integration Suite', () => {
         }),
         env
       );
+      expect(prodLocalhostRes.status).toBe(200);
+      expect(prodLocalhostRes.headers.get('Access-Control-Allow-Origin')).toBeNull();
 
+      // Explicitly enabled (e.g. staging) allows localhost dev origins
+      const stagingRes = await worker.fetch(
+        createRequest('/api/v1/status', {
+          headers: {
+            Origin: 'http://localhost:3000',
+          },
+        }),
+        { ...env, ALLOW_LOCALHOST_CORS: 'true' }
+      );
+      expect(stagingRes.status).toBe(200);
+      expect(stagingRes.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:3000');
+    });
+
+    it('allows localhost CORS when worker itself is served on localhost', async () => {
+      const res = await worker.fetch(
+        new Request('http://localhost:8787/api/v1/status', {
+          headers: {
+            Authorization: `Bearer ${validToken}`,
+            Origin: 'http://localhost:3000',
+          },
+        }),
+        env
+      );
       expect(res.status).toBe(200);
       expect(res.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:3000');
-      expect(res.headers.get('Vary')).toContain('Origin');
-      expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
-      expect(res.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin');
-      expect(res.headers.get('Cache-Control')).toContain('no-store');
     });
 
     it('does not reflect disallowed third-party origin in Access-Control-Allow-Origin', async () => {
@@ -1190,12 +1272,62 @@ describe('Worker End-to-End Integration Suite', () => {
             Origin: 'http://localhost:8080',
           },
         }),
-        env
+        { ...env, ALLOW_LOCALHOST_CORS: 'true' }
       );
 
       expect(res.status).toBe(204);
       expect(res.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:8080');
       expect(res.headers.get('Access-Control-Allow-Methods')).toContain('POST');
+    });
+
+    it('adds Content-Security-Policy and security headers to static asset responses', async () => {
+      const assetEnv: Env = {
+        ...env,
+        ASSETS: {
+          fetch: async () =>
+            new Response('<html><body>App</body></html>', {
+              status: 200,
+              headers: { 'Content-Type': 'text/html; charset=utf-8' },
+            }),
+        } as any,
+      };
+
+      const res = await worker.fetch(new Request('https://work-hours.local/index.html'), assetEnv);
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
+      const csp = res.headers.get('Content-Security-Policy') ?? '';
+      expect(csp).toContain("default-src 'self'");
+      expect(csp).toContain("script-src 'self'");
+      expect(csp).toContain("frame-ancestors 'none'");
+      expect(res.headers.get('X-Frame-Options')).toBe('DENY');
+      expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
+      expect(res.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin');
+      expect(res.headers.get('Permissions-Policy')).toContain('camera=()');
+    });
+
+    it('rejects multi-byte UTF-8 payloads exceeding 64 KB even when UTF-16 length is under 64K', async () => {
+      // Each U+20AC Euro sign is 1 UTF-16 code unit but 3 UTF-8 bytes (~90 KB total).
+      const largeUnicodeNote = '€'.repeat(30000);
+      const rawBody = JSON.stringify({ requestId: 'req-utf8-limit', note: largeUnicodeNote });
+      expect(rawBody.length).toBeLessThan(64 * 1024);
+      expect(new TextEncoder().encode(rawBody).byteLength).toBeGreaterThan(64 * 1024);
+
+      const res = await worker.fetch(
+        new Request('https://work-hours.local/api/v1/clock-out', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${validToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: rawBody,
+        }),
+        env
+      );
+
+      expect(res.status).toBe(413);
+      const data = await res.json() as { error: { code: string } };
+      expect(data.error.code).toBe('PAYLOAD_TOO_LARGE');
     });
   });
 });

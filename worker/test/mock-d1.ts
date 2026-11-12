@@ -51,54 +51,91 @@ export class MockPreparedStatement {
     return this;
   }
 
+  private normalizedQuery(): string {
+    return this.query.replace(/\s+/g, ' ').trim();
+  }
+
+  private assertBindCount(q: string): void {
+    const stripped = q.replace(/'(?:''|[^'])*'/g, "''");
+    const placeholders = (stripped.match(/\?/g) ?? []).length;
+    if (placeholders !== this.boundArgs.length) {
+      throw new Error(
+        `MockD1Database bind count mismatch: expected ${placeholders} argument(s), got ${this.boundArgs.length} for query: ${q}`
+      );
+    }
+  }
+
+  private sortEventsDesc(predicate: (e: EventRow) => boolean): EventRow[] {
+    return this.db.events
+      .map((event, rowid) => ({ event, rowid }))
+      .filter(({ event }) => predicate(event))
+      .sort(
+        (a, b) =>
+          b.event.occurred_at_utc.localeCompare(a.event.occurred_at_utc) ||
+          b.event.created_at_utc.localeCompare(a.event.created_at_utc) ||
+          b.rowid - a.rowid
+      )
+      .map(({ event }) => event);
+  }
+
+  private sortEventsAsc(predicate: (e: EventRow) => boolean): EventRow[] {
+    return this.db.events
+      .map((event, rowid) => ({ event, rowid }))
+      .filter(({ event }) => predicate(event))
+      .sort(
+        (a, b) =>
+          a.event.occurred_at_utc.localeCompare(b.event.occurred_at_utc) ||
+          a.event.created_at_utc.localeCompare(b.event.created_at_utc) ||
+          a.rowid - b.rowid
+      )
+      .map(({ event }) => event);
+  }
+
   async first<T = Record<string, unknown>>(colName?: string): Promise<T | null> {
-    const q = this.query.trim();
+    const q = this.normalizedQuery();
+    this.assertBindCount(q);
 
     if (q.includes('FROM devices WHERE token_hash = ?')) {
       const hash = this.boundArgs[0] as string;
       const found = this.db.devices.find((d) => d.token_hash === hash);
+      if (colName && found) {
+        return ((found as unknown as Record<string, unknown>)[colName] as T) ?? null;
+      }
       return (found as unknown as T) ?? null;
     }
 
     if (q.includes('FROM processed_requests WHERE request_id = ?')) {
       const reqId = this.boundArgs[0] as string;
       const found = this.db.processedRequests.get(reqId);
-      return (found ? { response_json: found.response_json } : null) as unknown as T;
+      const row = found ? { response_json: found.response_json } : null;
+      if (colName && row) {
+        return ((row as Record<string, unknown>)[colName] as T) ?? null;
+      }
+      return row as unknown as T;
     }
 
     if (q.includes('FROM work_state WHERE user_id = ?')) {
       const userId = this.boundArgs[0] as string;
       const found = this.db.workState.get(userId);
+      if (colName && found) {
+        return ((found as unknown as Record<string, unknown>)[colName] as T) ?? null;
+      }
       return (found as unknown as T) ?? null;
     }
 
     if (q.includes('FROM events WHERE user_id = ? AND id != ?')) {
       const userId = this.boundArgs[0] as string;
       const excludeId = this.boundArgs[1] as string;
-      const matching = this.db.events.filter((e) => e.user_id === userId && e.id !== excludeId);
-      const sorted = [...matching]
-        .reverse()
-        .sort(
-          (a, b) =>
-            b.occurred_at_utc.localeCompare(a.occurred_at_utc) ||
-            b.created_at_utc.localeCompare(a.created_at_utc)
-        );
+      const sorted = this.sortEventsDesc((e) => e.user_id === userId && e.id !== excludeId);
       return (sorted[0] as unknown as T) ?? null;
     }
 
     if (q.includes('FROM events WHERE user_id = ?') && q.includes('ORDER BY occurred_at_utc DESC')) {
       const userId = this.boundArgs[0] as string;
       const requireClockIn = q.includes("event_type = 'clock_in'");
-      const matching = this.db.events.filter(
+      const sorted = this.sortEventsDesc(
         (e) => e.user_id === userId && (!requireClockIn || e.event_type === 'clock_in')
       );
-      const sorted = [...matching]
-        .reverse()
-        .sort(
-          (a, b) =>
-            b.occurred_at_utc.localeCompare(a.occurred_at_utc) ||
-            b.created_at_utc.localeCompare(a.created_at_utc)
-        );
       return (sorted[0] as unknown as T) ?? null;
     }
 
@@ -109,21 +146,29 @@ export class MockPreparedStatement {
       return (found as unknown as T) ?? null;
     }
 
-    return null;
+    throw new Error(`MockD1Database: unrecognized first() query: ${q}`);
   }
 
   async all<T = Record<string, unknown>>(): Promise<D1Result<T>> {
-    const q = this.query.trim();
+    const q = this.normalizedQuery();
+    this.assertBindCount(q);
 
-    if (q.includes('FROM events') && q.includes('occurred_at_utc >= ?') && (q.includes('occurred_at_utc <= ?') || q.includes('occurred_at_utc < ?'))) {
+    if (
+      q.includes('FROM events') &&
+      q.includes('occurred_at_utc >= ?') &&
+      (q.includes('occurred_at_utc <= ?') || q.includes('occurred_at_utc < ?'))
+    ) {
       const userId = this.boundArgs[0] as string;
       const from = this.boundArgs[1] as string;
       const to = this.boundArgs[2] as string;
       const isLessEqual = q.includes('occurred_at_utc <= ?');
 
-      const filtered = this.db.events
-        .filter((e) => e.user_id === userId && e.occurred_at_utc >= from && (isLessEqual ? e.occurred_at_utc <= to : e.occurred_at_utc < to))
-        .sort((a, b) => a.occurred_at_utc.localeCompare(b.occurred_at_utc) || a.created_at_utc.localeCompare(b.created_at_utc));
+      const filtered = this.sortEventsAsc(
+        (e) =>
+          e.user_id === userId &&
+          e.occurred_at_utc >= from &&
+          (isLessEqual ? e.occurred_at_utc <= to : e.occurred_at_utc < to)
+      );
 
       return {
         results: filtered as unknown as T[],
@@ -136,9 +181,7 @@ export class MockPreparedStatement {
       const userId = this.boundArgs[0] as string;
       const from = this.boundArgs[1] as string;
 
-      const filtered = this.db.events
-        .filter((e) => e.user_id === userId && e.occurred_at_utc >= from)
-        .sort((a, b) => a.occurred_at_utc.localeCompare(b.occurred_at_utc) || a.created_at_utc.localeCompare(b.created_at_utc));
+      const filtered = this.sortEventsAsc((e) => e.user_id === userId && e.occurred_at_utc >= from);
 
       return {
         results: filtered as unknown as T[],
@@ -147,11 +190,7 @@ export class MockPreparedStatement {
       };
     }
 
-    return {
-      results: [] as T[],
-      success: true,
-      meta: {} as D1Response['meta'],
-    };
+    throw new Error(`MockD1Database: unrecognized all() query: ${q}`);
   }
 
   async run(): Promise<D1Response> {
@@ -159,7 +198,8 @@ export class MockPreparedStatement {
   }
 
   runSync(): D1Response {
-    const q = this.query.trim();
+    const q = this.normalizedQuery();
+    this.assertBindCount(q);
     let changes = 0;
 
     if (q.includes('DELETE FROM events') && q.includes('WHERE id = ?')) {
@@ -211,19 +251,16 @@ export class MockPreparedStatement {
           changes = 1;
         }
       }
-    }
-
-    if (q.includes('UPDATE events SET note = ?')) {
+    } else if (q.includes('UPDATE events SET note = ?')) {
       const note = (this.boundArgs[0] as string) ?? null;
       const id = this.boundArgs[1] as string;
-      const event = this.db.events.find((e) => e.id === id);
+      const userId = q.includes('AND user_id = ?') ? (this.boundArgs[2] as string) : null;
+      const event = this.db.events.find((e) => e.id === id && (userId === null || e.user_id === userId));
       if (event) {
         event.note = note;
         changes = 1;
       }
-    }
-
-    if (q.includes('INSERT INTO events')) {
+    } else if (q.includes('INSERT INTO events')) {
       if (q.includes("'Auto-stopped at target'") && q.includes('WHERE EXISTS')) {
         const id = this.boundArgs[0] as string;
         const requestId = this.boundArgs[1] as string;
@@ -360,9 +397,7 @@ export class MockPreparedStatement {
         });
         changes = 1;
       }
-    }
-
-    if (q.includes('INSERT INTO work_state')) {
+    } else if (q.includes('INSERT INTO work_state')) {
       const userId = this.boundArgs[0] as string;
       const doNothingOnConflict = q.includes('ON CONFLICT(user_id) DO NOTHING');
       const excludedEventId = q.includes('WHERE NOT EXISTS (SELECT 1 FROM events WHERE id = ?)')
@@ -407,9 +442,7 @@ export class MockPreparedStatement {
         });
         changes = 1;
       }
-    }
-
-    if (q.includes('UPDATE work_state')) {
+    } else if (q.includes('UPDATE work_state')) {
       if (q.includes("SET state = 'clocked_out'") && q.includes('AND target_clock_out_utc = ?')) {
         const nextVersion = this.boundArgs[0] as number;
         const updatedAt = this.boundArgs[1] as string;
@@ -521,10 +554,10 @@ export class MockPreparedStatement {
           });
           changes = 1;
         }
+      } else {
+        throw new Error(`MockD1Database: unrecognized UPDATE work_state query: ${q}`);
       }
-    }
-
-    if (q.includes('INSERT INTO processed_requests') || q.includes('INSERT OR IGNORE INTO processed_requests')) {
+    } else if (q.includes('INSERT INTO processed_requests') || q.includes('INSERT OR IGNORE INTO processed_requests')) {
       const requestId = this.boundArgs[0] as string;
       const userId = this.boundArgs[1] as string;
       let operation = 'unknown';
@@ -582,6 +615,8 @@ export class MockPreparedStatement {
           throw new Error('UNIQUE constraint failed: processed_requests.request_id');
         }
       }
+    } else {
+      throw new Error(`MockD1Database: unrecognized run() query: ${q}`);
     }
 
     return {

@@ -666,6 +666,79 @@ describe('Reports Engine Unit Tests', () => {
     expect(updatedDocXml).toContain('<w:br w:type="page"/>');
   });
 
+  it('validates formal docx startDate month bounds and clamps February signing dates', async () => {
+    expect(() =>
+      validateReportRequest({
+        format: 'docx',
+        startDate: '2026-13-01',
+      })
+    ).toThrowError(/between 01 and 12/);
+
+    expect(() =>
+      validateReportRequest({
+        format: 'docx',
+        startDate: '2026-00-01',
+      })
+    ).toThrowError(/between 01 and 12/);
+
+    expect(() =>
+      validateReportRequest({
+        format: 'docx',
+        startDate: 'invalid-month',
+      })
+    ).toThrowError(/YYYY-MM/);
+
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
+    const footerDocXml = `<?xml version="1.0" encoding="utf-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
+  <w:body>
+    <w:tbl><w:tr><w:tc><w:p/></w:tc></w:tr></w:tbl>
+    <w:p><w:r><w:t>……………………………………………………</w:t></w:r><w:r><w:tab /></w:r><w:r><w:t>……………………………………………………</w:t></w:r></w:p>
+  </w:body>
+</w:document>`;
+
+    const oldSig = new Uint8Array([1, 2, 3]);
+    const newSig = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+      0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+      0x00, 0x00, 0x01, 0x2c, 0x00, 0x00, 0x00, 0x64,
+    ]);
+    const templateWithSig = createZipBuffer([
+      {
+        path: '[Content_Types].xml',
+        data: encoder.encode('<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"></Types>'),
+      },
+      {
+        path: 'word/_rels/document.xml.rels',
+        data: encoder.encode('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>'),
+      },
+      { path: 'word/document.xml', data: encoder.encode(footerDocXml) },
+      { path: 'word/media/signature.png', data: oldSig },
+    ]);
+
+    const febOut = await generateContractDocx({
+      templateDocxBytes: templateWithSig,
+      signaturePngBytes: newSig,
+      profile: {
+        contractorName: 'Kowalski Jan',
+        contractDate: '01.02.2026',
+        hourlyRatePln: 50,
+        monthlyHours: 80,
+      },
+      dailyRows: [],
+      issueDateWarsaw: '2026-02-28',
+    });
+
+    const febEntries = await unzipBuffer(febOut);
+    const sigEntries = febEntries.filter((e) => e.path === 'word/media/signature.png');
+    expect(sigEntries).toHaveLength(1);
+    expect(sigEntries[0].data).toEqual(newSig);
+    const febDocXml = decoder.decode(febEntries.find((e) => e.path === 'word/document.xml')!.data);
+    expect(febDocXml).toContain('Mielec, 2026-02-28');
+    expect(febDocXml).not.toContain('2026-02-30');
+  });
+
   it('getCurrentWarsawMonthRangeUtc computes exact current month boundaries in Warsaw', () => {
     const oct26 = new Date('2026-10-26T12:00:00.000Z');
     const range = getCurrentWarsawMonthRangeUtc(oct26);
@@ -767,5 +840,27 @@ describe('Reports Engine Unit Tests', () => {
     expect(sheetXml).toContain('<drawing r:id="rId1"/>');
     expect(sheetXml).toContain('LOCATION BREAKDOWN');
   });
-});
 
+  it('unzipBuffer rejects truncated archives, invalid local headers, and out-of-bounds slices', async () => {
+    await expect(unzipBuffer(new Uint8Array([0x50, 0x4b]))).rejects.toThrow(
+      /End of Central Directory/
+    );
+
+    const validZip = createZipBuffer([
+      { path: 'test.txt', data: new TextEncoder().encode('hello') },
+    ]);
+
+    // Corrupt local header signature (offset 0)
+    const badLocalSig = new Uint8Array(validZip);
+    badLocalSig[0] = 0x00;
+    await expect(unzipBuffer(badLocalSig)).rejects.toThrow(/local file header signature/i);
+
+    // Corrupt compressed size in Central Directory so slice goes past buffer
+    const outOfBoundsSize = new Uint8Array(validZip);
+    const eocdOffset = outOfBoundsSize.length - 22;
+    const view = new DataView(outOfBoundsSize.buffer);
+    const cdOffset = view.getUint32(eocdOffset + 16, true);
+    view.setUint32(cdOffset + 20, 0x0fffffff, true);
+    await expect(unzipBuffer(outOfBoundsSize)).rejects.toThrow(/out of bounds/i);
+  });
+});

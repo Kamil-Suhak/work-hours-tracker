@@ -34,6 +34,9 @@
   "env": {
     "staging": {
       "name": "work-hours-api-staging",
+      "vars": {
+        "ALLOW_LOCALHOST_CORS": "true"
+      },
       "d1_databases": [
         {
           "binding": "DB",

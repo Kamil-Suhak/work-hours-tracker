@@ -2,6 +2,7 @@ import '../../services/platform/platform_services.dart';
 
 /// Backward-compatibility shim that delegates to platform services.
 /// Prefer injecting [widgetSyncServiceProvider] and [hapticServiceProvider] via Riverpod.
+@Deprecated('Use widgetSyncServiceProvider and hapticServiceProvider via Riverpod instead.')
 class WidgetSyncService {
   static const AndroidWidgetSyncService _delegate = AndroidWidgetSyncService();
   static const MobileHapticService _haptic = MobileHapticService();

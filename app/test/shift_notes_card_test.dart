@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:work_hours_mobile/features/clock/widgets/markdown_renderer.dart';
@@ -118,10 +119,12 @@ void main() {
       final controller = TextEditingController();
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: ShiftNotesCard(controller: controller),
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: ShiftNotesCard(controller: controller),
+              ),
             ),
           ),
         ),
@@ -144,12 +147,14 @@ void main() {
       final controller = TextEditingController(text: '# Done Tasks\n- Task 1');
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: ShiftNotesCard(
-                controller: controller,
-                isInitiallyExpanded: true,
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: ShiftNotesCard(
+                  controller: controller,
+                  isInitiallyExpanded: true,
+                ),
               ),
             ),
           ),
@@ -178,12 +183,14 @@ void main() {
       final controller = TextEditingController(text: 'sample');
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: ShiftNotesCard(
-                controller: controller,
-                isInitiallyExpanded: true,
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: ShiftNotesCard(
+                  controller: controller,
+                  isInitiallyExpanded: true,
+                ),
               ),
             ),
           ),
@@ -202,12 +209,14 @@ void main() {
       final controller = TextEditingController();
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: ShiftNotesCard(
-                controller: controller,
-                isInitiallyExpanded: true,
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: ShiftNotesCard(
+                  controller: controller,
+                  isInitiallyExpanded: true,
+                ),
               ),
             ),
           ),

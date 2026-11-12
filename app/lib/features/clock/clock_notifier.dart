@@ -1,6 +1,3 @@
-// ignore_for_file: invalid_use_of_internal_member
-// probably not best practice
-
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/api_client.dart';
@@ -11,6 +8,7 @@ import '../../config/app_config.dart';
 import '../../services/platform/platform_services.dart';
 import '../history/shifts_notifier.dart';
 import '../settings/settings_notifier.dart';
+import '../settings/version_check_provider.dart';
 
 // Configurable base URL provider wired to user settings
 final apiBaseUrlProvider = Provider<String>((ref) {
@@ -21,7 +19,12 @@ final apiBaseUrlProvider = Provider<String>((ref) {
 final apiClientProvider = Provider<ApiClient>((ref) {
   final baseUrl = ref.watch(apiBaseUrlProvider);
   final settings = ref.watch(settingsProvider).value;
-  return ApiClient(baseUrl: baseUrl, token: settings?.deviceToken);
+  final httpClient = ref.watch(httpClientProvider);
+  return ApiClient(
+    baseUrl: baseUrl,
+    token: settings?.deviceToken,
+    httpClient: httpClient,
+  );
 });
 
 final timeTrackingRepositoryProvider = Provider<TimeTrackingRepository>((ref) {
@@ -42,12 +45,9 @@ class CurrentStatusNotifier extends AsyncNotifier<WorkStatus> {
   Future<void> _runStatusTransition(
     Future<WorkStatus> Function(TimeTrackingRepository repo) action, {
     bool invalidateShifts = true,
-    bool resetToLoading = false,
   }) async {
     final prevClockedIn = state.value?.isClockedIn ?? false;
-    state = resetToLoading
-        ? const AsyncValue.loading()
-        : const AsyncLoading<WorkStatus>().copyWithPrevious(state);
+    state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
       final repository = ref.read(timeTrackingRepositoryProvider);
       final status = await action(repository);
@@ -75,7 +75,6 @@ class CurrentStatusNotifier extends AsyncNotifier<WorkStatus> {
   Future<void> resetAndRefresh() => _runStatusTransition(
         (repo) => repo.fetchCurrentStatus(),
         invalidateShifts: false,
-        resetToLoading: true,
       );
 
   Future<void> clockIn({

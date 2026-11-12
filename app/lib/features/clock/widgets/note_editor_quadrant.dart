@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../settings/widget_sync_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../services/platform/platform_services.dart';
 import 'shift_notes_card.dart';
 
-class NoteEditorQuadrant extends StatefulWidget {
+class NoteEditorQuadrant extends ConsumerStatefulWidget {
   final TextEditingController controller;
   final String title;
   final VoidCallback? onReturnToCurrentShift;
@@ -25,33 +26,47 @@ class NoteEditorQuadrant extends StatefulWidget {
   });
 
   @override
-  State<NoteEditorQuadrant> createState() => _NoteEditorQuadrantState();
+  ConsumerState<NoteEditorQuadrant> createState() => _NoteEditorQuadrantState();
 }
 
-class _NoteEditorQuadrantState extends State<NoteEditorQuadrant> {
+class _NoteEditorQuadrantState extends ConsumerState<NoteEditorQuadrant> {
   Timer? _syncDebounce;
   final FocusNode _focusNode = FocusNode();
   TextSelection _lastSelection = const TextSelection.collapsed(offset: 0);
+  late final CredentialStore _credentialStore;
+  late final WidgetSyncService _widgetSync;
 
   @override
   void initState() {
     super.initState();
+    _credentialStore = ref.read(credentialStoreProvider);
+    _widgetSync = ref.read(widgetSyncServiceProvider);
     _loadDraft();
     widget.controller.addListener(_handleTextChange);
   }
 
-  Future<void> _loadDraft() async {
-    final saved = await ShiftNotesCard.loadSavedDraft();
-    if (saved != null &&
-        saved.isNotEmpty &&
-        mounted &&
+  @override
+  void didUpdateWidget(covariant NoteEditorQuadrant oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isEditingPastShift || widget.isReadOnly) {
+      _syncDebounce?.cancel();
+    } else if ((oldWidget.isReadOnly || oldWidget.isEditingPastShift) &&
         widget.controller.text.isEmpty) {
+      _loadDraft();
+    }
+  }
+
+  Future<void> _loadDraft() async {
+    if (widget.isReadOnly || widget.isEditingPastShift) return;
+    final saved = await ShiftNotesCard.loadSavedDraft(store: _credentialStore);
+    if (!mounted || widget.isReadOnly || widget.isEditingPastShift) return;
+    if (saved != null && saved.isNotEmpty && widget.controller.text.isEmpty) {
       setState(() {
         widget.controller.text = saved;
       });
-      unawaited(WidgetSyncService.syncActiveNote(saved));
+      unawaited(_widgetSync.syncActiveNote(saved));
     } else if (widget.controller.text.isNotEmpty) {
-      unawaited(WidgetSyncService.syncActiveNote(widget.controller.text));
+      unawaited(_widgetSync.syncActiveNote(widget.controller.text));
     }
   }
 
@@ -60,11 +75,11 @@ class _NoteEditorQuadrantState extends State<NoteEditorQuadrant> {
         widget.controller.selection.baseOffset >= 0) {
       _lastSelection = widget.controller.selection;
     }
-    if (!widget.isEditingPastShift) {
-      ShiftNotesCard.saveDraft(widget.controller.text);
+    if (!widget.isEditingPastShift && !widget.isReadOnly) {
+      ShiftNotesCard.saveDraft(widget.controller.text, store: _credentialStore);
       _syncDebounce?.cancel();
       _syncDebounce = Timer(const Duration(milliseconds: 500), () {
-        WidgetSyncService.syncActiveNote(widget.controller.text);
+        _widgetSync.syncActiveNote(widget.controller.text);
       });
     }
     widget.onChanged?.call(widget.controller.text);
@@ -73,9 +88,11 @@ class _NoteEditorQuadrantState extends State<NoteEditorQuadrant> {
 
   @override
   void dispose() {
-    if (!widget.isEditingPastShift && (_syncDebounce?.isActive ?? false)) {
+    if (!widget.isEditingPastShift &&
+        !widget.isReadOnly &&
+        (_syncDebounce?.isActive ?? false)) {
       _syncDebounce?.cancel();
-      WidgetSyncService.syncActiveNote(widget.controller.text);
+      _widgetSync.syncActiveNote(widget.controller.text);
     }
     widget.controller.removeListener(_handleTextChange);
     _focusNode.dispose();
@@ -223,7 +240,10 @@ class _NoteEditorQuadrantState extends State<NoteEditorQuadrant> {
                     onPressed: () {
                       widget.controller.clear();
                       if (!widget.isEditingPastShift) {
-                        ShiftNotesCard.clearDraft();
+                        ShiftNotesCard.clearDraft(
+                          store: _credentialStore,
+                          widgetSync: _widgetSync,
+                        );
                       }
                     },
                   ),

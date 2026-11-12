@@ -3,6 +3,7 @@ import '../../services/platform/platform_services.dart';
 
 /// Backward-compatibility shim that delegates to [ReportFileService].
 /// Prefer injecting [reportFileServiceProvider] via Riverpod.
+@Deprecated('Use reportFileServiceProvider via Riverpod instead.')
 class ReportFileService {
   static const AndroidReportFileService _android = AndroidReportFileService();
   static const WebReportFileService _web = WebReportFileService();

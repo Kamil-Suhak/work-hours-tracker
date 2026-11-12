@@ -6,10 +6,15 @@ import '../config/app_config.dart';
 import 'models.dart';
 
 class ApiClient {
+  static const Duration defaultRequestTimeout = Duration(seconds: 15);
+  static const Duration defaultReportTimeout = Duration(seconds: 30);
+
   final String baseUrl;
   final String? token;
   final http.Client _httpClient;
   final FlutterSecureStorage _storage;
+  final Duration requestTimeout;
+  final Duration reportTimeout;
 
   static const String _tokenStorageKey = AppConfig.deviceTokenKey;
   static const String _baseUrlStorageKey = AppConfig.apiBaseUrlKey;
@@ -19,6 +24,8 @@ class ApiClient {
     this.token,
     http.Client? httpClient,
     FlutterSecureStorage? storage,
+    this.requestTimeout = defaultRequestTimeout,
+    this.reportTimeout = defaultReportTimeout,
   })  : _httpClient = httpClient ?? http.Client(),
         _storage = storage ?? const FlutterSecureStorage();
 
@@ -75,7 +82,8 @@ class ApiClient {
   Future<WorkStatus> getStatus() async {
     final uri = Uri.parse('$baseUrl/api/v1/status');
     final headers = await _buildHeaders();
-    final response = await _httpClient.get(uri, headers: headers);
+    final response =
+        await _httpClient.get(uri, headers: headers).timeout(requestTimeout);
 
     if (response.statusCode == 200) {
       return WorkStatus.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
@@ -100,7 +108,9 @@ class ApiClient {
       if (targetMinutes != null) 'targetMinutes': targetMinutes,
     });
 
-    final response = await _httpClient.post(uri, headers: headers, body: body);
+    final response = await _httpClient
+        .post(uri, headers: headers, body: body)
+        .timeout(requestTimeout);
     if (response.statusCode == 200) {
       return WorkStatus.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
     }
@@ -127,11 +137,13 @@ class ApiClient {
       );
     }
 
-    final response = await _httpClient.patch(
-      uri,
-      headers: headers,
-      body: jsonEncode(payload),
-    );
+    final response = await _httpClient
+        .patch(
+          uri,
+          headers: headers,
+          body: jsonEncode(payload),
+        )
+        .timeout(requestTimeout);
     if (response.statusCode == 200) {
       return WorkStatus.fromJson(
         jsonDecode(response.body) as Map<String, dynamic>,
@@ -158,7 +170,9 @@ class ApiClient {
     }
     final body = jsonEncode(payload);
 
-    final response = await _httpClient.post(uri, headers: headers, body: body);
+    final response = await _httpClient
+        .post(uri, headers: headers, body: body)
+        .timeout(requestTimeout);
     if (response.statusCode == 200) {
       return WorkStatus.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
     }
@@ -174,7 +188,8 @@ class ApiClient {
       'to': to.toUtc().toIso8601String(),
     });
     final headers = await _buildHeaders();
-    final response = await _httpClient.get(uri, headers: headers);
+    final response =
+        await _httpClient.get(uri, headers: headers).timeout(requestTimeout);
 
     if (response.statusCode == 200) {
       final list = jsonDecode(response.body) as List<dynamic>;
@@ -189,13 +204,16 @@ class ApiClient {
     required String eventId,
     required String? note,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/v1/events/$eventId/note');
+    final encodedEventId = Uri.encodeComponent(eventId);
+    final uri = Uri.parse('$baseUrl/api/v1/events/$encodedEventId/note');
     final headers = await _buildHeaders();
     final body = jsonEncode({
       'note': note,
     });
 
-    final response = await _httpClient.patch(uri, headers: headers, body: body);
+    final response = await _httpClient
+        .patch(uri, headers: headers, body: body)
+        .timeout(requestTimeout);
     if (response.statusCode == 200) {
       return;
     }
@@ -213,7 +231,9 @@ class ApiClient {
       'requestId': requestId,
     });
 
-    final response = await _httpClient.post(uri, headers: headers, body: body);
+    final response = await _httpClient
+        .post(uri, headers: headers, body: body)
+        .timeout(requestTimeout);
     if (response.statusCode == 200) {
       return UndoResult.fromJson(
         jsonDecode(response.body) as Map<String, dynamic>,
@@ -227,6 +247,25 @@ class ApiClient {
     final m = date.month.toString().padLeft(2, '0');
     final d = date.day.toString().padLeft(2, '0');
     return '$y-$m-$d';
+  }
+
+  static String sanitizeReportFilename(
+    String? raw, {
+    String fallback = 'work-hours-report.xlsx',
+  }) {
+    if (raw == null) return fallback;
+    final segment = raw.split(RegExp(r'[/\\]')).last.trim();
+    if (segment.isEmpty ||
+        segment == '.' ||
+        segment == '..' ||
+        segment.contains('..')) {
+      return fallback;
+    }
+    final safe = segment.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+    if (safe.isEmpty || safe.startsWith('.')) {
+      return fallback;
+    }
+    return safe;
   }
 
   Future<({Uint8List bytes, String filename, double totalHours, int totalShifts})> generateReport({
@@ -252,18 +291,23 @@ class ApiClient {
       payload['plannedShifts'] = plannedShifts;
     }
 
-    final response = await _httpClient.post(
-      uri,
-      headers: headers,
-      body: jsonEncode(payload),
-    );
+    final response = await _httpClient
+        .post(
+          uri,
+          headers: headers,
+          body: jsonEncode(payload),
+        )
+        .timeout(reportTimeout);
     if (response.statusCode == 200) {
       final cd = response.headers['content-disposition'] ?? '';
       final fnMatch = RegExp(r'filename="([^"]+)"').firstMatch(cd);
       final defaultName = format == 'docx'
           ? 'zalaczniki-umowa-zlecenie.docx'
           : 'work-hours-report.xlsx';
-      final filename = fnMatch != null ? fnMatch.group(1)! : defaultName;
+      final filename = sanitizeReportFilename(
+        fnMatch?.group(1),
+        fallback: defaultName,
+      );
       final totalHours = double.tryParse(response.headers['x-total-hours'] ?? '0') ?? 0.0;
       final totalShifts = int.tryParse(response.headers['x-total-shifts'] ?? '0') ?? 0;
 
@@ -280,7 +324,8 @@ class ApiClient {
   Future<Map<String, dynamic>?> getLatestReport() async {
     final uri = Uri.parse('$baseUrl/api/v1/reports/latest');
     final headers = await _buildHeaders();
-    final response = await _httpClient.get(uri, headers: headers);
+    final response =
+        await _httpClient.get(uri, headers: headers).timeout(requestTimeout);
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
@@ -293,7 +338,8 @@ class ApiClient {
   Future<Map<String, dynamic>> getContractProfile() async {
     final uri = Uri.parse('$baseUrl/api/v1/reports/contract-profile');
     final headers = await _buildHeaders();
-    final response = await _httpClient.get(uri, headers: headers);
+    final response =
+        await _httpClient.get(uri, headers: headers).timeout(requestTimeout);
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
@@ -304,7 +350,8 @@ class ApiClient {
     final encoded = Uri.encodeComponent(filename);
     final uri = Uri.parse('$baseUrl/api/v1/reports/download/$encoded');
     final headers = await _buildHeaders();
-    final response = await _httpClient.get(uri, headers: headers);
+    final response =
+        await _httpClient.get(uri, headers: headers).timeout(reportTimeout);
     if (response.statusCode == 200) {
       return response.bodyBytes;
     }

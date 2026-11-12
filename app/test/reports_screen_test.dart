@@ -29,11 +29,16 @@ class _MockApiClient extends ApiClient {
     };
   }
 
+  DateTime? lastEventsFrom;
+  DateTime? lastEventsTo;
+
   @override
   Future<List<TrackingEvent>> getEvents({
     required DateTime from,
     required DateTime to,
   }) async {
+    lastEventsFrom = from;
+    lastEventsTo = to;
     return events;
   }
 
@@ -434,6 +439,136 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('download_latest_storage_report_button')), findsNothing);
+    });
+
+    testWidgets('queries Warsaw month UTC bounds plus 24h tail when loading month data',
+        (WidgetTester tester) async {
+      final mockClient = _MockApiClient(contractMonthlyHours: 8);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            apiClientProvider.overrideWithValue(mockClient),
+          ],
+          child: const MaterialApp(
+            home: ReportsScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final now = DateTime.now();
+      final expectedRange = warsawMonthRangeUtc(now.year, now.month);
+      expect(mockClient.lastEventsFrom, equals(expectedRange.startUtc));
+      expect(
+        mockClient.lastEventsTo,
+        equals(expectedRange.endUtc.add(const Duration(hours: 24))),
+      );
+    });
+  });
+
+  group('Warsaw Month Range & Shift Calculation Helpers', () {
+    test('warsawMonthRangeUtc computes exact CET/CEST DST boundaries', () {
+      // January 2026: CET (UTC+1) -> Jan 1 00:00 CET = Dec 31 23:00 UTC, Feb 1 00:00 CET = Jan 31 23:00 UTC
+      final jan = warsawMonthRangeUtc(2026, 1);
+      expect(jan.startUtc, equals(DateTime.utc(2025, 12, 31, 23, 0)));
+      expect(jan.endUtc, equals(DateTime.utc(2026, 1, 31, 23, 0)));
+
+      // October 2026: starts CEST (UTC+2) and ends CET (UTC+1) after last Sunday of Oct
+      final oct = warsawMonthRangeUtc(2026, 10);
+      expect(oct.startUtc, equals(DateTime.utc(2026, 9, 30, 22, 0)));
+      expect(oct.endUtc, equals(DateTime.utc(2026, 10, 31, 23, 0)));
+    });
+
+    test('calculateMonthWorkedMinutes includes overnight month-end shifts and excludes next-month shifts', () {
+      final events = [
+        // Overnight shift starting 2026-10-31 23:00 CET (22:00 UTC) and ending 2026-11-01 02:00 CET (01:00 UTC): 180 min -> counts in Oct
+        TrackingEvent(
+          id: 'evt-oct-in',
+          requestId: 'r1',
+          userId: 'u1',
+          eventType: 'clock_in',
+          source: 'flutter_app',
+          occurredAtUtc: DateTime.utc(2026, 10, 31, 22, 0),
+          createdAtUtc: DateTime.utc(2026, 10, 31, 22, 0),
+        ),
+        TrackingEvent(
+          id: 'evt-oct-out',
+          requestId: 'r2',
+          userId: 'u1',
+          eventType: 'clock_out',
+          source: 'flutter_app',
+          occurredAtUtc: DateTime.utc(2026, 11, 1, 1, 0),
+          createdAtUtc: DateTime.utc(2026, 11, 1, 1, 0),
+        ),
+        // Next-month shift starting 2026-11-01 09:00 CET (08:00 UTC) inside +24h tail -> excluded from Oct
+        TrackingEvent(
+          id: 'evt-nov-in',
+          requestId: 'r3',
+          userId: 'u1',
+          eventType: 'clock_in',
+          source: 'flutter_app',
+          occurredAtUtc: DateTime.utc(2026, 11, 1, 8, 0),
+          createdAtUtc: DateTime.utc(2026, 11, 1, 8, 0),
+        ),
+        TrackingEvent(
+          id: 'evt-nov-out',
+          requestId: 'r4',
+          userId: 'u1',
+          eventType: 'clock_out',
+          source: 'flutter_app',
+          occurredAtUtc: DateTime.utc(2026, 11, 1, 10, 0),
+          createdAtUtc: DateTime.utc(2026, 11, 1, 10, 0),
+        ),
+      ];
+
+      expect(calculateMonthWorkedMinutes(events, 2026, 10), equals(180));
+      expect(calculateMonthWorkedMinutes(events, 2026, 11), equals(120));
+    });
+
+    test('calculateMonthWorkedMinutes uses createdAtUtc tie-breaker for identical occurredAtUtc', () {
+      final sameInstant = DateTime.utc(2026, 10, 15, 10, 0);
+      final events = [
+        // Supplied out of order: clock_out created later at 10:02, clock_in created earlier at 10:01
+        TrackingEvent(
+          id: 'evt-out',
+          requestId: 'r2',
+          userId: 'u1',
+          eventType: 'clock_out',
+          source: 'flutter_app',
+          occurredAtUtc: sameInstant,
+          createdAtUtc: DateTime.utc(2026, 10, 15, 10, 2),
+        ),
+        TrackingEvent(
+          id: 'evt-in',
+          requestId: 'r1',
+          userId: 'u1',
+          eventType: 'clock_in',
+          source: 'flutter_app',
+          occurredAtUtc: DateTime.utc(2026, 10, 15, 8, 0),
+          createdAtUtc: DateTime.utc(2026, 10, 15, 8, 0),
+        ),
+        TrackingEvent(
+          id: 'evt-in2',
+          requestId: 'r3',
+          userId: 'u1',
+          eventType: 'clock_in',
+          source: 'flutter_app',
+          occurredAtUtc: sameInstant,
+          createdAtUtc: DateTime.utc(2026, 10, 15, 10, 3),
+        ),
+        TrackingEvent(
+          id: 'evt-out2',
+          requestId: 'r4',
+          userId: 'u1',
+          eventType: 'clock_out',
+          source: 'flutter_app',
+          occurredAtUtc: DateTime.utc(2026, 10, 15, 12, 0),
+          createdAtUtc: DateTime.utc(2026, 10, 15, 12, 0),
+        ),
+      ];
+
+      expect(calculateMonthWorkedMinutes(events, 2026, 10), equals(240));
     });
   });
 }

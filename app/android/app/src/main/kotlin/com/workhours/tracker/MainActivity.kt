@@ -75,9 +75,9 @@ class MainActivity: FlutterActivity() {
                     )
                     prefs.edit()
                         .putString(WorkHoursWidgetReceiver.KEY_API_URL, baseUrl)
-                        .putString(WorkHoursWidgetReceiver.KEY_TOKEN, deviceToken)
                         .putBoolean(WorkHoursWidgetReceiver.KEY_HAPTICS, vibrationsEnabled)
                         .apply()
+                    WorkHoursWidgetReceiver.saveDeviceToken(applicationContext, deviceToken)
 
                     val isClockedIn = if (prefs.contains(WorkHoursWidgetReceiver.KEY_IS_CLOCKED_IN)) prefs.getBoolean(WorkHoursWidgetReceiver.KEY_IS_CLOCKED_IN, false) else null
                     WorkHoursWidgetReceiver.updateAllWidgets(applicationContext, isClockedIn, "")
@@ -90,7 +90,7 @@ class MainActivity: FlutterActivity() {
                         Context.MODE_PRIVATE
                     )
                     val baseUrl = prefs.getString(WorkHoursWidgetReceiver.KEY_API_URL, "") ?: ""
-                    val token = prefs.getString(WorkHoursWidgetReceiver.KEY_TOKEN, "") ?: ""
+                    val token = WorkHoursWidgetReceiver.loadDeviceToken(applicationContext)
                     val vibrationsEnabled = prefs.getBoolean(WorkHoursWidgetReceiver.KEY_HAPTICS, true)
                     result.success(mapOf("baseUrl" to baseUrl, "deviceToken" to token, "vibrationsEnabled" to vibrationsEnabled))
                 }
@@ -129,15 +129,17 @@ class MainActivity: FlutterActivity() {
                 }
                 "saveAndOpenReport" -> {
                     val bytes = call.argument<ByteArray>("bytes")
-                    val filename = call.argument<String>("filename") ?: "work-hours-report.xlsx"
+                    val rawFilename = call.argument<String>("filename") ?: "work-hours-report.xlsx"
                     if (bytes == null) {
                         result.error("INVALID_ARGS", "Missing file bytes", null)
                         return@setMethodCallHandler
                     }
                     try {
-                        val dir = File(applicationContext.cacheDir, "reports")
-                        if (!dir.exists()) dir.mkdirs()
-                        val file = File(dir, filename)
+                        val file = resolveSafeReportFile(rawFilename)
+                        if (file == null) {
+                            result.error("INVALID_ARGS", "Invalid report filename", null)
+                            return@setMethodCallHandler
+                        }
                         file.writeBytes(bytes)
 
                         val uri = FileProvider.getUriForFile(
@@ -166,13 +168,20 @@ class MainActivity: FlutterActivity() {
                 }
                 "openReportFile" -> {
                     val filePath = call.argument<String>("filePath")
-                    if (filePath == null) {
+                    if (filePath.isNullOrBlank()) {
                         result.error("INVALID_ARGS", "Missing file path", null)
                         return@setMethodCallHandler
                     }
                     try {
+                        val reportsDir = getReportsCacheDir()
+                        val canonicalDir = reportsDir.canonicalPath
                         val file = File(filePath)
-                        if (!file.exists()) {
+                        val canonicalFile = file.canonicalPath
+                        if (!canonicalFile.startsWith(canonicalDir + File.separator)) {
+                            result.error("INVALID_ARGS", "Report path outside reports directory", null)
+                            return@setMethodCallHandler
+                        }
+                        if (!file.exists() || !file.isFile) {
                             result.error("NOT_FOUND", "File does not exist", null)
                             return@setMethodCallHandler
                         }
@@ -308,6 +317,30 @@ class MainActivity: FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+    }
+
+    private fun getReportsCacheDir(): File {
+        val dir = File(applicationContext.cacheDir, "reports")
+        if (!dir.exists()) dir.mkdirs()
+        return dir
+    }
+
+    private fun resolveSafeReportFile(rawFilename: String): File? {
+        val segment = rawFilename.trim().substringAfterLast('/').substringAfterLast('\\')
+        if (segment.isEmpty() || segment == "." || segment == ".." || segment.contains("..")) {
+            return null
+        }
+        val safeName = segment.replace(Regex("[^A-Za-z0-9._-]"), "_")
+        if (safeName.isEmpty() || safeName.startsWith('.')) {
+            return null
+        }
+        val dir = getReportsCacheDir()
+        val canonicalDir = dir.canonicalPath
+        val candidate = File(dir, safeName)
+        if (!candidate.canonicalPath.startsWith(canonicalDir + File.separator)) {
+            return null
+        }
+        return candidate
     }
 
     private fun createNotificationChannel() {

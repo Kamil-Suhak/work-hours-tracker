@@ -1,13 +1,22 @@
 /**
  * Helper script to generate a secure random device token and its database record.
  * Run directly with Node (no build step or tsx required):
- *   node scripts/provision-device.mjs [device-name] [pepper]
- *   or: npm run provision -- [device-name] [pepper]
+ *   DEVICE_TOKEN_PEPPER="..." node scripts/provision-device.mjs [device-name]
+ *   or: DEVICE_TOKEN_PEPPER="..." npm run provision -- [device-name]
  */
 import { randomBytes, createHash } from 'node:crypto';
 
-const deviceName = process.argv[2] || 'android-primary';
-const pepper = process.argv[3] || process.env.DEVICE_TOKEN_PEPPER || '';
+if (process.argv[3]) {
+  console.error(
+    'Error: Passing pepper as a CLI argument exposes it in shell history and process lists.\n' +
+      'Set the DEVICE_TOKEN_PEPPER environment variable instead.'
+  );
+  process.exit(1);
+}
+
+const deviceName = (process.argv[2] || 'android-primary').trim() || 'android-primary';
+const pepper = process.env.DEVICE_TOKEN_PEPPER || '';
+const sqlEscapedDeviceName = deviceName.replace(/'/g, "''");
 
 const tokenBytes = randomBytes(32);
 const deviceToken = tokenBytes.toString('hex');
@@ -24,7 +33,7 @@ console.log(`Device Name:  ${deviceName}`);
 console.log(`Pepper used:  ${pepper ? '[SET]' : '[NONE - empty string]'}`);
 if (!pepper) {
   console.log('  -> NOTE: If your remote Cloudflare Worker has a secret DEVICE_TOKEN_PEPPER,');
-  console.log('     pass it as the 2nd argument: npm run provision -- <device-name> <pepper>');
+  console.log('     set it in the environment: DEVICE_TOKEN_PEPPER=... npm run provision -- <device-name>');
 }
 console.log('----------------------------------------------------------------');
 console.log('STEP 1: CLIENT SETTINGS (Web app or Android app)');
@@ -40,10 +49,10 @@ console.log(`Token SHA-256 Hash stored in DB:`);
 console.log(`  ${hash}\n`);
 console.log('Remote execution command:');
 console.log(
-  `  npx wrangler d1 execute work-hours-prod --remote --command "INSERT INTO devices (id, name, token_hash, enabled, created_at_utc) VALUES ('${deviceId}', '${deviceName}', '${hash}', 1, '${nowIso}');"`
+  `  npx wrangler d1 execute work-hours-prod --remote --command "INSERT INTO devices (id, name, token_hash, enabled, created_at_utc) VALUES ('${deviceId}', '${sqlEscapedDeviceName}', '${hash}', 1, '${nowIso}');"`
 );
 console.log('\nLocal execution command (for local wrangler dev only):');
 console.log(
-  `  npx wrangler d1 execute work-hours-prod --local --command "INSERT INTO devices (id, name, token_hash, enabled, created_at_utc) VALUES ('${deviceId}', '${deviceName}', '${hash}', 1, '${nowIso}');"`
+  `  npx wrangler d1 execute work-hours-prod --local --command "INSERT INTO devices (id, name, token_hash, enabled, created_at_utc) VALUES ('${deviceId}', '${sqlEscapedDeviceName}', '${hash}', 1, '${nowIso}');"`
 );
 console.log('================================================================\n');

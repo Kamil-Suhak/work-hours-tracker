@@ -198,8 +198,6 @@ class SettingsNotifier extends AsyncNotifier<AppSettings> {
     bool stagingVibrationsEnabled = true,
     int prodShiftReminderMinutes = 0,
     int stagingShiftReminderMinutes = 0,
-    String? prodUrl,
-    String? stagingUrl,
     bool vibrationsEnabled = true,
     int shiftReminderMinutes = 0,
   }) async {

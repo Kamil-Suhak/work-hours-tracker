@@ -26,10 +26,22 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import android.os.Bundle
 import android.view.View
+import android.content.BroadcastReceiver.PendingResult
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import android.util.Base64
+import java.security.KeyStore
+import java.security.MessageDigest
+import java.security.SecureRandom
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.TimeUnit
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
 
 class WorkHoursWidgetReceiver : AppWidgetProvider() {
 
@@ -40,12 +52,127 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
         const val PREFS_NAME = "work_hours_widget_prefs"
         const val KEY_API_URL = "api_base_url"
         const val KEY_TOKEN = "device_token"
+        const val KEY_TOKEN_ENCRYPTED = "device_token_enc"
         const val KEY_HAPTICS = "vibrations_enabled"
         const val KEY_ACTIVE_NOTE = "active_shift_note"
         const val KEY_IS_CLOCKED_IN = "is_clocked_in"
+        private const val KEY_INTERNAL_SECRET = "widget_internal_secret"
+        private const val EXTRA_INTERNAL_SECRET = "com.workhours.tracker.EXTRA_INTERNAL_SECRET"
+        private const val KEYSTORE_PROVIDER = "AndroidKeyStore"
+        private const val KEYSTORE_ALIAS = "work_hours_widget_token_key"
+        private const val AES_GCM_TRANSFORMATION = "AES/GCM/NoPadding"
+        private const val GCM_TAG_LENGTH_BITS = 128
 
-        private val client = OkHttpClient()
+        private val secretLock = Any()
+
+        private fun getOrCreateInternalSecret(context: Context): String {
+            synchronized(secretLock) {
+                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                val existing = prefs.getString(KEY_INTERNAL_SECRET, null)
+                if (!existing.isNullOrBlank()) return existing
+
+                val bytes = ByteArray(32)
+                SecureRandom().nextBytes(bytes)
+                val generated = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                prefs.edit().putString(KEY_INTERNAL_SECRET, generated).apply()
+                return generated
+            }
+        }
+
+        private fun isAuthorizedActionBroadcast(context: Context, intent: Intent): Boolean {
+            val provided = intent.getStringExtra(EXTRA_INTERNAL_SECRET) ?: return false
+            val expected = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_INTERNAL_SECRET, null)
+                ?: return false
+            if (provided.isEmpty() || expected.isEmpty()) return false
+            return MessageDigest.isEqual(
+                provided.toByteArray(Charsets.UTF_8),
+                expected.toByteArray(Charsets.UTF_8)
+            )
+        }
+
+        private val client = OkHttpClient.Builder()
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(5, TimeUnit.SECONDS)
+            .writeTimeout(5, TimeUnit.SECONDS)
+            .callTimeout(8, TimeUnit.SECONDS)
+            .build()
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+        private val keystoreLock = Any()
+
+        private fun getOrCreateTokenKey(): SecretKey {
+            synchronized(keystoreLock) {
+                val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
+                val existing = keyStore.getKey(KEYSTORE_ALIAS, null) as? SecretKey
+                if (existing != null) return existing
+
+                val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE_PROVIDER)
+                val spec = KeyGenParameterSpec.Builder(
+                    KEYSTORE_ALIAS,
+                    KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+                )
+                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                    .setKeySize(256)
+                    .build()
+                keyGenerator.init(spec)
+                return keyGenerator.generateKey()
+            }
+        }
+
+        fun saveDeviceToken(context: Context, token: String) {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val trimmed = token.trim()
+            if (trimmed.isEmpty()) {
+                prefs.edit()
+                    .remove(KEY_TOKEN_ENCRYPTED)
+                    .remove(KEY_TOKEN)
+                    .apply()
+                return
+            }
+
+            val cipher = Cipher.getInstance(AES_GCM_TRANSFORMATION)
+            cipher.init(Cipher.ENCRYPT_MODE, getOrCreateTokenKey())
+            val encrypted = cipher.doFinal(trimmed.toByteArray(Charsets.UTF_8))
+            val ivBase64 = Base64.encodeToString(cipher.iv, Base64.NO_WRAP)
+            val cipherBase64 = Base64.encodeToString(encrypted, Base64.NO_WRAP)
+
+            prefs.edit()
+                .putString(KEY_TOKEN_ENCRYPTED, "$ivBase64:$cipherBase64")
+                .remove(KEY_TOKEN)
+                .apply()
+        }
+
+        fun loadDeviceToken(context: Context): String {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val encryptedPayload = prefs.getString(KEY_TOKEN_ENCRYPTED, null)
+            if (!encryptedPayload.isNullOrBlank()) {
+                val parts = encryptedPayload.split(":", limit = 2)
+                if (parts.size == 2) {
+                    try {
+                        val iv = Base64.decode(parts[0], Base64.NO_WRAP)
+                        val cipherBytes = Base64.decode(parts[1], Base64.NO_WRAP)
+                        val cipher = Cipher.getInstance(AES_GCM_TRANSFORMATION)
+                        cipher.init(
+                            Cipher.DECRYPT_MODE,
+                            getOrCreateTokenKey(),
+                            GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv)
+                        )
+                        return String(cipher.doFinal(cipherBytes), Charsets.UTF_8)
+                    } catch (_: Exception) {
+                        return ""
+                    }
+                }
+                return ""
+            }
+
+            val legacyToken = prefs.getString(KEY_TOKEN, null)?.trim()
+            if (!legacyToken.isNullOrEmpty()) {
+                runCatching { saveDeviceToken(context, legacyToken) }
+                return legacyToken
+            }
+            return ""
+        }
 
         fun triggerHaptic(context: Context) {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -143,9 +270,12 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
                 views.setViewVisibility(R.id.widget_notes_container, View.GONE)
             }
 
+            val internalSecret = getOrCreateInternalSecret(context)
+
             // PendingIntent for Clock In
             val clockInIntent = Intent(context, WorkHoursWidgetReceiver::class.java).apply {
                 action = ACTION_CLOCK_IN
+                putExtra(EXTRA_INTERNAL_SECRET, internalSecret)
             }
             val clockInPending = PendingIntent.getBroadcast(
                 context, 101, clockInIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -155,6 +285,7 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
             // PendingIntent for Clock Out
             val clockOutIntent = Intent(context, WorkHoursWidgetReceiver::class.java).apply {
                 action = ACTION_CLOCK_OUT
+                putExtra(EXTRA_INTERNAL_SECRET, internalSecret)
             }
             val clockOutPending = PendingIntent.getBroadcast(
                 context, 102, clockOutIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -164,6 +295,7 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
             // PendingIntent for Manual Sync button
             val syncIntent = Intent(context, WorkHoursWidgetReceiver::class.java).apply {
                 action = ACTION_SYNC
+                putExtra(EXTRA_INTERNAL_SECRET, internalSecret)
             }
             val syncPending = PendingIntent.getBroadcast(
                 context, 103, syncIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -178,7 +310,8 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
         for (appWidgetId in appWidgetIds) {
             updateWidgetView(context, appWidgetManager, appWidgetId, isClockedIn = null, syncText = "")
         }
-        refreshStatusAsync(context)
+        val pendingResult = goAsync()
+        refreshStatusAsync(context, pendingResult)
     }
 
     override fun onAppWidgetOptionsChanged(
@@ -197,55 +330,62 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
         super.onReceive(context, intent)
         when (intent.action) {
             ACTION_CLOCK_IN -> {
+                if (!isAuthorizedActionBroadcast(context, intent)) return
                 triggerHaptic(context)
-                executeClockAction(context, "clock-in")
+                executeClockAction(context, "clock-in", goAsync())
             }
             ACTION_CLOCK_OUT -> {
+                if (!isAuthorizedActionBroadcast(context, intent)) return
                 triggerHaptic(context)
-                executeClockAction(context, "clock-out")
+                executeClockAction(context, "clock-out", goAsync())
             }
             ACTION_SYNC -> {
+                if (!isAuthorizedActionBroadcast(context, intent)) return
                 triggerHaptic(context)
-                refreshStatusAsync(context)
+                refreshStatusAsync(context, goAsync())
             }
         }
     }
 
-    private fun executeClockAction(context: Context, operation: String) {
+    private fun executeClockAction(context: Context, operation: String, pendingResult: PendingResult?) {
         CoroutineScope(Dispatchers.IO).launch {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val baseUrl = prefs.getString(KEY_API_URL, null)?.trim()
-            val token = prefs.getString(KEY_TOKEN, null)?.trim()
-
-            if (baseUrl.isNullOrEmpty() || token.isNullOrEmpty()) {
-                withContext(Dispatchers.Main) {
-                    updateAllWidgets(context, isClockedIn = null, syncText = "Setup")
-                }
-                return@launch
-            }
-            val requestId = UUID.randomUUID().toString()
-
-            val jsonBody = JSONObject().apply {
-                put("requestId", requestId)
-                put("source", "android_widget")
-            }
-
-            val request = Request.Builder()
-                .url("$baseUrl/api/v1/$operation")
-                .post(jsonBody.toString().toRequestBody(JSON_MEDIA_TYPE))
-                .apply {
-                    if (token.isNotEmpty()) addHeader("Authorization", "Bearer $token")
-                }
-                .build()
-
             try {
-                client.newCall(request).execute().use { response ->
-                    handleWidgetStateResponse(context, prefs, response, errorSyncText = "Err")
+                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                val baseUrl = prefs.getString(KEY_API_URL, null)?.trim()
+                val token = loadDeviceToken(context)
+
+                if (baseUrl.isNullOrEmpty() || token.isEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        updateAllWidgets(context, isClockedIn = null, syncText = "Setup")
+                    }
+                    return@launch
                 }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    updateAllWidgets(context, isClockedIn = null, syncText = "Err")
+                val requestId = UUID.randomUUID().toString()
+
+                val jsonBody = JSONObject().apply {
+                    put("requestId", requestId)
+                    put("source", "android_widget")
                 }
+
+                val request = Request.Builder()
+                    .url("$baseUrl/api/v1/$operation")
+                    .post(jsonBody.toString().toRequestBody(JSON_MEDIA_TYPE))
+                    .apply {
+                        if (token.isNotEmpty()) addHeader("Authorization", "Bearer $token")
+                    }
+                    .build()
+
+                try {
+                    client.newCall(request).execute().use { response ->
+                        handleWidgetStateResponse(context, prefs, response, errorSyncText = "Err")
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        updateAllWidgets(context, isClockedIn = null, syncText = "Err")
+                    }
+                }
+            } finally {
+                runCatching { pendingResult?.finish() }
             }
         }
     }
@@ -292,35 +432,39 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
         }
     }
 
-    private fun refreshStatusAsync(context: Context) {
+    private fun refreshStatusAsync(context: Context, pendingResult: PendingResult?) {
         CoroutineScope(Dispatchers.IO).launch {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val baseUrl = prefs.getString(KEY_API_URL, null)?.trim()
-            val token = prefs.getString(KEY_TOKEN, null)?.trim()
-
-            if (baseUrl.isNullOrEmpty() || token.isNullOrEmpty()) {
-                withContext(Dispatchers.Main) {
-                    updateAllWidgets(context, isClockedIn = null, syncText = "Setup")
-                }
-                return@launch
-            }
-
-            val request = Request.Builder()
-                .url("$baseUrl/api/v1/status")
-                .get()
-                .apply {
-                    if (token.isNotEmpty()) addHeader("Authorization", "Bearer $token")
-                }
-                .build()
-
             try {
-                client.newCall(request).execute().use { response ->
-                    handleWidgetStateResponse(context, prefs, response, errorSyncText = "Err")
+                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                val baseUrl = prefs.getString(KEY_API_URL, null)?.trim()
+                val token = loadDeviceToken(context)
+
+                if (baseUrl.isNullOrEmpty() || token.isEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        updateAllWidgets(context, isClockedIn = null, syncText = "Setup")
+                    }
+                    return@launch
                 }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    updateAllWidgets(context, isClockedIn = null, syncText = "Offline")
+
+                val request = Request.Builder()
+                    .url("$baseUrl/api/v1/status")
+                    .get()
+                    .apply {
+                        if (token.isNotEmpty()) addHeader("Authorization", "Bearer $token")
+                    }
+                    .build()
+
+                try {
+                    client.newCall(request).execute().use { response ->
+                        handleWidgetStateResponse(context, prefs, response, errorSyncText = "Err")
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        updateAllWidgets(context, isClockedIn = null, syncText = "Offline")
+                    }
                 }
+            } finally {
+                runCatching { pendingResult?.finish() }
             }
         }
     }

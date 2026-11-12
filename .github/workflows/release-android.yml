@@ -39,11 +39,18 @@ jobs:
           cache: true
 
       - name: Decode Android Keystore
-        if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' }}
-        run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > app/android/app/release.jks
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 secret is missing or empty."
+            exit 1
+          fi
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > app/android/app/release.jks
+          if [ ! -s app/android/app/release.jks ]; then
+            echo "::error::Decoded Android keystore file is empty."
+            exit 1
+          fi
 
       - name: Build Android APK
         working-directory: app
@@ -63,13 +70,16 @@ jobs:
 
       - name: Determine Release Tag
         id: release_tag
+        env:
+          INPUT_TAG_NAME: ${{ github.event.inputs.tag_name }}
+          WORKFLOW_REF: ${{ github.ref }}
         run: |
-          if [ -n "${{ github.event.inputs.tag_name }}" ]; then
-            echo "tag=${{ github.event.inputs.tag_name }}" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          if [ -n "$INPUT_TAG_NAME" ]; then
+            printf 'tag=%s\n' "$INPUT_TAG_NAME" >> "$GITHUB_OUTPUT"
+          elif [[ "$WORKFLOW_REF" == refs/tags/* ]]; then
+            printf 'tag=%s\n' "${WORKFLOW_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
           else
-            echo "tag=v1.0.1-$(date +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
+            printf 'tag=v1.0.1-%s\n' "$(date +'%Y%m%d%H%M%S')" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Publish GitHub Release

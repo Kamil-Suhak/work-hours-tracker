@@ -16,6 +16,7 @@ export interface Env {
   REPORTS_BUCKET?: R2Bucket;
   ASSETS?: Fetcher;
   ALLOWED_ORIGINS?: string;
+  ALLOW_LOCALHOST_CORS?: string;
 }
 
 export interface DeviceRow {

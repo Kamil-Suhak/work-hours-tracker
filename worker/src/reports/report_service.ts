@@ -88,10 +88,37 @@ export function validateReportRequest(
   // Formal .docx reports use the specified month (or default to current Warsaw calendar month)
   if (format === 'docx') {
     let monthRange: { startIso: string; endIso: string; monthString: string };
-    if (typeof startDate === 'string' && /^\d{4}-\d{2}/.test(startDate.trim())) {
-      const year = parseInt(startDate.trim().slice(0, 4), 10);
-      const month = parseInt(startDate.trim().slice(5, 7), 10);
-      monthRange = getWarsawMonthRangeUtc(year, month);
+    if (startDate !== undefined && startDate !== null) {
+      if (typeof startDate !== 'string') {
+        throw new AppError(
+          'VALIDATION_ERROR',
+          'startDate must be a string starting with YYYY-MM.',
+          400
+        );
+      }
+      const trimmed = startDate.trim();
+      if (trimmed.length > 0) {
+        const match = trimmed.match(/^(\d{4})-(\d{2})(?:-\d{2}(?:T.*)?)?$/);
+        if (!match) {
+          throw new AppError(
+            'VALIDATION_ERROR',
+            'startDate must be in YYYY-MM or YYYY-MM-DD format for formal .docx reports.',
+            400
+          );
+        }
+        const year = parseInt(match[1], 10);
+        const month = parseInt(match[2], 10);
+        if (month < 1 || month > 12) {
+          throw new AppError(
+            'VALIDATION_ERROR',
+            'startDate month must be between 01 and 12.',
+            400
+          );
+        }
+        monthRange = getWarsawMonthRangeUtc(year, month);
+      } else {
+        monthRange = getCurrentWarsawMonthRangeUtc(now);
+      }
     } else {
       monthRange = getCurrentWarsawMonthRangeUtc(now);
     }
@@ -264,7 +291,11 @@ export async function generateReport(
       );
     }
 
-    const issueDateWarsaw = `${monthString}-30`;
+    const issueYear = parseInt(monthString.slice(0, 4), 10);
+    const issueMonth = parseInt(monthString.slice(5, 7), 10);
+    const daysInMonth = new Date(Date.UTC(issueYear, issueMonth, 0)).getUTCDate();
+    const signingDay = String(Math.min(30, daysInMonth)).padStart(2, '0');
+    const issueDateWarsaw = `${monthString}-${signingDay}`;
     const docxBuffer = await generateContractDocx({
       templateDocxBytes: new Uint8Array(templateBuf),
       signaturePngBytes: new Uint8Array(signatureBuf),
@@ -354,15 +385,28 @@ export async function getLatestReport(
     } catch (_) {}
   }
 
-  // 2. Fallback: list objects under reports/ and pick newest
-  const listing = await bucket.list({ prefix: 'reports/', limit: 20 });
-  const xlsxFiles = listing.objects.filter((obj) => obj.key.endsWith('.xlsx'));
-  if (xlsxFiles.length === 0) {
+  // 2. Fallback: paginate through all objects under reports/ and pick newest .xlsx
+  let cursor: string | undefined;
+  let newest: Awaited<ReturnType<R2Bucket['list']>>['objects'][number] | null = null;
+
+  do {
+    const listing = await bucket.list({ prefix: 'reports/', limit: 1000, cursor });
+    for (const obj of listing.objects) {
+      if (!obj.key.endsWith('.xlsx')) continue;
+      if (!newest || obj.uploaded.getTime() > newest.uploaded.getTime()) {
+        newest = obj;
+      }
+    }
+    if (!listing.truncated || !listing.cursor || listing.cursor === cursor) {
+      break;
+    }
+    cursor = listing.cursor;
+  } while (true);
+
+  if (!newest) {
     return null;
   }
 
-  xlsxFiles.sort((a, b) => b.uploaded.getTime() - a.uploaded.getTime());
-  const newest = xlsxFiles[0];
   const filename = newest.key;
   const monthMatch = filename.match(/\d{4}-\d{2}/);
 
