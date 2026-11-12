@@ -122,10 +122,9 @@ void main() {
     testWidgets(
         'keeps cached content visible when subsequent refresh fails with error',
         (WidgetTester tester) async {
-      int calls = 0;
+      bool shouldFail = false;
       final mockClient = MockClient((request) async {
-        calls++;
-        if (calls == 1) {
+        if (!shouldFail && request.url.path.endsWith('/api/v1/status')) {
           return http.Response(
             jsonEncode({
               'state': 'clocked_out',
@@ -157,6 +156,7 @@ void main() {
       expect(find.text('CLOCKED OUT'), findsOneWidget);
       expect(find.textContaining('4h 0m'), findsOneWidget);
 
+      shouldFail = true;
       await tester.tap(find.byIcon(Icons.refresh));
       await tester.pumpAndSettle();
 
