@@ -31,6 +31,8 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import java.security.KeyStore
+import java.security.MessageDigest
+import java.security.SecureRandom
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -54,10 +56,40 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
         const val KEY_HAPTICS = "vibrations_enabled"
         const val KEY_ACTIVE_NOTE = "active_shift_note"
         const val KEY_IS_CLOCKED_IN = "is_clocked_in"
+        private const val KEY_INTERNAL_SECRET = "widget_internal_secret"
+        private const val EXTRA_INTERNAL_SECRET = "com.workhours.tracker.EXTRA_INTERNAL_SECRET"
         private const val KEYSTORE_PROVIDER = "AndroidKeyStore"
         private const val KEYSTORE_ALIAS = "work_hours_widget_token_key"
         private const val AES_GCM_TRANSFORMATION = "AES/GCM/NoPadding"
         private const val GCM_TAG_LENGTH_BITS = 128
+
+        private val secretLock = Any()
+
+        private fun getOrCreateInternalSecret(context: Context): String {
+            synchronized(secretLock) {
+                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                val existing = prefs.getString(KEY_INTERNAL_SECRET, null)
+                if (!existing.isNullOrBlank()) return existing
+
+                val bytes = ByteArray(32)
+                SecureRandom().nextBytes(bytes)
+                val generated = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                prefs.edit().putString(KEY_INTERNAL_SECRET, generated).apply()
+                return generated
+            }
+        }
+
+        private fun isAuthorizedActionBroadcast(context: Context, intent: Intent): Boolean {
+            val provided = intent.getStringExtra(EXTRA_INTERNAL_SECRET) ?: return false
+            val expected = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_INTERNAL_SECRET, null)
+                ?: return false
+            if (provided.isEmpty() || expected.isEmpty()) return false
+            return MessageDigest.isEqual(
+                provided.toByteArray(Charsets.UTF_8),
+                expected.toByteArray(Charsets.UTF_8)
+            )
+        }
 
         private val client = OkHttpClient.Builder()
             .connectTimeout(5, TimeUnit.SECONDS)
@@ -238,9 +270,12 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
                 views.setViewVisibility(R.id.widget_notes_container, View.GONE)
             }
 
+            val internalSecret = getOrCreateInternalSecret(context)
+
             // PendingIntent for Clock In
             val clockInIntent = Intent(context, WorkHoursWidgetReceiver::class.java).apply {
                 action = ACTION_CLOCK_IN
+                putExtra(EXTRA_INTERNAL_SECRET, internalSecret)
             }
             val clockInPending = PendingIntent.getBroadcast(
                 context, 101, clockInIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -250,6 +285,7 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
             // PendingIntent for Clock Out
             val clockOutIntent = Intent(context, WorkHoursWidgetReceiver::class.java).apply {
                 action = ACTION_CLOCK_OUT
+                putExtra(EXTRA_INTERNAL_SECRET, internalSecret)
             }
             val clockOutPending = PendingIntent.getBroadcast(
                 context, 102, clockOutIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -259,6 +295,7 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
             // PendingIntent for Manual Sync button
             val syncIntent = Intent(context, WorkHoursWidgetReceiver::class.java).apply {
                 action = ACTION_SYNC
+                putExtra(EXTRA_INTERNAL_SECRET, internalSecret)
             }
             val syncPending = PendingIntent.getBroadcast(
                 context, 103, syncIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -293,14 +330,17 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
         super.onReceive(context, intent)
         when (intent.action) {
             ACTION_CLOCK_IN -> {
+                if (!isAuthorizedActionBroadcast(context, intent)) return
                 triggerHaptic(context)
                 executeClockAction(context, "clock-in", goAsync())
             }
             ACTION_CLOCK_OUT -> {
+                if (!isAuthorizedActionBroadcast(context, intent)) return
                 triggerHaptic(context)
                 executeClockAction(context, "clock-out", goAsync())
             }
             ACTION_SYNC -> {
+                if (!isAuthorizedActionBroadcast(context, intent)) return
                 triggerHaptic(context)
                 refreshStatusAsync(context, goAsync())
             }
