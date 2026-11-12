@@ -1197,6 +1197,32 @@ describe('Worker End-to-End Integration Suite', () => {
       expect(res.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:8080');
       expect(res.headers.get('Access-Control-Allow-Methods')).toContain('POST');
     });
+
+    it('adds Content-Security-Policy and security headers to static asset responses', async () => {
+      const assetEnv: Env = {
+        ...env,
+        ASSETS: {
+          fetch: async () =>
+            new Response('<html><body>App</body></html>', {
+              status: 200,
+              headers: { 'Content-Type': 'text/html; charset=utf-8' },
+            }),
+        } as any,
+      };
+
+      const res = await worker.fetch(new Request('https://work-hours.local/index.html'), assetEnv);
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
+      const csp = res.headers.get('Content-Security-Policy') ?? '';
+      expect(csp).toContain("default-src 'self'");
+      expect(csp).toContain("script-src 'self'");
+      expect(csp).toContain("frame-ancestors 'none'");
+      expect(res.headers.get('X-Frame-Options')).toBe('DENY');
+      expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
+      expect(res.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin');
+      expect(res.headers.get('Permissions-Policy')).toContain('camera=()');
+    });
   });
 });
 

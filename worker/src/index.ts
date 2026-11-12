@@ -409,6 +409,35 @@ function matchAuthenticatedApiRoute(ctx: ApiRouteContext): AuthenticatedRouteHan
   return null;
 }
 
+const ASSET_SECURITY_CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "img-src 'self' data: blob:",
+  "connect-src 'self' https://www.gstatic.com https://fonts.gstatic.com https://work-hours-api.kamilsuhak.workers.dev https://work-hours-api-staging.kamilsuhak.workers.dev",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+].join('; ');
+
+function withAssetSecurityHeaders(response: Response): Response {
+  const headers = new Headers(response.headers);
+  headers.set('Content-Security-Policy', ASSET_SECURITY_CSP);
+  headers.set('X-Frame-Options', 'DENY');
+  headers.set('X-Content-Type-Options', 'nosniff');
+  headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const startTime = Date.now();
@@ -419,7 +448,8 @@ export default {
 
     // Serve static frontend assets for non-API routes when ASSETS binding is available
     if (!pathname.startsWith('/api/') && env.ASSETS) {
-      return env.ASSETS.fetch(request);
+      const assetResponse = await env.ASSETS.fetch(request);
+      return withAssetSecurityHeaders(assetResponse);
     }
 
     const allowedOrigin = getAllowedOrigin(request, env);
