@@ -324,7 +324,15 @@ export async function generateContractDocx(params: {
     profile.grossAmountPln ?? Math.round(profile.hourlyRatePln * profile.monthlyHours * 100) / 100;
   const issuePlace = profile.issuePlace?.trim() || 'Mielec';
   const monthlyHoursText = String(profile.monthlyHours);
-  const fixedSigningDate = issueDateWarsaw.replace(/-\d{2}$/, '-30');
+  const signingMatch = issueDateWarsaw.match(/^(\d{4})-(\d{2})(?:-\d{2})?$/);
+  let fixedSigningDate = issueDateWarsaw;
+  if (signingMatch) {
+    const signingYear = parseInt(signingMatch[1], 10);
+    const signingMonth = parseInt(signingMatch[2], 10);
+    const daysInMonth = new Date(Date.UTC(signingYear, signingMonth, 0)).getUTCDate();
+    const signingDay = String(Math.min(30, daysInMonth)).padStart(2, '0');
+    fixedSigningDate = `${signingMatch[1]}-${signingMatch[2]}-${signingDay}`;
+  }
 
   for (const entry of entries) {
     if (entry.path === '[Content_Types].xml') {
@@ -469,10 +477,17 @@ export async function generateContractDocx(params: {
     }
   }
 
-  entries.push({
-    path: 'word/media/signature.png',
-    data: signaturePngBytes,
-  });
+  const existingSigIndex = entries.findIndex(
+    (entry) => entry.path === 'word/media/signature.png'
+  );
+  if (existingSigIndex !== -1) {
+    entries[existingSigIndex].data = signaturePngBytes;
+  } else {
+    entries.push({
+      path: 'word/media/signature.png',
+      data: signaturePngBytes,
+    });
+  }
 
   return createZipBuffer(entries);
 }
