@@ -5,6 +5,103 @@ import '../../api/models.dart';
 import '../clock/clock_notifier.dart';
 import '../../services/platform/platform_services.dart';
 
+DateTime _lastSundayOfMonth01Utc(int year, int month) {
+  final lastDay = DateTime.utc(year, month + 1, 0);
+  final offsetToSunday = lastDay.weekday % 7;
+  return DateTime.utc(year, month, lastDay.day - offsetToSunday, 1, 0, 0);
+}
+
+/// Returns the UTC offset (CET UTC+1 or CEST UTC+2) for [utcInstant] in Europe/Warsaw.
+Duration warsawOffsetAtUtc(DateTime utcInstant) {
+  final utc = utcInstant.toUtc();
+  final dstStart = _lastSundayOfMonth01Utc(utc.year, 3);
+  final dstEnd = _lastSundayOfMonth01Utc(utc.year, 10);
+  final isSummer = !utc.isBefore(dstStart) && utc.isBefore(dstEnd);
+  return Duration(hours: isSummer ? 2 : 1);
+}
+
+/// Converts a UTC [utcInstant] to a UTC-tagged DateTime whose fields match Europe/Warsaw wall-clock time.
+DateTime utcToWarsawWallClock(DateTime utcInstant) {
+  final utc = utcInstant.toUtc();
+  return utc.add(warsawOffsetAtUtc(utc));
+}
+
+/// Converts a Europe/Warsaw wall-clock date/time to its UTC [DateTime] instant.
+DateTime warsawWallClockToUtc(
+  int year,
+  int month,
+  int day, [
+  int hour = 0,
+  int minute = 0,
+  int second = 0,
+]) {
+  final wallAsUtc = DateTime.utc(year, month, day, hour, minute, second);
+  final summerCandidate = wallAsUtc.subtract(const Duration(hours: 2));
+  if (warsawOffsetAtUtc(summerCandidate) == const Duration(hours: 2)) {
+    return summerCandidate;
+  }
+  return wallAsUtc.subtract(const Duration(hours: 1));
+}
+
+/// Returns exact half-open `[startUtc, endUtc)` UTC bounds for [year]-[month] in Europe/Warsaw.
+({DateTime startUtc, DateTime endUtc}) warsawMonthRangeUtc(int year, int month) {
+  final nextYear = month == 12 ? year + 1 : year;
+  final nextMonth = month == 12 ? 1 : month + 1;
+  return (
+    startUtc: warsawWallClockToUtc(year, month, 1),
+    endUtc: warsawWallClockToUtc(nextYear, nextMonth, 1),
+  );
+}
+
+/// Pairs [events] chronologically (with `createdAtUtc` tie-breaker), truncates to minutes,
+/// and sums duration minutes for shifts whose clock-in falls inside [year]-[month] in Europe/Warsaw.
+int calculateMonthWorkedMinutes(
+  List<TrackingEvent> events,
+  int year,
+  int month,
+) {
+  final sorted = List<TrackingEvent>.from(events)
+    ..sort((a, b) {
+      final occurredCmp = a.occurredAtUtc.compareTo(b.occurredAtUtc);
+      if (occurredCmp != 0) return occurredCmp;
+      return a.createdAtUtc.compareTo(b.createdAtUtc);
+    });
+
+  int workedMins = 0;
+  TrackingEvent? pendingIn;
+  for (final ev in sorted) {
+    if (ev.eventType == 'clock_in') {
+      pendingIn = ev;
+    } else if (ev.eventType == 'clock_out' && pendingIn != null) {
+      final inUtc = pendingIn.occurredAtUtc.toUtc();
+      final outUtc = ev.occurredAtUtc.toUtc();
+      final inTrunc = DateTime.utc(
+        inUtc.year,
+        inUtc.month,
+        inUtc.day,
+        inUtc.hour,
+        inUtc.minute,
+      );
+      final outTrunc = DateTime.utc(
+        outUtc.year,
+        outUtc.month,
+        outUtc.day,
+        outUtc.hour,
+        outUtc.minute,
+      );
+      final inWarsaw = utcToWarsawWallClock(inTrunc);
+      if (inWarsaw.year == year && inWarsaw.month == month) {
+        final diffMins = outTrunc.difference(inTrunc).inMinutes;
+        if (diffMins > 0) {
+          workedMins += diffMins;
+        }
+      }
+      pendingIn = null;
+    }
+  }
+  return workedMins;
+}
+
 class ReportsScreen extends ConsumerStatefulWidget {
   const ReportsScreen({super.key});
 
@@ -51,17 +148,6 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     return _totalFormalMinutes == (_contractMonthlyHours * 60);
   }
 
-  static DateTime _truncateToMinute(DateTime dt) {
-    final utc = dt.toUtc();
-    return DateTime.utc(
-      utc.year,
-      utc.month,
-      utc.day,
-      utc.hour,
-      utc.minute,
-    );
-  }
-
   static String _formatHoursMinutes(int totalMinutes) {
     final h = totalMinutes ~/ 60;
     final m = totalMinutes % 60;
@@ -103,9 +189,9 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         }
       } catch (_) {}
 
-      final formalStart = DateTime(_formalMonth.year, _formalMonth.month, 1);
-      final formalEnd =
-          DateTime(_formalMonth.year, _formalMonth.month + 1, 0, 23, 59, 59);
+      final monthRange =
+          warsawMonthRangeUtc(_formalMonth.year, _formalMonth.month);
+      final queryEnd = monthRange.endUtc.add(const Duration(hours: 24));
 
       final now = DateTime.now();
       final isCurrentMonth =
@@ -113,24 +199,15 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
 
       int workedMins = 0;
       try {
-        final events =
-            await apiClient.getEvents(from: formalStart, to: formalEnd);
-        final sorted = List<TrackingEvent>.from(events)
-          ..sort((a, b) => a.occurredAtUtc.compareTo(b.occurredAtUtc));
-        TrackingEvent? pendingIn;
-        for (final ev in sorted) {
-          if (ev.eventType == 'clock_in') {
-            pendingIn = ev;
-          } else if (ev.eventType == 'clock_out' && pendingIn != null) {
-            final inTime = _truncateToMinute(pendingIn.occurredAtUtc);
-            final outTime = _truncateToMinute(ev.occurredAtUtc);
-            final diffMins = outTime.difference(inTime).inMinutes;
-            if (diffMins > 0) {
-              workedMins += diffMins;
-            }
-            pendingIn = null;
-          }
-        }
+        final events = await apiClient.getEvents(
+          from: monthRange.startUtc,
+          to: queryEnd,
+        );
+        workedMins = calculateMonthWorkedMinutes(
+          events,
+          _formalMonth.year,
+          _formalMonth.month,
+        );
       } catch (_) {}
 
       if (isCurrentMonth) {
