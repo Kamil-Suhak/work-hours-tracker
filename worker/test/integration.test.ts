@@ -1008,6 +1008,50 @@ describe('Worker End-to-End Integration Suite', () => {
       expect(err.error.code).toBe('NO_REPORTS_FOUND');
     });
 
+    it('paginates bucket.list in getLatestReport fallback when latest.json is absent', async () => {
+      const seenCursors: Array<string | undefined> = [];
+      const paginatedEnv: Env = {
+        ...env,
+        REPORTS_BUCKET: {
+          get: async () => null,
+          list: async (opts?: { prefix?: string; limit?: number; cursor?: string }) => {
+            seenCursors.push(opts?.cursor);
+            if (!opts?.cursor) {
+              return {
+                objects: [
+                  {
+                    key: 'reports/work-hours-2026-01-full.xlsx',
+                    size: 1024,
+                    uploaded: new Date('2026-02-01T00:00:00.000Z'),
+                  },
+                ],
+                truncated: true,
+                cursor: 'page-2',
+              };
+            }
+            return {
+              objects: [
+                {
+                  key: 'reports/work-hours-2026-09-full.xlsx',
+                  size: 4096,
+                  uploaded: new Date('2026-10-01T00:00:00.000Z'),
+                },
+              ],
+              truncated: false,
+            };
+          },
+        } as any,
+      };
+
+      const res = await worker.fetch(createRequest('/api/v1/reports/latest'), paginatedEnv);
+      expect(res.status).toBe(200);
+      const data = await res.json() as { filename: string; month: string; sizeBytes: number };
+      expect(data.filename).toBe('reports/work-hours-2026-09-full.xlsx');
+      expect(data.month).toBe('2026-09');
+      expect(data.sizeBytes).toBe(4096);
+      expect(seenCursors).toEqual([undefined, 'page-2']);
+    });
+
     it('scheduled cron handler executes successfully without throwing', async () => {
       let waited = false;
       const ctx = {

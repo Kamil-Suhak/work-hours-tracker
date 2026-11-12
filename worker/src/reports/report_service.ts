@@ -385,15 +385,28 @@ export async function getLatestReport(
     } catch (_) {}
   }
 
-  // 2. Fallback: list objects under reports/ and pick newest
-  const listing = await bucket.list({ prefix: 'reports/', limit: 20 });
-  const xlsxFiles = listing.objects.filter((obj) => obj.key.endsWith('.xlsx'));
-  if (xlsxFiles.length === 0) {
+  // 2. Fallback: paginate through all objects under reports/ and pick newest .xlsx
+  let cursor: string | undefined;
+  let newest: Awaited<ReturnType<R2Bucket['list']>>['objects'][number] | null = null;
+
+  do {
+    const listing = await bucket.list({ prefix: 'reports/', limit: 1000, cursor });
+    for (const obj of listing.objects) {
+      if (!obj.key.endsWith('.xlsx')) continue;
+      if (!newest || obj.uploaded.getTime() > newest.uploaded.getTime()) {
+        newest = obj;
+      }
+    }
+    if (!listing.truncated || !listing.cursor || listing.cursor === cursor) {
+      break;
+    }
+    cursor = listing.cursor;
+  } while (true);
+
+  if (!newest) {
     return null;
   }
 
-  xlsxFiles.sort((a, b) => b.uploaded.getTime() - a.uploaded.getTime());
-  const newest = xlsxFiles[0];
   const filename = newest.key;
   const monthMatch = filename.match(/\d{4}-\d{2}/);
 
