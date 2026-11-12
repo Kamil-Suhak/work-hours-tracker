@@ -26,10 +26,12 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import android.os.Bundle
 import android.view.View
+import android.content.BroadcastReceiver.PendingResult
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 class WorkHoursWidgetReceiver : AppWidgetProvider() {
 
@@ -44,7 +46,12 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
         const val KEY_ACTIVE_NOTE = "active_shift_note"
         const val KEY_IS_CLOCKED_IN = "is_clocked_in"
 
-        private val client = OkHttpClient()
+        private val client = OkHttpClient.Builder()
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(5, TimeUnit.SECONDS)
+            .writeTimeout(5, TimeUnit.SECONDS)
+            .callTimeout(8, TimeUnit.SECONDS)
+            .build()
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
         fun triggerHaptic(context: Context) {
@@ -178,7 +185,8 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
         for (appWidgetId in appWidgetIds) {
             updateWidgetView(context, appWidgetManager, appWidgetId, isClockedIn = null, syncText = "")
         }
-        refreshStatusAsync(context)
+        val pendingResult = goAsync()
+        refreshStatusAsync(context, pendingResult)
     }
 
     override fun onAppWidgetOptionsChanged(
@@ -198,54 +206,58 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
         when (intent.action) {
             ACTION_CLOCK_IN -> {
                 triggerHaptic(context)
-                executeClockAction(context, "clock-in")
+                executeClockAction(context, "clock-in", goAsync())
             }
             ACTION_CLOCK_OUT -> {
                 triggerHaptic(context)
-                executeClockAction(context, "clock-out")
+                executeClockAction(context, "clock-out", goAsync())
             }
             ACTION_SYNC -> {
                 triggerHaptic(context)
-                refreshStatusAsync(context)
+                refreshStatusAsync(context, goAsync())
             }
         }
     }
 
-    private fun executeClockAction(context: Context, operation: String) {
+    private fun executeClockAction(context: Context, operation: String, pendingResult: PendingResult?) {
         CoroutineScope(Dispatchers.IO).launch {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val baseUrl = prefs.getString(KEY_API_URL, null)?.trim()
-            val token = prefs.getString(KEY_TOKEN, null)?.trim()
-
-            if (baseUrl.isNullOrEmpty() || token.isNullOrEmpty()) {
-                withContext(Dispatchers.Main) {
-                    updateAllWidgets(context, isClockedIn = null, syncText = "Setup")
-                }
-                return@launch
-            }
-            val requestId = UUID.randomUUID().toString()
-
-            val jsonBody = JSONObject().apply {
-                put("requestId", requestId)
-                put("source", "android_widget")
-            }
-
-            val request = Request.Builder()
-                .url("$baseUrl/api/v1/$operation")
-                .post(jsonBody.toString().toRequestBody(JSON_MEDIA_TYPE))
-                .apply {
-                    if (token.isNotEmpty()) addHeader("Authorization", "Bearer $token")
-                }
-                .build()
-
             try {
-                client.newCall(request).execute().use { response ->
-                    handleWidgetStateResponse(context, prefs, response, errorSyncText = "Err")
+                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                val baseUrl = prefs.getString(KEY_API_URL, null)?.trim()
+                val token = prefs.getString(KEY_TOKEN, null)?.trim()
+
+                if (baseUrl.isNullOrEmpty() || token.isNullOrEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        updateAllWidgets(context, isClockedIn = null, syncText = "Setup")
+                    }
+                    return@launch
                 }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    updateAllWidgets(context, isClockedIn = null, syncText = "Err")
+                val requestId = UUID.randomUUID().toString()
+
+                val jsonBody = JSONObject().apply {
+                    put("requestId", requestId)
+                    put("source", "android_widget")
                 }
+
+                val request = Request.Builder()
+                    .url("$baseUrl/api/v1/$operation")
+                    .post(jsonBody.toString().toRequestBody(JSON_MEDIA_TYPE))
+                    .apply {
+                        if (token.isNotEmpty()) addHeader("Authorization", "Bearer $token")
+                    }
+                    .build()
+
+                try {
+                    client.newCall(request).execute().use { response ->
+                        handleWidgetStateResponse(context, prefs, response, errorSyncText = "Err")
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        updateAllWidgets(context, isClockedIn = null, syncText = "Err")
+                    }
+                }
+            } finally {
+                runCatching { pendingResult?.finish() }
             }
         }
     }
@@ -292,35 +304,39 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
         }
     }
 
-    private fun refreshStatusAsync(context: Context) {
+    private fun refreshStatusAsync(context: Context, pendingResult: PendingResult?) {
         CoroutineScope(Dispatchers.IO).launch {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val baseUrl = prefs.getString(KEY_API_URL, null)?.trim()
-            val token = prefs.getString(KEY_TOKEN, null)?.trim()
-
-            if (baseUrl.isNullOrEmpty() || token.isNullOrEmpty()) {
-                withContext(Dispatchers.Main) {
-                    updateAllWidgets(context, isClockedIn = null, syncText = "Setup")
-                }
-                return@launch
-            }
-
-            val request = Request.Builder()
-                .url("$baseUrl/api/v1/status")
-                .get()
-                .apply {
-                    if (token.isNotEmpty()) addHeader("Authorization", "Bearer $token")
-                }
-                .build()
-
             try {
-                client.newCall(request).execute().use { response ->
-                    handleWidgetStateResponse(context, prefs, response, errorSyncText = "Err")
+                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                val baseUrl = prefs.getString(KEY_API_URL, null)?.trim()
+                val token = prefs.getString(KEY_TOKEN, null)?.trim()
+
+                if (baseUrl.isNullOrEmpty() || token.isNullOrEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        updateAllWidgets(context, isClockedIn = null, syncText = "Setup")
+                    }
+                    return@launch
                 }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    updateAllWidgets(context, isClockedIn = null, syncText = "Offline")
+
+                val request = Request.Builder()
+                    .url("$baseUrl/api/v1/status")
+                    .get()
+                    .apply {
+                        if (token.isNotEmpty()) addHeader("Authorization", "Bearer $token")
+                    }
+                    .build()
+
+                try {
+                    client.newCall(request).execute().use { response ->
+                        handleWidgetStateResponse(context, prefs, response, errorSyncText = "Err")
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        updateAllWidgets(context, isClockedIn = null, syncText = "Offline")
+                    }
                 }
+            } finally {
+                runCatching { pendingResult?.finish() }
             }
         }
     }
