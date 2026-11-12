@@ -265,6 +265,24 @@ void main() {
       final result = await client.generateReport();
       expect(result.filename, equals('evil_name_.xlsx'));
     });
+
+    test('ApiClient URL-encodes eventId in updateEventNote', () async {
+      Uri? capturedUri;
+      final client = ApiClient(
+        baseUrl: 'https://mock.work.com',
+        token: 'tok',
+        httpClient: MockClient((request) async {
+          capturedUri = request.url;
+          return http.Response('{}', 200);
+        }),
+      );
+
+      await client.updateEventNote(eventId: 'evt/../123?x=1', note: 'hi');
+      expect(
+        capturedUri.toString(),
+        equals('https://mock.work.com/api/v1/events/evt%2F..%2F123%3Fx%3D1/note'),
+      );
+    });
   });
 }
 

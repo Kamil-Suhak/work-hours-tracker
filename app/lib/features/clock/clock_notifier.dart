@@ -1,6 +1,3 @@
-// ignore_for_file: invalid_use_of_internal_member
-// probably not best practice
-
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/api_client.dart';

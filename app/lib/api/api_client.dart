@@ -204,7 +204,8 @@ class ApiClient {
     required String eventId,
     required String? note,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/v1/events/$eventId/note');
+    final encodedEventId = Uri.encodeComponent(eventId);
+    final uri = Uri.parse('$baseUrl/api/v1/events/$encodedEventId/note');
     final headers = await _buildHeaders();
     final body = jsonEncode({
       'note': note,
