@@ -274,3 +274,13 @@ The system is considered ready for `v1.0` when:
 - [x] **Separated Excel (`.xlsx`) & Formal Word (`.docx`) Workflows:**
   - Scheduled 1st-of-month cron (`0 0 1 * *`) and manual custom-range `.xlsx` exports always include all shift fields (including `Location`) and summary statistics.
   - Flutter `ReportsScreen` provides a dedicated Formal Contract Report (`.docx`) card with `PlanFutureShiftsDialog` for end-of-month projections (e.g. submitting on the 26th for the 27th–31st).
+
+---
+
+## 11. Deferred / Upcoming TODOs
+
+- [ ] **Upgrade project to Flutter 3.50+ and `package:material_ui`:**
+  - Upgrade local Flutter SDK beyond `3.44.4` to `3.50.0+`.
+  - Unpin (or bump) `flutter-version: "3.47.9"` in `.github/workflows/ci.yml`, `.github/workflows/deploy-worker.yml`, and `.github/workflows/release-android.yml`.
+  - Add `material_ui` to `app/pubspec.yaml` and migrate `package:flutter/material.dart` imports across `app/lib/` and `app/test/` to `package:material_ui/material_ui.dart` (e.g., via `dart fix --apply --code=migrate_design_widgets`).
+  - Re-verify `flutter analyze`, `flutter test`, `flutter build web --release`, and `flutter build apk --release` across local & CI.
