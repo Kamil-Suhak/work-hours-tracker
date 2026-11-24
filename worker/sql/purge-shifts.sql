@@ -1,7 +1,7 @@
 -- ==============================================================================
 -- Purge Shift Data (Reset Work State & Clear Events)
 -- ==============================================================================
--- Purges all shift logs, notes, and idempotency request records.
+-- Purges all shift logs and idempotency request records.
 -- Resets the current work status to 'clocked_out'.
 --
 -- NOTE: Preserves the 'devices' table so mobile and web tokens remain valid!

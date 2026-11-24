@@ -13,22 +13,6 @@ import { formatDuration, pairShifts, truncateToMinute } from '../status';
 // 1. Shift Pairing & Aggregation
 // ==========================================
 
-export function cleanMarkdownForExcel(text?: string | null): string {
-  if (!text) return '';
-  return text
-    .split('\n')
-    .map((line) =>
-      line
-        .trim()
-        .replace(/^#+\s*/, '')
-        .replace(/^-\s*/, '• ')
-        .replace(/\*\*(.*?)\*\*/g, '$1')
-        .replace(/\*(.*?)\*/g, '$1')
-    )
-    .filter((l) => l.length > 0)
-    .join('; ');
-}
-
 export function formatWarsawDate(date: Date): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/Warsaw',
@@ -85,8 +69,6 @@ export function pairEventsIntoReportShifts(events: EventRow[]): ShiftSummaryItem
     const startTimeLocal = formatWarsawTime(inDate);
     const endTimeLocal = formatWarsawTime(outDate);
 
-    const note = cleanMarkdownForExcel(clockOut.note ?? clockIn.note);
-
     return {
       date: dateStr,
       clockInUtc: inDate.toISOString(),
@@ -96,7 +78,6 @@ export function pairEventsIntoReportShifts(events: EventRow[]): ShiftSummaryItem
       durationMinutes,
       durationHoursDecimal: hoursDecimal,
       durationFormatted: formatDuration(durationSeconds),
-      note: note.length > 0 ? note : undefined,
       source: clockOut.source as EventSource,
       location: clockIn.location ?? 'remote',
     };
@@ -562,10 +543,6 @@ export function buildWorksheetXml(
       label: 'Source',
       width: Math.max(12, ...shifts.map((s) => s.source.length), 6) + 4,
     },
-    {
-      label: 'Shift Notes',
-      width: Math.min(60, Math.max(16, ...shifts.map((s) => (s.note || '').length), 11)) + 4,
-    },
   ];
 
   const numTable1Cols = table1Cols.length;
@@ -626,7 +603,6 @@ export function buildWorksheetXml(
       xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="3"><v>${shift.durationHoursDecimal.toFixed(2)}</v></c>`;
       xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(shift.location ?? 'remote'))}</t></is></c>`;
       xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="4" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(shift.source))}</t></is></c>`;
-      xml += `\n      <c r="${getColLetter(c++)}${rowNum}" s="0" t="inlineStr"><is><t>${escapeXml(sanitizeFormulaCell(shift.note ?? ''))}</t></is></c>`;
     } else if (i === shifts.length) {
       // Left Table: TOTAL row
       let c = 0;

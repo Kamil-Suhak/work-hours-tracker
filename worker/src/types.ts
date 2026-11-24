@@ -46,7 +46,6 @@ export interface EventRow {
   occurred_at_utc: string;
   created_at_utc: string;
   reason: string | null;
-  note?: string | null;
   location?: WorkLocation;
 }
 
@@ -61,7 +60,6 @@ export interface ProcessedRequestRow {
 export interface ClockRequestBody {
   requestId: string;
   source: EventSource;
-  note?: string;
   offsetMinutes?: number;
   location?: WorkLocation;
   targetMinutes?: number;
@@ -104,16 +102,6 @@ export interface UndoRequestBody {
   eventId: string;
 }
 
-export interface UpdateNoteRequestBody {
-  note: string | null;
-}
-
-export interface UpdateNoteResponse {
-  success: boolean;
-  id: string;
-  note: string | null;
-}
-
 export interface UndoResponse {
   success: boolean;
   undoneEventId: string;
@@ -153,7 +141,6 @@ export interface ContractProfile {
 }
 
 export interface ReportOptions {
-  includeNotes?: boolean;
   includeStats?: boolean;
   includeSource?: boolean;
 }
@@ -176,7 +163,6 @@ export interface ShiftSummaryItem {
   durationMinutes: number;
   durationHoursDecimal: number;
   durationFormatted: string;
-  note?: string;
   source: EventSource;
   location?: WorkLocation;
 }

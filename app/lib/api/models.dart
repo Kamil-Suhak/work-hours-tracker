@@ -124,7 +124,6 @@ class TrackingEvent {
   final DateTime occurredAtUtc;
   final DateTime createdAtUtc;
   final String? reason;
-  final String? note;
   final String location;
 
   const TrackingEvent({
@@ -137,7 +136,6 @@ class TrackingEvent {
     required this.occurredAtUtc,
     required this.createdAtUtc,
     this.reason,
-    this.note,
     this.location = 'remote',
   });
 
@@ -152,7 +150,6 @@ class TrackingEvent {
       occurredAtUtc: DateTime.parse(json['occurred_at_utc'] as String),
       createdAtUtc: DateTime.parse(json['created_at_utc'] as String),
       reason: json['reason'] as String?,
-      note: json['note'] as String?,
       location: (json['location'] as String?) ?? 'remote',
     );
   }

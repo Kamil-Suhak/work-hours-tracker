@@ -156,12 +156,10 @@ export function validateReportRequest(
   const validatedOptions =
     options && typeof options === 'object'
       ? {
-          includeNotes: Boolean((options as Record<string, unknown>).includeNotes),
           includeStats: Boolean((options as Record<string, unknown>).includeStats),
           includeSource: Boolean((options as Record<string, unknown>).includeSource),
         }
       : {
-          includeNotes: true,
           includeStats: true,
           includeSource: true,
         };
@@ -338,7 +336,7 @@ export async function generateReport(
     {
       ...request,
       preset: 'full',
-      options: { includeNotes: true, includeStats: true, includeSource: true },
+      options: { includeStats: true, includeSource: true },
     },
     { startDay, endDay }
   );
@@ -443,7 +441,7 @@ export async function runScheduledMonthlyReport(
       startDate: startIso,
       endDate: endIso,
       preset: 'full',
-      options: { includeNotes: true, includeStats: true, includeSource: true },
+      options: { includeStats: true, includeSource: true },
     },
     { monthString: monthStr }
   );

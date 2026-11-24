@@ -13,11 +13,7 @@ import {
   DEFAULT_USER_ID,
 } from './clock';
 import { getStatus } from './status';
-import {
-  handleGetEvents,
-  handleUpdateEventNote,
-  validateUpdateNoteRequest,
-} from './events';
+import { handleGetEvents } from './events';
 import {
   validateReportRequest,
   generateReport,
@@ -244,30 +240,6 @@ function matchAuthenticatedApiRoute(ctx: ApiRouteContext): AuthenticatedRouteHan
       );
 
       return jsonResponse(events, 200, standardHeaders);
-    };
-  }
-
-  const eventNoteMatch = pathname.match(/^\/api\/v1\/events\/([^/]+)\/note$/);
-  if (eventNoteMatch && (method === 'PATCH' || method === 'POST')) {
-    return async (deviceId) => {
-      const eventId = safeDecodePathSegment(eventNoteMatch[1], correlationId);
-      const rawBody = await parseJsonBody(request, correlationId);
-      const { note } = validateUpdateNoteRequest(rawBody);
-      const result = await handleUpdateEventNote(env.DB, DEFAULT_USER_ID, eventId, note);
-
-      console.log(
-        JSON.stringify({
-          correlationId,
-          operation: 'update-event-note',
-          deviceId,
-          eventId,
-          hasNote: Boolean(note),
-          latencyMs: Date.now() - startTime,
-          result: 'ok',
-        })
-      );
-
-      return jsonResponse(result, 200, standardHeaders);
     };
   }
 

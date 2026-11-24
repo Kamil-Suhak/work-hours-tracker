@@ -38,11 +38,10 @@ class TimeTrackingRepository {
     );
   }
 
-  Future<WorkStatus> clockOut({String? note, int? offsetMinutes}) async {
+  Future<WorkStatus> clockOut({int? offsetMinutes}) async {
     final requestId = _uuid.v4();
     return await _apiClient.clockOut(
       requestId: requestId,
-      note: note,
       offsetMinutes: offsetMinutes,
     );
   }

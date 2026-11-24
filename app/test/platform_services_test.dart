@@ -78,9 +78,6 @@ void main() {
       final creds = await service.getWidgetCredentials();
       expect(creds, isNull);
 
-      final noteResult = await service.syncActiveNote('Note');
-      expect(noteResult, isTrue);
-
       final statusResult = await service.syncWidgetStatus(isClockedIn: true);
       expect(statusResult, isTrue);
     });

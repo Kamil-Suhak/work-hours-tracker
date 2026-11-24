@@ -51,19 +51,6 @@ export function validateClockRequest(body: unknown): ClockRequestBody {
     );
   }
 
-  const note = typeof (body as Record<string, unknown>).note === 'string'
-    ? ((body as Record<string, unknown>).note as string).trim()
-    : undefined;
-
-  if (note !== undefined && note.length > 4000) {
-    throw new AppError(
-      'NOTE_TOO_LONG',
-      'Note must not exceed 4,000 characters',
-      400,
-      requestId
-    );
-  }
-
   const offsetMinutes = typeof (body as Record<string, unknown>).offsetMinutes === 'number'
     ? ((body as Record<string, unknown>).offsetMinutes as number)
     : undefined;
@@ -115,7 +102,6 @@ export function validateClockRequest(body: unknown): ClockRequestBody {
   return {
     requestId: requestId.trim(),
     source: source as EventSource,
-    ...(note !== undefined && note.length > 0 ? { note } : {}),
     ...(offsetMinutes !== undefined ? { offsetMinutes } : {}),
     ...(location !== undefined ? { location } : {}),
     ...(targetMinutes !== undefined ? { targetMinutes } : {}),
@@ -180,8 +166,8 @@ export async function materializeAutoClockOutIfDue(
     const results = await db.batch([
       db
         .prepare(
-          `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, reason, note, location)
-           SELECT ?, ?, ?, ?, 'clock_out', ?, ?, ?, 'Auto-stopped at target', NULL, ?
+          `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, reason, location)
+           SELECT ?, ?, ?, ?, 'clock_out', ?, ?, ?, 'Auto-stopped at target', ?
            WHERE EXISTS (
              SELECT 1 FROM work_state
              WHERE user_id = ? AND state = 'clocked_in' AND version = ? AND target_clock_out_utc = ?
@@ -343,8 +329,8 @@ export async function handleClockIn(
       ? [
           db
             .prepare(
-              `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, note, location)
-               SELECT ?, ?, ?, ?, 'clock_in', ?, ?, ?, ?, ?
+              `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, location)
+               SELECT ?, ?, ?, ?, 'clock_in', ?, ?, ?, ?
                WHERE EXISTS (
                  SELECT 1 FROM work_state WHERE user_id = ? AND state = 'clocked_out' AND version = ?
                )`
@@ -357,7 +343,6 @@ export async function handleClockIn(
               source,
               effectiveTimeIso,
               nowIso,
-              req.note ?? null,
               req.location ?? 'remote',
               DEFAULT_USER_ID,
               stateRow.version
@@ -391,8 +376,8 @@ export async function handleClockIn(
       : [
           db
             .prepare(
-              `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, note, location)
-               SELECT ?, ?, ?, ?, 'clock_in', ?, ?, ?, ?, ?
+              `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, location)
+               SELECT ?, ?, ?, ?, 'clock_in', ?, ?, ?, ?
                WHERE NOT EXISTS (SELECT 1 FROM work_state WHERE user_id = ?)`
             )
             .bind(
@@ -403,7 +388,6 @@ export async function handleClockIn(
               source,
               effectiveTimeIso,
               nowIso,
-              req.note ?? null,
               req.location ?? 'remote',
               DEFAULT_USER_ID
             ),
@@ -578,8 +562,8 @@ export async function handleClockOut(
   const batchResults = await db.batch([
     db
       .prepare(
-        `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, note, location)
-         SELECT ?, ?, ?, ?, 'clock_out', ?, ?, ?, ?, ?
+        `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, location)
+         SELECT ?, ?, ?, ?, 'clock_out', ?, ?, ?, ?
          WHERE EXISTS (
            SELECT 1 FROM work_state WHERE user_id = ? AND state = 'clocked_in' AND version = ?
          )`
@@ -592,7 +576,6 @@ export async function handleClockOut(
         source,
         effectiveTimeIso,
         nowIso,
-        req.note ?? null,
         req.location ?? 'remote',
         DEFAULT_USER_ID,
         expectedVersion

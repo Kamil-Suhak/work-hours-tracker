@@ -9,9 +9,9 @@ import 'package:work_hours_mobile/features/history/shifts_notifier.dart';
 void main() {
   group('RecentShiftsSheet Tests', () {
     testWidgets(
-        'renders shifts without source tags, and responds to shift taps',
+        'renders shifts without source tags and displays location badges',
         (WidgetTester tester) async {
-      final shiftWithoutNote = ShiftRecord(
+      final remoteShift = ShiftRecord(
         clockIn: TrackingEvent(
           id: 'evt-1',
           requestId: 'req-1',
@@ -33,7 +33,7 @@ void main() {
         duration: const Duration(hours: 8),
       );
 
-      final shiftWithNote = ShiftRecord(
+      final inOfficeShift = ShiftRecord(
         clockIn: TrackingEvent(
           id: 'evt-3',
           requestId: 'req-3',
@@ -52,7 +52,6 @@ void main() {
           source: 'flutter_app',
           occurredAtUtc: DateTime.parse('2026-10-02T17:30:00Z'),
           createdAtUtc: DateTime.parse('2026-10-02T17:30:00Z'),
-          note: '# Work Accomplished\n- Built new UI features',
         ),
         duration: const Duration(hours: 8, minutes: 30),
       );
@@ -61,7 +60,7 @@ void main() {
         ProviderScope(
           overrides: [
             shiftsProvider.overrideWith(
-              () => _MockShiftsNotifier([shiftWithNote, shiftWithoutNote]),
+              () => _MockShiftsNotifier([inOfficeShift, remoteShift]),
             ),
           ],
           child: const MaterialApp(
@@ -83,42 +82,9 @@ void main() {
       expect(find.text('flutter_app'), findsNothing);
       expect(find.text('android_widget'), findsNothing);
 
-      // Verify shift with note shows 'Notes' tag and location badges render
-      expect(find.text('Notes'), findsOneWidget);
+      // Verify location badges render
       expect(find.text('In-Office'), findsOneWidget);
       expect(find.text('Remote'), findsOneWidget);
-
-      // Tap shift without note -> opens preview dialog with option to add note
-      await tester.tap(find.text('8h 0m'));
-      await tester.pumpAndSettle();
-      expect(find.text('No notes from this shift.'), findsOneWidget);
-      expect(find.text('Add Note'), findsOneWidget);
-
-      // Switch to edit mode
-      await tester.tap(find.text('Add Note'));
-      await tester.pumpAndSettle();
-      expect(find.byType(TextField), findsOneWidget);
-      expect(find.text('Save & Close'), findsOneWidget);
-
-      // Cancel to close edit mode
-      await tester.tap(find.text('Cancel'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Close'));
-      await tester.pumpAndSettle();
-
-      // Tap shift with note -> opens preview mode with Edit button
-      await tester.tap(find.text('8h 30m'));
-      await tester.pumpAndSettle();
-      expect(find.text('Shift Notes'), findsOneWidget);
-      expect(find.text('Work Accomplished'), findsOneWidget);
-      expect(find.textContaining('Built new UI features'), findsOneWidget);
-      expect(find.text('Edit'), findsOneWidget);
-
-      // Switch to edit mode
-      await tester.tap(find.text('Edit'));
-      await tester.pumpAndSettle();
-      expect(find.byType(TextField), findsOneWidget);
-      expect(find.text('Save & Close'), findsOneWidget);
     });
   });
 }

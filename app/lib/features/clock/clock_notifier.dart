@@ -106,9 +106,9 @@ class CurrentStatusNotifier extends AsyncNotifier<WorkStatus> {
     return updated;
   }
 
-  Future<void> clockOut({String? note, int? offsetMinutes}) =>
+  Future<void> clockOut({int? offsetMinutes}) =>
       _runStatusTransition(
-        (repo) => repo.clockOut(note: note, offsetMinutes: offsetMinutes),
+        (repo) => repo.clockOut(offsetMinutes: offsetMinutes),
       );
 
   Future<void> undo(String eventId) => _runStatusTransition(

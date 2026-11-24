@@ -54,7 +54,6 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
         const val KEY_TOKEN = "device_token"
         const val KEY_TOKEN_ENCRYPTED = "device_token_enc"
         const val KEY_HAPTICS = "vibrations_enabled"
-        const val KEY_ACTIVE_NOTE = "active_shift_note"
         const val KEY_IS_CLOCKED_IN = "is_clocked_in"
         private const val KEY_INTERNAL_SECRET = "widget_internal_secret"
         private const val EXTRA_INTERNAL_SECRET = "com.workhours.tracker.EXTRA_INTERNAL_SECRET"
@@ -245,31 +244,6 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
                 views.setTextViewText(R.id.widget_sync_time, displayText)
             }
 
-            // Responsive Notes container: show if clocked in, vertically expanded, and note exists
-            val effectiveClockedIn = isClockedIn ?: prefs.getBoolean(KEY_IS_CLOCKED_IN, false)
-            val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
-            val minHeight = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT) ?: 0
-            val isExpanded = minHeight >= 100
-            val activeNote = prefs.getString(KEY_ACTIVE_NOTE, "")?.trim() ?: ""
-
-            if (effectiveClockedIn && isExpanded && activeNote.isNotEmpty()) {
-                views.setViewVisibility(R.id.widget_notes_container, View.VISIBLE)
-                val cleanNote = activeNote
-                    .lines()
-                    .map { line ->
-                        line.trim()
-                            .replace(Regex("^#+\\s*"), "")
-                            .replace(Regex("^-\\s*"), "• ")
-                            .replace(Regex("\\*\\*(.*?)\\*\\*"), "$1")
-                            .replace(Regex("\\*(.*?)\\*"), "$1")
-                    }
-                    .filter { it.isNotEmpty() }
-                    .joinToString("\n")
-                views.setTextViewText(R.id.widget_notes_text, cleanNote)
-            } else {
-                views.setViewVisibility(R.id.widget_notes_container, View.GONE)
-            }
-
             val internalSecret = getOrCreateInternalSecret(context)
 
             // PendingIntent for Clock In
@@ -422,9 +396,6 @@ class WorkHoursWidgetReceiver : AppWidgetProvider() {
 
         val isClockedIn = state == "clocked_in"
         prefs.edit().putBoolean(KEY_IS_CLOCKED_IN, isClockedIn).apply()
-        if (!isClockedIn) {
-            prefs.edit().putString(KEY_ACTIVE_NOTE, "").apply()
-        }
         val syncTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
 
         withContext(Dispatchers.Main) {

@@ -302,7 +302,6 @@ describe('Optimistic Version Guards & Concurrency Races', () => {
           occurred_at_utc: '2026-11-10T09:00:00.000Z',
           created_at_utc: '2026-11-10T09:00:00.000Z',
           reason: null,
-          note: null,
           location: 'remote',
         });
         return originalBatch(stmts);
@@ -464,7 +463,6 @@ describe('Optimistic Version Guards & Concurrency Races', () => {
         occurred_at_utc: '2026-11-10T09:00:00.000Z',
         created_at_utc: '2026-11-10T09:00:00.000Z',
         reason: null,
-        note: null,
         location: 'remote',
       });
 
@@ -527,7 +525,6 @@ describe('Optimistic Version Guards & Concurrency Races', () => {
           occurred_at_utc: '2026-11-10T09:00:00.000Z',
           created_at_utc: '2026-11-10T09:00:00.000Z',
           reason: null,
-          note: null,
           location: 'in-office',
         },
         {
@@ -540,7 +537,6 @@ describe('Optimistic Version Guards & Concurrency Races', () => {
           occurred_at_utc: '2026-11-10T10:30:00.000Z',
           created_at_utc: '2026-11-10T10:30:00.000Z',
           reason: null,
-          note: null,
           location: 'remote',
         }
       );

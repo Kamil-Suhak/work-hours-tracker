@@ -19,14 +19,6 @@ class ShiftRecord {
 
   String get location => clockIn.location;
   bool get isInOffice => location == 'in-office';
-
-  String? get note {
-    if (clockOut.note?.trim().isNotEmpty == true) return clockOut.note!.trim();
-    if (clockIn.note?.trim().isNotEmpty == true) return clockIn.note!.trim();
-    return null;
-  }
-
-  bool get hasNote => note != null && note!.trim().isNotEmpty;
 }
 
 List<ShiftRecord> pairEventsIntoShifts(List<TrackingEvent> events) {

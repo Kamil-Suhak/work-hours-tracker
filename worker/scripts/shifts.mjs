@@ -4,9 +4,9 @@
  *
  * Usage:
  *   node scripts/shifts.mjs list [--limit 20] [--staging|--local]
- *   node scripts/shifts.mjs add --in "2026-11-10 08:00" --out "2026-11-10 10:00" --reason "..." [--location remote|in-office] [--note "..."] [--apply]
- *   node scripts/shifts.mjs edit --id <eventId> [--in "..."] [--out "..."] [--location remote|in-office] [--note "..." | --clear-note] [--reason "..."] [--apply]
- *   node scripts/shifts.mjs close --out "2026-11-10 12:00" [--reason "..."] [--note "..."] [--location remote|in-office] [--apply]
+ *   node scripts/shifts.mjs add --in "2026-11-10 08:00" --out "2026-11-10 10:00" --reason "..." [--location remote|in-office] [--apply]
+ *   node scripts/shifts.mjs edit --id <eventId> [--in "..."] [--out "..."] [--location remote|in-office] [--reason "..."] [--apply]
+ *   node scripts/shifts.mjs close --out "2026-11-10 12:00" [--reason "..."] [--location remote|in-office] [--apply]
  *   node scripts/shifts.mjs delete --id <eventId> [--apply]
  */
 
@@ -44,7 +44,7 @@ function printHelp() {
 Commands:
   list    List recent shifts and current work_state (read-only)
   add     Insert a completed (clock_in + clock_out) shift pair
-  edit    Update start/end times, location, reason, or note on a shift
+  edit    Update start/end times, location, or reason on a shift
   close   Close a currently open clocked_in shift with a clock_out event
   delete  Delete a shift (or open clock_in) and resync work_state
 
@@ -284,7 +284,7 @@ function runWranglerSql(sql, targetOpts) {
 function fetchSnapshot(userId, targetOpts) {
   const sql = [
     `SELECT * FROM work_state WHERE user_id = ${sqlVal(userId)};`,
-    `SELECT id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, reason, note, location FROM events WHERE user_id = ${sqlVal(userId)} ORDER BY occurred_at_utc ASC, created_at_utc ASC, rowid ASC;`,
+    `SELECT id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, reason, location FROM events WHERE user_id = ${sqlVal(userId)} ORDER BY occurred_at_utc ASC, created_at_utc ASC, rowid ASC;`,
   ].join('\n');
   const results = runWranglerSql(sql, targetOpts);
   const workState = results[0]?.results?.[0] ?? null;
@@ -464,7 +464,6 @@ function handleList(snapshot, flags, opts) {
       `out=${s.clockOut.id}`,
     ];
     if (s.clockOut.reason) parts.push(`reason="${s.clockOut.reason}"`);
-    if (s.clockOut.note) parts.push(`note="${s.clockOut.note.replaceAll('\n', '\\n')}"`);
     console.log(`  - ${parts.join(' | ')}`);
   }
 }
@@ -480,7 +479,6 @@ function handleAdd(snapshot, flags, opts) {
   const location = validateLocation(flags.location, 'remote');
   const reason = String(flags.reason).trim();
   if (!reason) throw new Error('--reason must not be empty.');
-  const note = flags.note !== undefined ? String(flags.note).trim() || null : null;
 
   const { shifts, openClockIn } = buildShifts(snapshot.events);
   assertNoOverlap(startDate.getTime(), endDate.getTime(), shifts, openClockIn);
@@ -494,8 +492,8 @@ function handleAdd(snapshot, flags, opts) {
   const wsGuard = workStateGuardClause(snapshot, opts.user);
 
   const sql = [
-    `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, reason, note, location) SELECT ${sqlVal(inId)}, ${sqlVal(`${reqBase}_in`)}, ${sqlVal(opts.user)}, NULL, 'clock_in', 'admin_manual', ${sqlVal(inIso)}, ${sqlVal(nowIso)}, ${sqlVal(reason)}, NULL, ${sqlVal(location)} WHERE ${wsGuard};`,
-    `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, reason, note, location) SELECT ${sqlVal(outId)}, ${sqlVal(`${reqBase}_out`)}, ${sqlVal(opts.user)}, NULL, 'clock_out', 'admin_manual', ${sqlVal(outIso)}, ${sqlVal(nowIso)}, ${sqlVal(reason)}, ${sqlVal(note)}, ${sqlVal(location)} WHERE ${wsGuard} AND EXISTS (SELECT 1 FROM events WHERE id = ${sqlVal(inId)});`,
+    `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, reason, location) SELECT ${sqlVal(inId)}, ${sqlVal(`${reqBase}_in`)}, ${sqlVal(opts.user)}, NULL, 'clock_in', 'admin_manual', ${sqlVal(inIso)}, ${sqlVal(nowIso)}, ${sqlVal(reason)}, ${sqlVal(location)} WHERE ${wsGuard};`,
+    `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, reason, location) SELECT ${sqlVal(outId)}, ${sqlVal(`${reqBase}_out`)}, ${sqlVal(opts.user)}, NULL, 'clock_out', 'admin_manual', ${sqlVal(outIso)}, ${sqlVal(nowIso)}, ${sqlVal(reason)}, ${sqlVal(location)} WHERE ${wsGuard} AND EXISTS (SELECT 1 FROM events WHERE id = ${sqlVal(inId)});`,
   ];
 
   executeOrPrintDryRun(
@@ -524,8 +522,8 @@ function handleEdit(snapshot, flags, opts) {
   if (isOpen && flags.out !== undefined) {
     throw new Error('Cannot set --out on an open shift with edit; use "close --out ..." instead.');
   }
-  if (isOpen && (flags.note !== undefined || flags['clear-note'] || flags.reason !== undefined)) {
-    throw new Error('Cannot set --note, --clear-note, or --reason on an open shift; close it first or omit those flags.');
+  if (isOpen && flags.reason !== undefined) {
+    throw new Error('Cannot set --reason on an open shift; close it first or omit that flag.');
   }
 
   const nextInDate =
@@ -582,11 +580,6 @@ function handleEdit(snapshot, flags, opts) {
   assertNoOverlap(nextInDate.getTime(), nextOutDate.getTime(), shifts, openClockIn, index);
 
   const nextOutIso = nextOutDate.toISOString();
-  const nextNote = flags['clear-note']
-    ? null
-    : flags.note !== undefined
-      ? String(flags.note).trim() || null
-      : shift.clockOut.note;
   const nextReason =
     flags.reason !== undefined ? String(flags.reason).trim() : shift.clockOut.reason;
 
@@ -594,7 +587,7 @@ function handleEdit(snapshot, flags, opts) {
     `UPDATE events SET occurred_at_utc = ${sqlVal(nextInIso)}, location = ${sqlVal(nextLocation)}${flags.reason !== undefined ? `, reason = ${sqlVal(nextReason)}` : ''} WHERE id = ${sqlVal(shift.clockIn.id)} AND user_id = ${sqlVal(opts.user)} AND ${wsGuard};`
   );
   sql.push(
-    `UPDATE events SET occurred_at_utc = ${sqlVal(nextOutIso)}, location = ${sqlVal(nextLocation)}, note = ${sqlVal(nextNote)}, reason = ${sqlVal(nextReason)} WHERE id = ${sqlVal(shift.clockOut.id)} AND user_id = ${sqlVal(opts.user)} AND ${wsGuard};`
+    `UPDATE events SET occurred_at_utc = ${sqlVal(nextOutIso)}, location = ${sqlVal(nextLocation)}, reason = ${sqlVal(nextReason)} WHERE id = ${sqlVal(shift.clockOut.id)} AND user_id = ${sqlVal(opts.user)} AND ${wsGuard};`
   );
 
   summary.push(
@@ -626,7 +619,6 @@ function handleClose(snapshot, flags, opts) {
     throw new Error('--reason must not be empty.');
   }
   const reason = flags.reason !== undefined ? String(flags.reason).trim() : 'Closed via D1 shift script';
-  const note = flags.note !== undefined ? String(flags.note).trim() || null : null;
 
   const nowIso = new Date().toISOString();
   const outIso = endDate.toISOString();
@@ -634,7 +626,7 @@ function handleClose(snapshot, flags, opts) {
   const nextVersion = (ws.version ?? 0) + 1;
 
   const sql = [
-    `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, reason, note, location) SELECT ${sqlVal(outId)}, ${sqlVal(`cli_close_${crypto.randomUUID()}`)}, ${sqlVal(opts.user)}, ${sqlVal(openClockIn.device_id)}, 'clock_out', ${sqlVal(openClockIn.source ?? 'flutter_app')}, ${sqlVal(outIso)}, ${sqlVal(nowIso)}, ${sqlVal(reason)}, ${sqlVal(note)}, ${sqlVal(location)} WHERE EXISTS (SELECT 1 FROM work_state WHERE user_id = ${sqlVal(opts.user)} AND state = 'clocked_in' AND version = ${ws.version});`,
+    `INSERT INTO events (id, request_id, user_id, device_id, event_type, source, occurred_at_utc, created_at_utc, reason, location) SELECT ${sqlVal(outId)}, ${sqlVal(`cli_close_${crypto.randomUUID()}`)}, ${sqlVal(opts.user)}, ${sqlVal(openClockIn.device_id)}, 'clock_out', ${sqlVal(openClockIn.source ?? 'flutter_app')}, ${sqlVal(outIso)}, ${sqlVal(nowIso)}, ${sqlVal(reason)}, ${sqlVal(location)} WHERE EXISTS (SELECT 1 FROM work_state WHERE user_id = ${sqlVal(opts.user)} AND state = 'clocked_in' AND version = ${ws.version});`,
     `UPDATE work_state SET state = 'clocked_out', active_since_utc = NULL, target_clock_out_utc = NULL, version = ${nextVersion}, updated_at_utc = ${sqlVal(nowIso)} WHERE user_id = ${sqlVal(opts.user)} AND state = 'clocked_in' AND version = ${ws.version};`,
   ];
 
@@ -714,8 +706,8 @@ function handleDelete(snapshot, flags, opts) {
 }
 
 function parseCliArgs(argv) {
-  const BOOLEAN_FLAGS = new Set(['staging', 'local', 'apply', 'force', 'clear-note', 'help', 'h']);
-  const VALUE_FLAGS = new Set(['user', 'id', 'in', 'out', 'location', 'reason', 'note', 'limit']);
+  const BOOLEAN_FLAGS = new Set(['staging', 'local', 'apply', 'force', 'help', 'h']);
+  const VALUE_FLAGS = new Set(['user', 'id', 'in', 'out', 'location', 'reason', 'limit']);
   const flags = {};
   let command = null;
 

@@ -21,17 +21,12 @@ class WidgetSyncService {
   static Future<Map<String, String>?> getWidgetCredentials() =>
       _delegate.getWidgetCredentials();
 
-  static Future<bool> syncActiveNote(String note) =>
-      _delegate.syncActiveNote(note);
-
   static Future<bool> syncWidgetStatus({
     required bool isClockedIn,
-    String? activeNote,
     String? syncTime,
   }) =>
       _delegate.syncWidgetStatus(
         isClockedIn: isClockedIn,
-        activeNote: activeNote,
         syncTime: syncTime,
       );
 

@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../api/models.dart';
 import '../history/recent_shifts_sheet.dart';
-import '../history/shift_model.dart';
 import '../history/shifts_notifier.dart';
 import '../reports/reports_screen.dart';
 import '../settings/settings_dialog.dart';
@@ -13,13 +12,10 @@ import '../../services/platform/platform_services.dart';
 import 'clock_notifier.dart';
 import 'widgets/current_shift_timer_card.dart';
 import 'widgets/cyber_orbit_badge.dart';
-import 'widgets/shift_notes_card.dart';
 import 'widgets/clock_action_button.dart';
 import 'widgets/shift_target_dialog.dart';
 import '../history/recent_shifts_view.dart';
 import 'widgets/current_tracker_quadrant.dart';
-import 'widgets/note_editor_quadrant.dart';
-import 'widgets/note_preview_quadrant.dart';
 
 class ClockScreen extends ConsumerStatefulWidget {
   final bool enableAnimations;
@@ -35,15 +31,8 @@ class ClockScreen extends ConsumerStatefulWidget {
 
 class _ClockScreenState extends ConsumerState<ClockScreen>
     with WidgetsBindingObserver {
-  final _notesController = TextEditingController();
   Timer? _gracePeriodTicker;
-  ShiftRecord? _selectedPastShift;
-  String? _activeShiftDraft;
-  Timer? _pastShiftSaveDebounce;
-  bool _isSavingPastNote = false;
-  bool _pastNoteSaved = false;
   bool _isUpdatingTarget = false;
-  bool _isManualClockOut = false;
   bool _isRefreshingTargetReached = false;
   String? _lastReminderSignature;
   Future<void> _reminderSyncQueue = Future<void>.value();
@@ -64,103 +53,7 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _gracePeriodTicker?.cancel();
-    _pastShiftSaveDebounce?.cancel();
-    _notesController.dispose();
     super.dispose();
-  }
-
-  Future<void> _savePastShiftNote(ShiftRecord shift, String noteText) async {
-    setState(() {
-      _isSavingPastNote = true;
-      _pastNoteSaved = false;
-    });
-    try {
-      final targetEventId = shift.clockOut.id;
-      final trimmedNote = noteText.trim();
-      final apiClient = ref.read(apiClientProvider);
-      await apiClient.updateEventNote(
-        eventId: targetEventId,
-        note: trimmedNote.isNotEmpty ? trimmedNote : null,
-      );
-      if (trimmedNote.isEmpty &&
-          shift.clockIn.note != null &&
-          shift.clockIn.note!.trim().isNotEmpty) {
-        await apiClient.updateEventNote(
-          eventId: shift.clockIn.id,
-          note: null,
-        );
-      }
-      ref.read(shiftsProvider.notifier).refresh();
-      if (mounted) {
-        setState(() {
-          _isSavingPastNote = false;
-          _pastNoteSaved = true;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isSavingPastNote = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to save past shift note: $e'),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _selectPastShift(ShiftRecord shift) async {
-    _pastShiftSaveDebounce?.cancel();
-
-    if (_selectedPastShift == null) {
-      _activeShiftDraft = _notesController.text;
-      await ShiftNotesCard.saveDraft(
-        _activeShiftDraft!,
-        store: ref.read(credentialStoreProvider),
-      );
-    } else if (_selectedPastShift!.clockOut.id != shift.clockOut.id) {
-      await _savePastShiftNote(_selectedPastShift!, _notesController.text);
-    }
-
-    setState(() {
-      _selectedPastShift = shift;
-      _pastNoteSaved = false;
-      _isSavingPastNote = false;
-      _notesController.text = shift.note ?? '';
-    });
-  }
-
-  Future<void> _returnToCurrentShift() async {
-    _pastShiftSaveDebounce?.cancel();
-    if (_selectedPastShift != null) {
-      await _savePastShiftNote(_selectedPastShift!, _notesController.text);
-    }
-
-    final activeDraft = _activeShiftDraft ??
-        await ShiftNotesCard.loadSavedDraft(
-          store: ref.read(credentialStoreProvider),
-        ) ??
-        '';
-    setState(() {
-      _selectedPastShift = null;
-      _pastNoteSaved = false;
-      _isSavingPastNote = false;
-      _notesController.text = activeDraft;
-    });
-  }
-
-  void _handlePastNoteChanged(String text) {
-    if (_selectedPastShift != null) {
-      setState(() => _pastNoteSaved = false);
-      _pastShiftSaveDebounce?.cancel();
-      _pastShiftSaveDebounce = Timer(const Duration(seconds: 1), () {
-        if (mounted && _selectedPastShift != null) {
-          _savePastShiftNote(_selectedPastShift!, _notesController.text);
-        }
-      });
-    }
   }
 
   @override
@@ -212,16 +105,7 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
           ),
         );
       } else if (next.hasValue && !next.isLoading) {
-        final status = next.value!;
-        _syncReminderIfNeeded(status);
-        final justAutoStopped =
-            !_isManualClockOut &&
-            previous?.value?.isClockedIn == true &&
-            status.isClockedOut &&
-            status.latestEvent?.eventType == 'clock_out';
-        if (justAutoStopped) {
-          unawaited(_flushDraftToAutoStoppedEvent(status.latestEvent!.id));
-        }
+        _syncReminderIfNeeded(next.value!);
       }
     });
 
@@ -294,10 +178,10 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
 
             if (isDesktop) {
               return showContent
-                  ? _buildDesktopQuadrants(
+                  ? _buildDesktopLayout(
                       context, statusAsync.value!, isLoading)
                   : statusAsync.when(
-                      data: (status) => _buildDesktopQuadrants(
+                      data: (status) => _buildDesktopLayout(
                           context, status, isLoading),
                       loading: () => const Center(
                         child: CircularProgressIndicator(),
@@ -335,121 +219,42 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
     );
   }
 
-  Widget _buildDesktopQuadrants(
+  Widget _buildDesktopLayout(
       BuildContext context, WorkStatus status, bool isLoading) {
-    final isClockedIn = status.state == WorkState.clockedIn;
-    final isEditingPastShift = _selectedPastShift != null;
-    final shiftDateLabel = isEditingPastShift
-        ? DateFormat('MMM d, yyyy').format(_selectedPastShift!.startTime)
-        : null;
-    final editorTitle = isEditingPastShift
-        ? 'Notes | Shift on $shiftDateLabel'
-        : 'Notes | Current Shift';
-
-    String? syncStatusText;
-    if (isEditingPastShift) {
-      if (_isSavingPastNote) {
-        syncStatusText = 'Saving...';
-      } else if (_pastNoteSaved) {
-        syncStatusText = 'Saved';
-      }
-    }
-
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Left Half (Flex 1):
-          // Top Left: Editor of current or past shift note
-          // Bottom Left: Preview of current or past shift note
-          Expanded(
-            flex: 1,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  flex: 1,
-                  child: NoteEditorQuadrant(
-                    controller: _notesController,
-                    title: editorTitle,
-                    isEditingPastShift: isEditingPastShift,
-                    isReadOnly: !isEditingPastShift && !isClockedIn,
-                    syncStatusText: syncStatusText,
-                    onReturnToCurrentShift: _returnToCurrentShift,
-                    onChanged: _handlePastNoteChanged,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Expanded(
-                  flex: 1,
-                  child: NotePreviewQuadrant(
-                    controller: _notesController,
-                    isEditingPastShift: isEditingPastShift,
-                    shiftDateLabel: shiftDateLabel,
-                    onReturnToCurrentShift: _returnToCurrentShift,
-                  ),
-                ),
-              ],
-            ),
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              CurrentTrackerQuadrant(
+                status: status,
+                isLoading: isLoading,
+                enableAnimations: widget.enableAnimations,
+                isAdjustingTarget: _isUpdatingTarget,
+                onAdjustTargetDelta: (delta) =>
+                    _applyTargetUpdate(deltaMinutes: delta),
+                onOpenCustomTarget: () => _openCustomTargetDialog(status),
+                onTargetReached: _handleTargetReached,
+                onClockIn: _handleClockIn,
+                onClockOut: _handleClockOut,
+                onUndo: (event) =>
+                    _showUndoConfirmationDialog(context, event),
+                onViewHistory: () => RecentShiftsSheet.show(context),
+              ),
+              const SizedBox(height: 32),
+              const RecentShiftsView(
+                showHeader: true,
+                showDragHandle: false,
+                shrinkWrap: true,
+                padding: EdgeInsets.only(top: 16),
+              ),
+            ],
           ),
-          const SizedBox(width: 16),
-
-          // Right Half (Flex 1):
-          // Top Right: Current shift tracker + buttons
-          // Bottom Right: Recent shifts (clickable to show past notes)
-          Expanded(
-            flex: 1,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  flex: 1,
-                  child: CurrentTrackerQuadrant(
-                    status: status,
-                    isLoading: isLoading,
-                    enableAnimations: widget.enableAnimations,
-                    isAdjustingTarget: _isUpdatingTarget,
-                    onAdjustTargetDelta: (delta) =>
-                        _applyTargetUpdate(deltaMinutes: delta),
-                    onOpenCustomTarget: () => _openCustomTargetDialog(status),
-                    onTargetReached: _handleTargetReached,
-                    onClockIn: _handleClockIn,
-                    onClockOut: _handleClockOut,
-                    onUndo: (event) =>
-                        _showUndoConfirmationDialog(context, event),
-                    onViewHistory: () => RecentShiftsSheet.show(context),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Expanded(
-                  flex: 1,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1E293B),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: const Color(0xFF334155),
-                        width: 1.2,
-                      ),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: RecentShiftsView(
-                        showHeader: true,
-                        showDragHandle: false,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
-                        onShiftSelected: _selectPastShift,
-                        selectedShiftId: _selectedPastShift?.clockOut.id,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -553,12 +358,6 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
           ),
         ],
 
-        // Optional Shift Notes Box when Clocked In
-        if (isClockedIn) ...[
-          const SizedBox(height: 24),
-          ShiftNotesCard(controller: _notesController),
-        ],
-
         const SizedBox(height: 24),
 
         // Last synced info
@@ -595,93 +394,20 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
           location: location,
           targetMinutes: plannedDuration?.inMinutes,
         );
-    final statusAsync = ref.read(currentStatusProvider);
-    if (!statusAsync.hasError && mounted) {
-      _activeShiftDraft = null;
-      if (_selectedPastShift == null) {
-        _notesController.clear();
-      }
-      await ShiftNotesCard.clearDraft(
-        store: ref.read(credentialStoreProvider),
-        widgetSync: ref.read(widgetSyncServiceProvider),
-      );
-    }
   }
 
   Future<void> _handleClockOut({int? offsetMinutes}) async {
     _triggerHapticIfEnabled();
-    _isManualClockOut = true;
-    try {
-      _lastReminderSignature = null;
-      await _enqueueReminderOp(
-        () => ref.read(notificationServiceProvider).cancelShiftReminder(),
-      );
-
-      String noteToSaveOnClockOut = '';
-      if (_selectedPastShift != null) {
-        // Dual-save edge case: save past shift note first, then retrieve active draft
-        await _savePastShiftNote(_selectedPastShift!, _notesController.text);
-        noteToSaveOnClockOut = _activeShiftDraft ??
-            (await ShiftNotesCard.loadSavedDraft(
-              store: ref.read(credentialStoreProvider),
-            )) ??
-            '';
-      } else {
-        noteToSaveOnClockOut = _notesController.text.trim();
-      }
-
-      await ref.read(currentStatusProvider.notifier).clockOut(
-            note: noteToSaveOnClockOut.isNotEmpty ? noteToSaveOnClockOut : null,
-            offsetMinutes: offsetMinutes,
-          );
-
-      final statusAsync = ref.read(currentStatusProvider);
-      if (statusAsync.hasError) return;
-
-      final updated = statusAsync.value;
-      // If server just auto-stopped right before manual tap, still persist typed shift note
-      if (updated != null &&
-          !updated.changed &&
-          updated.latestEvent?.eventType == 'clock_out' &&
-          noteToSaveOnClockOut.isNotEmpty) {
-        try {
-          await ref.read(apiClientProvider).updateEventNote(
-                eventId: updated.latestEvent!.id,
-                note: noteToSaveOnClockOut,
-              );
-        } catch (e) {
-          ref.read(shiftsProvider.notifier).refresh();
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Shift was already stopped, but failed to save note (draft kept): $e',
-                ),
-                backgroundColor: Colors.orangeAccent,
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          }
-          return;
-        }
-      }
-
-      _activeShiftDraft = null;
-      if (mounted) {
-        setState(() {
-          _selectedPastShift = null;
-        });
-      } else {
-        _selectedPastShift = null;
-      }
-      _notesController.clear();
-      await ShiftNotesCard.clearDraft(
-        store: ref.read(credentialStoreProvider),
-        widgetSync: ref.read(widgetSyncServiceProvider),
-      );
+    _lastReminderSignature = null;
+    await _enqueueReminderOp(
+      () => ref.read(notificationServiceProvider).cancelShiftReminder(),
+    );
+    await ref.read(currentStatusProvider.notifier).clockOut(
+          offsetMinutes: offsetMinutes,
+        );
+    final statusAsync = ref.read(currentStatusProvider);
+    if (!statusAsync.hasError) {
       ref.read(shiftsProvider.notifier).refresh();
-    } finally {
-      _isManualClockOut = false;
     }
   }
 
@@ -746,47 +472,6 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
       await ref.read(currentStatusProvider.notifier).refreshStatus();
     } finally {
       _isRefreshingTargetReached = false;
-    }
-  }
-
-  Future<void> _flushDraftToAutoStoppedEvent(String clockOutEventId) async {
-    final store = ref.read(credentialStoreProvider);
-    final bool editingActiveDraft = _selectedPastShift == null;
-    final rawDraft = editingActiveDraft
-        ? (_notesController.text.isNotEmpty
-            ? _notesController.text
-            : (_activeShiftDraft ??
-                await ShiftNotesCard.loadSavedDraft(store: store) ??
-                ''))
-        : (_activeShiftDraft ??
-            await ShiftNotesCard.loadSavedDraft(store: store) ??
-            '');
-    final draft = rawDraft.trim();
-    if (draft.isNotEmpty) {
-      try {
-        await ref.read(apiClientProvider).updateEventNote(
-              eventId: clockOutEventId,
-              note: draft,
-            );
-        ref.read(shiftsProvider.notifier).refresh();
-      } catch (_) {
-        // Keep local draft intact if network fails
-        return;
-      }
-    }
-    if (!mounted) return;
-    _activeShiftDraft = null;
-    final userTypedNewDraft = _selectedPastShift == null &&
-        _notesController.text != rawDraft &&
-        _notesController.text.isNotEmpty;
-    if (!userTypedNewDraft) {
-      if (_selectedPastShift == null) {
-        _notesController.clear();
-      }
-      await ShiftNotesCard.clearDraft(
-        store: store,
-        widgetSync: ref.read(widgetSyncServiceProvider),
-      );
     }
   }
 

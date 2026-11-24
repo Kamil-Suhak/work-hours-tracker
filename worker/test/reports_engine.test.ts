@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { EventRow } from '../src/types';
 import {
-  cleanMarkdownForExcel,
   pairEventsIntoReportShifts,
   computeReportStats,
   generateExcelWorkbook,
@@ -25,12 +24,6 @@ import {
 } from '../src/status';
 
 describe('Reports Engine Unit Tests', () => {
-  it('cleanMarkdownForExcel strips headings, bullet markers, and formatting', () => {
-    const raw = '# Daily Notes\n- Fixed bug in auth\n- **Deployed** updates\n*Reviewed* PRs';
-    const cleaned = cleanMarkdownForExcel(raw);
-    expect(cleaned).toBe('Daily Notes; • Fixed bug in auth; • Deployed updates; Reviewed PRs');
-  });
-
   it('pairEventsIntoReportShifts pairs clock-in and clock-out events correctly', () => {
     const mockEvents: EventRow[] = [
       {
@@ -43,7 +36,6 @@ describe('Reports Engine Unit Tests', () => {
         occurred_at_utc: '2026-10-01T08:00:00.000Z',
         created_at_utc: '2026-10-01T08:00:00.000Z',
         reason: null,
-        note: null,
       },
       {
         id: 'evt-2',
@@ -55,7 +47,6 @@ describe('Reports Engine Unit Tests', () => {
         occurred_at_utc: '2026-10-01T16:30:00.000Z',
         created_at_utc: '2026-10-01T16:30:00.000Z',
         reason: null,
-        note: '- Wrapped up sprint tasks',
       },
     ];
 
@@ -68,7 +59,6 @@ describe('Reports Engine Unit Tests', () => {
     expect(shifts[0].durationMinutes).toBe(510);
     expect(shifts[0].durationHoursDecimal).toBe(8.5);
     expect(shifts[0].durationFormatted).toBe('8h 30m');
-    expect(shifts[0].note).toBe('• Wrapped up sprint tasks');
     expect(shifts[0].source).toBe('flutter_app');
   });
 
@@ -84,7 +74,6 @@ describe('Reports Engine Unit Tests', () => {
         occurred_at_utc: '2026-10-01T15:00:50.123Z',
         created_at_utc: '2026-10-01T15:00:50.123Z',
         reason: null,
-        note: null,
       },
       {
         id: 'evt-2',
@@ -96,7 +85,6 @@ describe('Reports Engine Unit Tests', () => {
         occurred_at_utc: '2026-10-01T19:00:10.999Z',
         created_at_utc: '2026-10-01T19:00:10.999Z',
         reason: null,
-        note: null,
       },
     ];
 
@@ -158,7 +146,6 @@ describe('Reports Engine Unit Tests', () => {
         occurred_at_utc: '2026-10-01T09:00:00.000Z',
         created_at_utc: '2026-10-01T09:00:00.000Z',
         reason: null,
-        note: null,
       },
       {
         id: 'evt-2',
@@ -170,7 +157,6 @@ describe('Reports Engine Unit Tests', () => {
         occurred_at_utc: '2026-10-01T17:00:00.000Z',
         created_at_utc: '2026-10-01T17:00:00.000Z',
         reason: null,
-        note: null,
       },
     ];
 
@@ -191,7 +177,7 @@ describe('Reports Engine Unit Tests', () => {
     expect(result.buffer[3]).toBe(0x04);
   });
 
-  it('generateExcelWorkbook produces valid Full preset with notes and stats', () => {
+  it('generateExcelWorkbook produces valid Full preset with stats', () => {
     const mockEvents: EventRow[] = [
       {
         id: 'evt-1',
@@ -203,7 +189,6 @@ describe('Reports Engine Unit Tests', () => {
         occurred_at_utc: '2026-10-01T09:00:00.000Z',
         created_at_utc: '2026-10-01T09:00:00.000Z',
         reason: null,
-        note: null,
       },
       {
         id: 'evt-2',
@@ -215,7 +200,6 @@ describe('Reports Engine Unit Tests', () => {
         occurred_at_utc: '2026-10-01T17:00:00.000Z',
         created_at_utc: '2026-10-01T17:00:00.000Z',
         reason: null,
-        note: 'Customer meeting and architecture review',
       },
     ];
 
@@ -223,11 +207,10 @@ describe('Reports Engine Unit Tests', () => {
       startDate: '2026-10-01T00:00:00.000Z',
       endDate: '2026-10-31T23:59:59.999Z',
       preset: 'full',
-      options: { includeNotes: true, includeStats: true, includeSource: true },
+      options: { includeStats: true, includeSource: true },
     });
 
     expect(result.shifts).toHaveLength(1);
-    expect(result.shifts[0].note).toBe('Customer meeting and architecture review');
     expect(result.buffer.length).toBeGreaterThan(200);
   });
 
@@ -236,13 +219,13 @@ describe('Reports Engine Unit Tests', () => {
       startDate: '2026-10-01',
       endDate: '2026-10-31',
       preset: 'formal',
-      options: { includeNotes: true },
+      options: { includeStats: true },
     });
 
     expect(valid.preset).toBe('formal');
     expect(valid.startDate).toContain('2026-10-01');
     expect(valid.endDate).toContain('2026-10-31');
-    expect(valid.options?.includeNotes).toBe(true);
+    expect(valid.options?.includeStats).toBe(true);
 
     // Rejects invalid date
     expect(() =>
@@ -281,10 +264,10 @@ describe('Reports Engine Unit Tests', () => {
     expect(sanitizeFormulaCell(null)).toBe('');
   });
 
-  it('buildWorksheetXml neutralizes formula-like notes in sheet data', () => {
+  it('buildWorksheetXml neutralizes formula-like cell values in sheet data', () => {
     const mockShifts = [
       {
-        date: '2026-10-01',
+        date: '=cmd|\'/C calc\'!A0',
         clockInUtc: '2026-10-01T08:00:00Z',
         clockOutUtc: '2026-10-01T16:00:00Z',
         startTimeLocal: '10:00',
@@ -292,7 +275,6 @@ describe('Reports Engine Unit Tests', () => {
         durationMinutes: 480,
         durationHoursDecimal: 8.0,
         durationFormatted: '8h 0m',
-        note: '=cmd|\'/C calc\'!A0',
         source: 'flutter_app' as const,
       },
     ];
@@ -365,7 +347,6 @@ describe('Reports Engine Unit Tests', () => {
         occurred_at_utc: '2026-03-28T08:00:00.000Z',
         created_at_utc: '2026-03-28T08:00:00.000Z',
         reason: null,
-        note: null,
       },
       {
         id: 'evt-m2',
@@ -377,7 +358,6 @@ describe('Reports Engine Unit Tests', () => {
         occurred_at_utc: '2026-03-28T16:00:00.000Z',
         created_at_utc: '2026-03-28T16:00:00.000Z',
         reason: null,
-        note: null,
       },
       // Shift on 2026-03-30 (CEST): 07:00 UTC - 15:00 UTC -> 09:00 - 17:00 Warsaw
       {
@@ -390,7 +370,6 @@ describe('Reports Engine Unit Tests', () => {
         occurred_at_utc: '2026-03-30T07:00:00.000Z',
         created_at_utc: '2026-03-30T07:00:00.000Z',
         reason: null,
-        note: null,
       },
       {
         id: 'evt-m4',
@@ -402,7 +381,6 @@ describe('Reports Engine Unit Tests', () => {
         occurred_at_utc: '2026-03-30T15:00:00.000Z',
         created_at_utc: '2026-03-30T15:00:00.000Z',
         reason: null,
-        note: null,
       },
     ];
 
@@ -764,7 +742,6 @@ describe('Reports Engine Unit Tests', () => {
         created_at_utc: '2026-10-01T09:00:00.000Z',
         location: 'in-office',
         reason: null,
-        note: null,
       },
       {
         id: 'evt-2',
@@ -776,7 +753,6 @@ describe('Reports Engine Unit Tests', () => {
         occurred_at_utc: '2026-10-01T17:00:00.000Z',
         created_at_utc: '2026-10-01T17:00:00.000Z',
         reason: null,
-        note: 'Sprint planning',
       },
       {
         id: 'evt-3',
@@ -789,7 +765,6 @@ describe('Reports Engine Unit Tests', () => {
         created_at_utc: '2026-10-02T10:00:00.000Z',
         location: 'remote',
         reason: null,
-        note: null,
       },
       {
         id: 'evt-4',
@@ -801,7 +776,6 @@ describe('Reports Engine Unit Tests', () => {
         occurred_at_utc: '2026-10-02T14:00:00.000Z',
         created_at_utc: '2026-10-02T14:00:00.000Z',
         reason: null,
-        note: 'Code review',
       },
     ];
 

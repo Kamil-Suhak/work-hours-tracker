@@ -155,7 +155,6 @@ class ApiClient {
   Future<WorkStatus> clockOut({
     required String requestId,
     String source = 'flutter_app',
-    String? note,
     int? offsetMinutes,
   }) async {
     final uri = Uri.parse('$baseUrl/api/v1/clock-out');
@@ -165,9 +164,6 @@ class ApiClient {
       'source': source,
       if (offsetMinutes != null) 'offsetMinutes': offsetMinutes,
     };
-    if (note != null && note.trim().isNotEmpty) {
-      payload['note'] = note.trim();
-    }
     final body = jsonEncode(payload);
 
     final response = await _httpClient
@@ -196,26 +192,6 @@ class ApiClient {
       return list
           .map((item) => TrackingEvent.fromJson(item as Map<String, dynamic>))
           .toList();
-    }
-    _handleError(response);
-  }
-
-  Future<void> updateEventNote({
-    required String eventId,
-    required String? note,
-  }) async {
-    final encodedEventId = Uri.encodeComponent(eventId);
-    final uri = Uri.parse('$baseUrl/api/v1/events/$encodedEventId/note');
-    final headers = await _buildHeaders();
-    final body = jsonEncode({
-      'note': note,
-    });
-
-    final response = await _httpClient
-        .patch(uri, headers: headers, body: body)
-        .timeout(requestTimeout);
-    if (response.statusCode == 200) {
-      return;
     }
     _handleError(response);
   }

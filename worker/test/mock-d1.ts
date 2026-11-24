@@ -251,15 +251,6 @@ export class MockPreparedStatement {
           changes = 1;
         }
       }
-    } else if (q.includes('UPDATE events SET note = ?')) {
-      const note = (this.boundArgs[0] as string) ?? null;
-      const id = this.boundArgs[1] as string;
-      const userId = q.includes('AND user_id = ?') ? (this.boundArgs[2] as string) : null;
-      const event = this.db.events.find((e) => e.id === id && (userId === null || e.user_id === userId));
-      if (event) {
-        event.note = note;
-        changes = 1;
-      }
     } else if (q.includes('INSERT INTO events')) {
       if (q.includes("'Auto-stopped at target'") && q.includes('WHERE EXISTS')) {
         const id = this.boundArgs[0] as string;
@@ -294,7 +285,6 @@ export class MockPreparedStatement {
             occurred_at_utc: occurredAtUtc,
             created_at_utc: createdAtUtc,
             reason: 'Auto-stopped at target',
-            note: null,
             location,
           });
           changes = 1;
@@ -309,10 +299,9 @@ export class MockPreparedStatement {
         const source = this.boundArgs[4] as EventRow['source'];
         const occurredAtUtc = this.boundArgs[5] as string;
         const createdAtUtc = this.boundArgs[6] as string;
-        const note = (this.boundArgs[7] as string) ?? null;
-        const location = (this.boundArgs[8] as EventRow['location']) ?? 'remote';
-        const whereUserId = this.boundArgs[9] as string;
-        const expectedVersion = this.boundArgs[10] as number;
+        const location = (this.boundArgs[7] as EventRow['location']) ?? 'remote';
+        const whereUserId = this.boundArgs[8] as string;
+        const expectedVersion = this.boundArgs[9] as number;
 
         const ws = this.db.workState.get(whereUserId);
         if (ws && ws.state === expectedState && ws.version === expectedVersion) {
@@ -329,7 +318,6 @@ export class MockPreparedStatement {
             occurred_at_utc: occurredAtUtc,
             created_at_utc: createdAtUtc,
             reason: null,
-            note,
             location,
           });
           changes = 1;
@@ -343,9 +331,8 @@ export class MockPreparedStatement {
         const source = this.boundArgs[4] as EventRow['source'];
         const occurredAtUtc = this.boundArgs[5] as string;
         const createdAtUtc = this.boundArgs[6] as string;
-        const note = (this.boundArgs[7] as string) ?? null;
-        const location = (this.boundArgs[8] as EventRow['location']) ?? 'remote';
-        const whereUserId = this.boundArgs[9] as string;
+        const location = (this.boundArgs[7] as EventRow['location']) ?? 'remote';
+        const whereUserId = this.boundArgs[8] as string;
 
         if (!this.db.workState.has(whereUserId)) {
           if (this.db.events.some((e) => e.request_id === requestId)) {
@@ -361,7 +348,6 @@ export class MockPreparedStatement {
             occurred_at_utc: occurredAtUtc,
             created_at_utc: createdAtUtc,
             reason: null,
-            note,
             location,
           });
           changes = 1;
@@ -375,8 +361,7 @@ export class MockPreparedStatement {
         const source = this.boundArgs[4] as EventRow['source'];
         const occurredAtUtc = this.boundArgs[5] as string;
         const createdAtUtc = this.boundArgs[6] as string;
-        const note = (this.boundArgs[7] as string) ?? null;
-        const location = (this.boundArgs[8] as EventRow['location']) ?? 'remote';
+        const location = (this.boundArgs[7] as EventRow['location']) ?? 'remote';
 
         if (this.db.events.some((e) => e.request_id === requestId)) {
           throw new Error('UNIQUE constraint failed: events.request_id');
@@ -392,7 +377,6 @@ export class MockPreparedStatement {
           occurred_at_utc: occurredAtUtc,
           created_at_utc: createdAtUtc,
           reason: null,
-          note,
           location,
         });
         changes = 1;

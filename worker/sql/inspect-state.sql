@@ -23,8 +23,7 @@ SELECT
     id,
     event_type,
     source,
-    occurred_at_utc,
-    COALESCE(note, '') AS note
+    occurred_at_utc
 FROM events
 ORDER BY occurred_at_utc DESC, created_at_utc DESC, rowid DESC
 LIMIT 5;

@@ -808,7 +808,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Full breakdown with timestamps, durations, locations, sources, shift notes & summary statistics.',
+            'Full breakdown with timestamps, durations, locations, sources & summary statistics.',
             style: TextStyle(
                 fontSize: 13, color: Color(0xFF94A3B8), height: 1.4),
           ),

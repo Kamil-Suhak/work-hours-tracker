@@ -36,7 +36,6 @@ describe('MockD1Database strict SQL guards', () => {
         occurred_at_utc: '2026-10-03T08:00:00.000Z',
         created_at_utc: '2026-10-03T08:00:00.000Z',
         reason: null,
-        note: null,
         location: 'remote',
       },
       {
@@ -49,7 +48,6 @@ describe('MockD1Database strict SQL guards', () => {
         occurred_at_utc: '2026-10-03T08:00:00.000Z',
         created_at_utc: '2026-10-03T08:00:00.000Z',
         reason: null,
-        note: null,
         location: 'remote',
       }
     );

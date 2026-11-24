@@ -15,8 +15,6 @@ void main() {
         .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
       log.add(methodCall);
       switch (methodCall.method) {
-        case 'syncActiveNote':
-          return true;
         case 'syncWidgetStatus':
           return true;
         case 'syncWidgetCredentials':
@@ -41,19 +39,9 @@ void main() {
   });
 
   group('WidgetSyncService Tests', () {
-    test('syncActiveNote invokes native channel with note payload', () async {
-      final success = await WidgetSyncService.syncActiveNote('Testing active shift note');
-
-      expect(success, isTrue);
-      expect(log, hasLength(1));
-      expect(log.first.method, equals('syncActiveNote'));
-      expect(log.first.arguments, equals({'note': 'Testing active shift note'}));
-    });
-
     test('syncWidgetStatus invokes native channel with status payload', () async {
       final success = await WidgetSyncService.syncWidgetStatus(
         isClockedIn: true,
-        activeNote: 'Writing docs',
         syncTime: '12:30',
       );
 
@@ -62,19 +50,8 @@ void main() {
       expect(log.first.method, equals('syncWidgetStatus'));
       expect(log.first.arguments, equals({
         'isClockedIn': true,
-        'activeNote': 'Writing docs',
         'syncTime': '12:30',
       }));
-    });
-
-    test('syncActiveNote returns false if method call throws', () async {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
-        throw PlatformException(code: 'ERROR', message: 'Failed');
-      });
-
-      final success = await WidgetSyncService.syncActiveNote('Test note');
-      expect(success, isFalse);
     });
 
     test('syncWidgetStatus returns false if method call throws', () async {

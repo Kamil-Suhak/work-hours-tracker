@@ -71,17 +71,6 @@ describe('Worker End-to-End Integration Suite', () => {
       expect(res.status).toBe(401);
     });
 
-    it('returns 400 instead of 500 on malformed URL encoding in event note path', async () => {
-      const req = createRequest('/api/v1/events/%E0%A4%A/note', {
-        method: 'PATCH',
-        body: { note: 'hello' },
-      });
-      const res = await worker.fetch(req, env);
-      expect(res.status).toBe(400);
-      const data = await res.json() as { error: { code: string } };
-      expect(data.error.code).toBe('VALIDATION_ERROR');
-    });
-
     it('rejects requests with an unknown token with 401', async () => {
       const req = createRequest('/api/v1/status', { token: 'wrong-token' });
       const res = await worker.fetch(req, env);
@@ -215,90 +204,6 @@ describe('Worker End-to-End Integration Suite', () => {
       expect(mockDb.events).toHaveLength(2);
       expect(mockDb.events[1].event_type).toBe('clock_out');
       expect(mockDb.workState.get('default-user')?.state).toBe('clocked_out');
-    });
-
-    it('saves note on clock-out and returns it in events query', async () => {
-      await worker.fetch(
-        createRequest('/api/v1/clock-in', {
-          method: 'POST',
-          body: { requestId: 'req-in-note', source: 'flutter_app' },
-        }),
-        env
-      );
-
-      const noteText = '# Shift Recap\n- Finished sprint tickets\n- Reviewed **PR #42**';
-      const resOut = await worker.fetch(
-        createRequest('/api/v1/clock-out', {
-          method: 'POST',
-          body: { requestId: 'req-out-note', source: 'flutter_app', note: noteText },
-        }),
-        env
-      );
-      expect(resOut.status).toBe(200);
-
-      const now = new Date();
-      const from = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
-      const to = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
-      const eventsRes = await worker.fetch(
-        createRequest(`/api/v1/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
-        env
-      );
-      expect(eventsRes.status).toBe(200);
-      const events = await eventsRes.json() as Array<{ event_type: string; note: string | null }>;
-      const clockOutEvent = events.find((e) => e.event_type === 'clock_out');
-      expect(clockOutEvent?.note).toBe(noteText);
-    });
-
-    it('updates note on an existing event via PATCH /api/v1/events/:id/note', async () => {
-      await worker.fetch(
-        createRequest('/api/v1/clock-in', {
-          method: 'POST',
-          body: { requestId: 'req-in-patch-note', source: 'flutter_app' },
-        }),
-        env
-      );
-
-      await worker.fetch(
-        createRequest('/api/v1/clock-out', {
-          method: 'POST',
-          body: { requestId: 'req-out-patch-note', source: 'flutter_app' },
-        }),
-        env
-      );
-
-      const targetEvent = mockDb.events.find((e) => e.event_type === 'clock_out')!;
-      expect(targetEvent).toBeDefined();
-
-      const updateRes = await worker.fetch(
-        createRequest(`/api/v1/events/${targetEvent.id}/note`, {
-          method: 'PATCH',
-          body: { note: 'Backfilled shift note via preview dialog' },
-        }),
-        env
-      );
-      expect(updateRes.status).toBe(200);
-      const updatedData = await updateRes.json() as { success: boolean; id: string; note: string };
-      expect(updatedData.success).toBe(true);
-      expect(updatedData.note).toBe('Backfilled shift note via preview dialog');
-
-      expect(mockDb.events.find((e) => e.id === targetEvent.id)?.note).toBe('Backfilled shift note via preview dialog');
-    });
-
-    it('rejects clock-out with note exceeding 4,000 characters', async () => {
-      const res = await worker.fetch(
-        createRequest('/api/v1/clock-out', {
-          method: 'POST',
-          body: {
-            requestId: 'req-out-toolong',
-            source: 'flutter_app',
-            note: 'x'.repeat(4001),
-          },
-        }),
-        env
-      );
-      expect(res.status).toBe(400);
-      const data = await res.json() as { error: { code: string; message: string } };
-      expect(data.error.code).toBe('NOTE_TOO_LONG');
     });
 
     it('returns changed: false when clocking out while already clocked out', async () => {
@@ -847,7 +752,6 @@ describe('Worker End-to-End Integration Suite', () => {
           occurred_at_utc: '2026-10-01T08:00:00.000Z',
           created_at_utc: '2026-10-01T08:00:00.000Z',
           reason: null,
-          note: null,
         },
         {
           id: 'ev-rep-out',
@@ -859,7 +763,6 @@ describe('Worker End-to-End Integration Suite', () => {
           occurred_at_utc: '2026-10-01T16:00:00.000Z',
           created_at_utc: '2026-10-01T16:00:00.000Z',
           reason: null,
-          note: 'Completed monthly goals',
         }
       );
 
@@ -911,7 +814,6 @@ describe('Worker End-to-End Integration Suite', () => {
           occurred_at_utc: `${currentMonth.monthString}-05T08:00:00.000Z`,
           created_at_utc: `${currentMonth.monthString}-05T08:00:00.000Z`,
           reason: null,
-          note: null,
         },
         {
           id: 'ev-docx-out',
@@ -923,7 +825,6 @@ describe('Worker End-to-End Integration Suite', () => {
           occurred_at_utc: `${currentMonth.monthString}-05T12:00:00.000Z`,
           created_at_utc: `${currentMonth.monthString}-05T12:00:00.000Z`,
           reason: null,
-          note: null,
         }
       );
 
@@ -1308,8 +1209,8 @@ describe('Worker End-to-End Integration Suite', () => {
 
     it('rejects multi-byte UTF-8 payloads exceeding 64 KB even when UTF-16 length is under 64K', async () => {
       // Each U+20AC Euro sign is 1 UTF-16 code unit but 3 UTF-8 bytes (~90 KB total).
-      const largeUnicodeNote = '€'.repeat(30000);
-      const rawBody = JSON.stringify({ requestId: 'req-utf8-limit', note: largeUnicodeNote });
+      const largeUnicodePayload = '€'.repeat(30000);
+      const rawBody = JSON.stringify({ requestId: 'req-utf8-limit', extra: largeUnicodePayload });
       expect(rawBody.length).toBeLessThan(64 * 1024);
       expect(new TextEncoder().encode(rawBody).byteLength).toBeGreaterThan(64 * 1024);
 

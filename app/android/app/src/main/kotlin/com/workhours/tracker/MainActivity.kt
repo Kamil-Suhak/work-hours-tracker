@@ -94,21 +94,8 @@ class MainActivity: FlutterActivity() {
                     val vibrationsEnabled = prefs.getBoolean(WorkHoursWidgetReceiver.KEY_HAPTICS, true)
                     result.success(mapOf("baseUrl" to baseUrl, "deviceToken" to token, "vibrationsEnabled" to vibrationsEnabled))
                 }
-                "syncActiveNote" -> {
-                    val note = call.argument<String>("note") ?: ""
-                    val prefs = applicationContext.getSharedPreferences(
-                        WorkHoursWidgetReceiver.PREFS_NAME,
-                        Context.MODE_PRIVATE
-                    )
-                    prefs.edit().putString(WorkHoursWidgetReceiver.KEY_ACTIVE_NOTE, note).apply()
-
-                    val isClockedIn = if (prefs.contains(WorkHoursWidgetReceiver.KEY_IS_CLOCKED_IN)) prefs.getBoolean(WorkHoursWidgetReceiver.KEY_IS_CLOCKED_IN, false) else null
-                    WorkHoursWidgetReceiver.updateAllWidgets(applicationContext, isClockedIn, "")
-                    result.success(true)
-                }
                 "syncWidgetStatus" -> {
                     val isClockedIn = call.argument<Boolean>("isClockedIn") ?: false
-                    val activeNote = call.argument<String?>("activeNote")
                     val syncTime = call.argument<String?>("syncTime")
                         ?: SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
 
@@ -116,13 +103,7 @@ class MainActivity: FlutterActivity() {
                         WorkHoursWidgetReceiver.PREFS_NAME,
                         Context.MODE_PRIVATE
                     )
-                    val editor = prefs.edit().putBoolean(WorkHoursWidgetReceiver.KEY_IS_CLOCKED_IN, isClockedIn)
-                    if (activeNote != null) {
-                        editor.putString(WorkHoursWidgetReceiver.KEY_ACTIVE_NOTE, activeNote)
-                    } else if (!isClockedIn) {
-                        editor.putString(WorkHoursWidgetReceiver.KEY_ACTIVE_NOTE, "")
-                    }
-                    editor.apply()
+                    prefs.edit().putBoolean(WorkHoursWidgetReceiver.KEY_IS_CLOCKED_IN, isClockedIn).apply()
 
                     WorkHoursWidgetReceiver.updateAllWidgets(applicationContext, isClockedIn, syncTime)
                     result.success(true)
