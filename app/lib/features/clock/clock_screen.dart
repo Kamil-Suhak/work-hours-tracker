@@ -15,7 +15,7 @@ import 'widgets/cyber_orbit_badge.dart';
 import 'widgets/clock_action_button.dart';
 import 'widgets/shift_target_dialog.dart';
 import '../history/recent_shifts_view.dart';
-import 'widgets/current_tracker_quadrant.dart';
+import 'widgets/current_tracker_card.dart';
 
 class ClockScreen extends ConsumerStatefulWidget {
   final bool enableAnimations;
@@ -34,6 +34,7 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
   Timer? _gracePeriodTicker;
   bool _isUpdatingTarget = false;
   bool _isRefreshingTargetReached = false;
+  bool _isDesktopShiftsExpanded = false;
   String? _lastReminderSignature;
   Future<void> _reminderSyncQueue = Future<void>.value();
 
@@ -221,41 +222,153 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
 
   Widget _buildDesktopLayout(
       BuildContext context, WorkStatus status, bool isLoading) {
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              CurrentTrackerQuadrant(
-                status: status,
-                isLoading: isLoading,
-                enableAnimations: widget.enableAnimations,
-                isAdjustingTarget: _isUpdatingTarget,
-                onAdjustTargetDelta: (delta) =>
-                    _applyTargetUpdate(deltaMinutes: delta),
-                onOpenCustomTarget: () => _openCustomTargetDialog(status),
-                onTargetReached: _handleTargetReached,
-                onClockIn: _handleClockIn,
-                onClockOut: _handleClockOut,
-                onUndo: (event) =>
-                    _showUndoConfirmationDialog(context, event),
-                onViewHistory: () => RecentShiftsSheet.show(context),
+    final shiftsAsync = ref.watch(shiftsProvider);
+    final shiftCount = shiftsAsync.value?.length;
+    const activeEmerald = Color(0xFF10B981);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight:
+                  (constraints.maxHeight - 64.0).clamp(0.0, double.infinity),
+            ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 760),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    CurrentTrackerCard(
+                      status: status,
+                      isLoading: isLoading,
+                      enableAnimations: widget.enableAnimations,
+                      isAdjustingTarget: _isUpdatingTarget,
+                      onAdjustTargetDelta: (delta) =>
+                          _applyTargetUpdate(deltaMinutes: delta),
+                      onOpenCustomTarget: () => _openCustomTargetDialog(status),
+                      onTargetReached: _handleTargetReached,
+                      onClockIn: _handleClockIn,
+                      onClockOut: _handleClockOut,
+                      onUndo: (event) =>
+                          _showUndoConfirmationDialog(context, event),
+                      onViewHistory: () => RecentShiftsSheet.show(context),
+                    ),
+                    const SizedBox(height: 24),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E293B),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: const Color(0xFF334155),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              key: const Key('desktop_recent_shifts_toggle'),
+                              borderRadius: BorderRadius.vertical(
+                                top: const Radius.circular(16),
+                                bottom: _isDesktopShiftsExpanded
+                                    ? Radius.zero
+                                    : const Radius.circular(16),
+                              ),
+                              onTap: () => setState(() {
+                                _isDesktopShiftsExpanded =
+                                    !_isDesktopShiftsExpanded;
+                              }),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 16,
+                                ),
+                                child: SizedBox(
+                                  height: 24,
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.history,
+                                        color: activeEmerald,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      const Text(
+                                        'Recent Shifts',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFFF8FAFC),
+                                        ),
+                                      ),
+                                      if (shiftCount != null) ...[
+                                        const SizedBox(width: 12),
+                                        Text(
+                                          '$shiftCount ${shiftCount == 1 ? 'shift' : 'shifts'}',
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w500,
+                                            color: Color(0xFF94A3B8),
+                                          ),
+                                        ),
+                                      ],
+                                      const Spacer(),
+                                      if (_isDesktopShiftsExpanded)
+                                        IconButton(
+                                          icon: const Icon(Icons.refresh, size: 20),
+                                          tooltip: 'Refresh History',
+                                          color: const Color(0xFF94A3B8),
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(
+                                            minWidth: 32,
+                                            minHeight: 24,
+                                          ),
+                                          onPressed: () => ref
+                                              .read(shiftsProvider.notifier)
+                                              .refresh(),
+                                        ),
+                                      Icon(
+                                        _isDesktopShiftsExpanded
+                                            ? Icons.keyboard_arrow_up
+                                            : Icons.keyboard_arrow_down,
+                                        color: const Color(0xFF94A3B8),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (_isDesktopShiftsExpanded) ...[
+                            const Divider(color: Color(0xFF334155), height: 1),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxHeight: 420),
+                              child: const RecentShiftsView(
+                                showHeader: false,
+                                showDragHandle: false,
+                                shrinkWrap: false,
+                                padding: EdgeInsets.all(16),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 32),
-              const RecentShiftsView(
-                showHeader: true,
-                showDragHandle: false,
-                shrinkWrap: true,
-                padding: EdgeInsets.only(top: 16),
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -400,7 +513,11 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
     _triggerHapticIfEnabled();
     _lastReminderSignature = null;
     await _enqueueReminderOp(
-      () => ref.read(notificationServiceProvider).cancelShiftReminder(),
+      () async {
+        final notifications = ref.read(notificationServiceProvider);
+        await notifications.cancelShiftReminder();
+        await notifications.cancelTargetNotification();
+      },
     );
     await ref.read(currentStatusProvider.notifier).clockOut(
           offsetMinutes: offsetMinutes,
@@ -497,15 +614,24 @@ class _ClockScreenState extends ConsumerState<ClockScreen>
     if (_lastReminderSignature != expectedSig) return;
     final notificationService = ref.read(notificationServiceProvider);
     await notificationService.cancelShiftReminder();
+    await notificationService.cancelTargetNotification();
     if (_lastReminderSignature != expectedSig) return;
+
+    final targetUtc = status.targetClockOutUtc;
     if (status.isClockedIn &&
-        status.targetClockOutUtc != null &&
-        reminderMinutes > 0 &&
-        status.targetClockOutUtc!.toLocal().isAfter(DateTime.now())) {
-      await notificationService.scheduleShiftReminder(
-        targetEndTime: status.targetClockOutUtc!.toLocal(),
-        minutesBefore: reminderMinutes,
+        targetUtc != null &&
+        targetUtc.toLocal().isAfter(DateTime.now())) {
+      final targetLocal = targetUtc.toLocal();
+      await notificationService.scheduleTargetNotification(
+        targetEndTime: targetLocal,
+        checkStatus: () => ref.read(apiClientProvider).getStatus(),
       );
+      if (reminderMinutes > 0) {
+        await notificationService.scheduleShiftReminder(
+          targetEndTime: targetLocal,
+          minutesBefore: reminderMinutes,
+        );
+      }
     }
   }
 

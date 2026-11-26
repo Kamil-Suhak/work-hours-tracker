@@ -1,6 +1,6 @@
 # Work Hours Tracker
 
-Single-user work hours tracking system (`v1.3.1`) with a **Flutter** client (Android + Web + native Android home-screen widget) and a **Cloudflare Worker** API backed by **D1**, **R2**, and pure-TypeScript `.xlsx` / `.docx` OpenXML report generators.
+Single-user work hours tracking system (`v1.3.2`) with a **Flutter** client (Android + Web + native Android home-screen widget) and a **Cloudflare Worker** API backed by **D1**, **R2**, and pure-TypeScript `.xlsx` / `.docx` OpenXML report generators.
 
 ## Repository Layout
 

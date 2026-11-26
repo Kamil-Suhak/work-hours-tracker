@@ -56,11 +56,35 @@ void main() {
         duration: const Duration(hours: 8, minutes: 30),
       );
 
+      final septemberShift = ShiftRecord(
+        clockIn: TrackingEvent(
+          id: 'evt-5',
+          requestId: 'req-5',
+          userId: 'user-1',
+          eventType: 'clock_in',
+          source: 'flutter_app',
+          occurredAtUtc: DateTime.parse('2026-09-15T08:00:00Z'),
+          createdAtUtc: DateTime.parse('2026-09-15T08:00:00Z'),
+        ),
+        clockOut: TrackingEvent(
+          id: 'evt-6',
+          requestId: 'req-6',
+          userId: 'user-1',
+          eventType: 'clock_out',
+          source: 'flutter_app',
+          occurredAtUtc: DateTime.parse('2026-09-15T14:00:00Z'),
+          createdAtUtc: DateTime.parse('2026-09-15T14:00:00Z'),
+        ),
+        duration: const Duration(hours: 6),
+      );
+
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
             shiftsProvider.overrideWith(
-              () => _MockShiftsNotifier([inOfficeShift, remoteShift]),
+              () => _MockShiftsNotifier(
+                [inOfficeShift, remoteShift, septemberShift],
+              ),
             ),
           ],
           child: const MaterialApp(
@@ -73,10 +97,15 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // Ensure headers and durations render
+      // Ensure headers and monthly groups render
       expect(find.text('Recent Shifts'), findsOneWidget);
+      expect(find.text('October 2026'), findsOneWidget);
+      expect(find.text('September 2026'), findsOneWidget);
+
+      // Latest month (October 2026) is expanded by default; September is collapsed
       expect(find.text('8h 30m'), findsOneWidget);
       expect(find.text('8h 0m'), findsOneWidget);
+      expect(find.text('6h 0m'), findsNothing);
 
       // Verify that source labels are NOT rendered in the app
       expect(find.text('flutter_app'), findsNothing);
@@ -85,6 +114,13 @@ void main() {
       // Verify location badges render
       expect(find.text('In-Office'), findsOneWidget);
       expect(find.text('Remote'), findsOneWidget);
+
+      // Expanding September 2026 leaves October 2026 expanded independently
+      await tester.tap(find.byKey(const Key('month_header_2026-09')));
+      await tester.pumpAndSettle();
+      expect(find.text('6h 0m'), findsOneWidget);
+      expect(find.text('8h 30m'), findsOneWidget);
+      expect(find.text('8h 0m'), findsOneWidget);
     });
   });
 }

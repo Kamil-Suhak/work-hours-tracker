@@ -5,7 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:work_hours_mobile/api/models.dart';
 import 'package:work_hours_mobile/features/clock/clock_notifier.dart';
 import 'package:work_hours_mobile/features/clock/clock_screen.dart';
-import 'package:work_hours_mobile/features/clock/widgets/current_tracker_quadrant.dart';
+import 'package:work_hours_mobile/features/clock/widgets/current_tracker_card.dart';
+import 'package:work_hours_mobile/features/clock/widgets/cyber_orbit_badge.dart';
 import 'package:work_hours_mobile/features/history/recent_shifts_view.dart';
 import 'package:work_hours_mobile/features/history/shift_model.dart';
 import 'package:work_hours_mobile/features/history/shifts_notifier.dart';
@@ -64,7 +65,7 @@ void main() {
     });
 
     testWidgets(
-        'renders centered tracker above recent shifts on desktop viewport (>= 900px)',
+        'renders centered tracker with recent shifts collapsed by default and expandable on desktop (>= 900px)',
         (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1280, 800);
       tester.view.devicePixelRatio = 1.0;
@@ -96,20 +97,32 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      final trackerFinder = find.byType(CurrentTrackerQuadrant);
+      final trackerFinder = find.byType(CurrentTrackerCard);
+      final toggleFinder = find.byKey(const Key('desktop_recent_shifts_toggle'));
       final shiftsFinder = find.byType(RecentShiftsView);
 
       expect(trackerFinder, findsOneWidget);
       expect(find.byKey(const Key('clock_out_button')), findsOneWidget);
-      expect(shiftsFinder, findsOneWidget);
+      // Orbit ring is on the desktop container, not the inner pill
+      expect(find.byType(CyberOrbitBorder), findsOneWidget);
+      final badge = tester.widget<CyberOrbitBadge>(find.byType(CyberOrbitBadge));
+      expect(badge.showOrbitRing, isFalse);
+      expect(toggleFinder, findsOneWidget);
       expect(find.text('Recent Shifts'), findsOneWidget);
+      // Collapsed by default
+      expect(shiftsFinder, findsNothing);
 
-      // Verify vertical stacking: tracker above recent shifts, horizontally centered
+      // Verify vertical stacking and horizontal centering while collapsed
       final trackerRect = tester.getRect(trackerFinder);
-      final shiftsRect = tester.getRect(shiftsFinder);
-      expect(trackerRect.bottom, lessThan(shiftsRect.top));
+      final toggleRect = tester.getRect(toggleFinder);
+      expect(trackerRect.bottom, lessThan(toggleRect.top));
       expect(trackerRect.center.dx, closeTo(640, 1));
-      expect(shiftsRect.center.dx, closeTo(640, 1));
+      expect(toggleRect.center.dx, closeTo(640, 1));
+
+      // Tap to expand Recent Shifts in its own bounded container
+      await tester.tap(toggleFinder);
+      await tester.pumpAndSettle();
+      expect(shiftsFinder, findsOneWidget);
     });
   });
 }

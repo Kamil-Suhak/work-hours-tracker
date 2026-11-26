@@ -1,8 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../clock/clock_notifier.dart';
 import 'shift_model.dart';
 import 'shifts_notifier.dart';
+
+class _MonthGroup {
+  final String key;
+  final String label;
+  final List<ShiftRecord> shifts;
+  final int totalSeconds;
+
+  const _MonthGroup({
+    required this.key,
+    required this.label,
+    required this.shifts,
+    required this.totalSeconds,
+  });
+}
 
 class RecentShiftsView extends ConsumerStatefulWidget {
   final ScrollController? scrollController;
@@ -26,6 +41,8 @@ class RecentShiftsView extends ConsumerStatefulWidget {
 
 class _RecentShiftsViewState extends ConsumerState<RecentShiftsView> {
   ScrollController? _internalController;
+  final Set<String> _expandedMonths = {};
+  bool _initializedExpansion = false;
 
   ScrollController get _effectiveController =>
       widget.scrollController ?? (_internalController ??= ScrollController());
@@ -34,6 +51,36 @@ class _RecentShiftsViewState extends ConsumerState<RecentShiftsView> {
   void dispose() {
     _internalController?.dispose();
     super.dispose();
+  }
+
+  List<_MonthGroup> _groupShiftsByMonth(List<ShiftRecord> shifts) {
+    final monthFormat = DateFormat('MMMM yyyy');
+    final buckets = <String, List<ShiftRecord>>{};
+    final labels = <String, String>{};
+
+    for (final shift in shifts) {
+      final local = shift.startTime;
+      final key =
+          '${local.year}-${local.month.toString().padLeft(2, '0')}';
+      buckets.putIfAbsent(key, () => []).add(shift);
+      labels.putIfAbsent(
+        key,
+        () => monthFormat.format(DateTime(local.year, local.month)),
+      );
+    }
+
+    return buckets.entries.map((entry) {
+      final totalSeconds = entry.value.fold<int>(
+        0,
+        (sum, s) => sum + s.duration.inSeconds,
+      );
+      return _MonthGroup(
+        key: entry.key,
+        label: labels[entry.key]!,
+        shifts: entry.value,
+        totalSeconds: totalSeconds,
+      );
+    }).toList();
   }
 
   @override
@@ -135,6 +182,12 @@ class _RecentShiftsViewState extends ConsumerState<RecentShiftsView> {
           );
         }
 
+        final groups = _groupShiftsByMonth(shifts);
+        if (!_initializedExpansion && groups.isNotEmpty) {
+          _expandedMonths.add(groups.first.key);
+          _initializedExpansion = true;
+        }
+
         final listView = ListView.separated(
           controller: widget.shrinkWrap ? null : _effectiveController,
           shrinkWrap: widget.shrinkWrap,
@@ -146,11 +199,10 @@ class _RecentShiftsViewState extends ConsumerState<RecentShiftsView> {
                 horizontal: 16,
                 vertical: 16,
               ),
-          itemCount: shifts.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          itemCount: groups.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 16),
           itemBuilder: (context, index) {
-            final shift = shifts[index];
-            return _buildShiftCard(context, shift);
+            return _buildMonthGroup(context, groups[index]);
           },
         );
 
@@ -213,6 +265,79 @@ class _RecentShiftsViewState extends ConsumerState<RecentShiftsView> {
     );
   }
 
+  Widget _buildMonthGroup(BuildContext context, _MonthGroup group) {
+    final isExpanded = _expandedMonths.contains(group.key);
+    final countLabel =
+        '${group.shifts.length} ${group.shifts.length == 1 ? 'shift' : 'shifts'}';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Material(
+          color: const Color(0xFF162032),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Color(0xFF334155), width: 1.0),
+          ),
+          child: InkWell(
+            key: Key('month_header_${group.key}'),
+            borderRadius: BorderRadius.circular(12),
+            onTap: () {
+              setState(() {
+                if (isExpanded) {
+                  _expandedMonths.remove(group.key);
+                } else {
+                  _expandedMonths.add(group.key);
+                }
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      group.label,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFFF8FAFC),
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '$countLabel • ${formatSeconds(group.totalSeconds)}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      fontFeatures: [FontFeature.tabularFigures()],
+                      color: Color(0xFF94A3B8),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    isExpanded
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
+                    size: 20,
+                    color: const Color(0xFF94A3B8),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (isExpanded) ...[
+          const SizedBox(height: 8),
+          for (var i = 0; i < group.shifts.length; i++) ...[
+            if (i > 0) const SizedBox(height: 8),
+            _buildShiftCard(context, group.shifts[i]),
+          ],
+        ],
+      ],
+    );
+  }
+
   Widget _buildShiftCard(BuildContext context, ShiftRecord shift) {
     final dateFormat = DateFormat('EEE, MMM d, yyyy');
     final timeFormat = DateFormat('HH:mm');
@@ -239,20 +364,14 @@ class _RecentShiftsViewState extends ConsumerState<RecentShiftsView> {
               Row(
                 children: [
                   Expanded(
-                    child: Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            dateLabel,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                              color: Color(0xFFF8FAFC),
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      dateLabel,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: Color(0xFFF8FAFC),
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   const SizedBox(width: 8),

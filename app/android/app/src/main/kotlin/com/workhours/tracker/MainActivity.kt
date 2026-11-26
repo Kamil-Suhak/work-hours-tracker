@@ -219,59 +219,14 @@ class MainActivity: FlutterActivity() {
                             ?: (call.argument<Number>("triggerAtMillis")?.toLong() ?: 0L)
                         val title = call.argument<String>("title") ?: "Shift Ending Soon"
                         val body = call.argument<String>("body") ?: "Your planned shift ends soon. Remember to clock out!"
-
-                        val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager
-                        val intent = Intent(this, ShiftReminderReceiver::class.java).apply {
-                            action = ShiftReminderReceiver.ACTION_REMINDER
-                            putExtra("title", title)
-                            putExtra("body", body)
-                        }
-                        val pendingIntent = PendingIntent.getBroadcast(
-                            this,
-                            ShiftReminderReceiver.NOTIFICATION_ID,
-                            intent,
-                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                        scheduleAlarm(
+                            action = ShiftReminderReceiver.ACTION_REMINDER,
+                            notificationId = ShiftReminderReceiver.NOTIFICATION_ID,
+                            triggerAtMillis = triggerAtMillis,
+                            title = title,
+                            body = body,
+                            targetUtcIso = null,
                         )
-
-                        if (alarmManager != null && triggerAtMillis > System.currentTimeMillis()) {
-                            try {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                    if (alarmManager.canScheduleExactAlarms()) {
-                                        alarmManager.setExactAndAllowWhileIdle(
-                                            AlarmManager.RTC_WAKEUP,
-                                            triggerAtMillis,
-                                            pendingIntent
-                                        )
-                                    } else {
-                                        alarmManager.setAndAllowWhileIdle(
-                                            AlarmManager.RTC_WAKEUP,
-                                            triggerAtMillis,
-                                            pendingIntent
-                                        )
-                                    }
-                                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                                    alarmManager.setExactAndAllowWhileIdle(
-                                        AlarmManager.RTC_WAKEUP,
-                                        triggerAtMillis,
-                                        pendingIntent
-                                    )
-                                } else {
-                                    alarmManager.setExact(
-                                        AlarmManager.RTC_WAKEUP,
-                                        triggerAtMillis,
-                                        pendingIntent
-                                    )
-                                }
-                            } catch (secEx: SecurityException) {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                                    alarmManager.setAndAllowWhileIdle(
-                                        AlarmManager.RTC_WAKEUP,
-                                        triggerAtMillis,
-                                        pendingIntent
-                                    )
-                                }
-                            }
-                        }
                         result.success(true)
                     } catch (e: Exception) {
                         result.error("SCHEDULE_FAILED", e.localizedMessage, null)
@@ -279,25 +234,128 @@ class MainActivity: FlutterActivity() {
                 }
                 "cancelReminder" -> {
                     try {
-                        val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager
-                        val intent = Intent(this, ShiftReminderReceiver::class.java).apply {
-                            action = ShiftReminderReceiver.ACTION_REMINDER
-                        }
-                        val pendingIntent = PendingIntent.getBroadcast(
-                            this,
-                            ShiftReminderReceiver.NOTIFICATION_ID,
-                            intent,
-                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                        cancelAlarm(
+                            action = ShiftReminderReceiver.ACTION_REMINDER,
+                            notificationId = ShiftReminderReceiver.NOTIFICATION_ID,
                         )
-                        alarmManager?.cancel(pendingIntent)
                         result.success(true)
                     } catch (e: Exception) {
                         result.error("CANCEL_FAILED", e.localizedMessage, null)
                     }
                 }
+                "scheduleTargetNotification" -> {
+                    try {
+                        val triggerAtMillis = call.argument<Long>("triggerAtMillis")
+                            ?: (call.argument<Number>("triggerAtMillis")?.toLong() ?: 0L)
+                        val targetUtcIso = call.argument<String>("targetUtcIso")
+                        val title = call.argument<String>("title") ?: "Clock-Out Target Reached"
+                        val body = call.argument<String>("body") ?: "Your planned clock-out target has been reached."
+                        scheduleAlarm(
+                            action = ShiftReminderReceiver.ACTION_TARGET_REACHED,
+                            notificationId = ShiftReminderReceiver.TARGET_NOTIFICATION_ID,
+                            triggerAtMillis = triggerAtMillis,
+                            title = title,
+                            body = body,
+                            targetUtcIso = targetUtcIso,
+                        )
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("SCHEDULE_TARGET_FAILED", e.localizedMessage, null)
+                    }
+                }
+                "cancelTargetNotification" -> {
+                    try {
+                        cancelAlarm(
+                            action = ShiftReminderReceiver.ACTION_TARGET_REACHED,
+                            notificationId = ShiftReminderReceiver.TARGET_NOTIFICATION_ID,
+                        )
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("CANCEL_TARGET_FAILED", e.localizedMessage, null)
+                    }
+                }
                 else -> result.notImplemented()
             }
         }
+    }
+
+    private fun scheduleAlarm(
+        action: String,
+        notificationId: Int,
+        triggerAtMillis: Long,
+        title: String,
+        body: String,
+        targetUtcIso: String?,
+    ) {
+        val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+        if (triggerAtMillis <= System.currentTimeMillis()) return
+
+        val intent = Intent(this, ShiftReminderReceiver::class.java).apply {
+            this.action = action
+            putExtra("title", title)
+            putExtra("body", body)
+            if (targetUtcIso != null) {
+                putExtra("targetUtcIso", targetUtcIso)
+            }
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            this,
+            notificationId,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (alarmManager.canScheduleExactAlarms()) {
+                    alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        triggerAtMillis,
+                        pendingIntent
+                    )
+                } else {
+                    alarmManager.setAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        triggerAtMillis,
+                        pendingIntent
+                    )
+                }
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAtMillis,
+                    pendingIntent
+                )
+            } else {
+                alarmManager.setExact(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAtMillis,
+                    pendingIntent
+                )
+            }
+        } catch (_: SecurityException) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAtMillis,
+                    pendingIntent
+                )
+            }
+        }
+    }
+
+    private fun cancelAlarm(action: String, notificationId: Int) {
+        val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+        val intent = Intent(this, ShiftReminderReceiver::class.java).apply {
+            this.action = action
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            this,
+            notificationId,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        alarmManager.cancel(pendingIntent)
     }
 
     private fun getReportsCacheDir(): File {

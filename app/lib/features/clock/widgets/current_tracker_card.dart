@@ -5,7 +5,7 @@ import 'clock_action_button.dart';
 import 'current_shift_timer_card.dart';
 import 'cyber_orbit_badge.dart';
 
-class CurrentTrackerQuadrant extends StatelessWidget {
+class CurrentTrackerCard extends StatelessWidget {
   final WorkStatus status;
   final bool isLoading;
   final bool enableAnimations;
@@ -22,7 +22,7 @@ class CurrentTrackerQuadrant extends StatelessWidget {
   final VoidCallback? onOpenCustomTarget;
   final VoidCallback? onTargetReached;
 
-  const CurrentTrackerQuadrant({
+  const CurrentTrackerCard({
     super.key,
     required this.status,
     required this.isLoading,
@@ -43,28 +43,31 @@ class CurrentTrackerQuadrant extends StatelessWidget {
     final timeFormat = DateFormat('HH:mm');
     const slateDark = Color(0xFF1E293B);
 
-    return Container(
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: slateDark,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFF334155),
-          width: 1.2,
-        ),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Status Badge with Animated Cyber Orbiting Beacon
-          Center(
-            child: CyberOrbitBadge(
-              isClockedIn: isClockedIn,
-              enableAnimation: enableAnimations,
+    return CyberOrbitBorder(
+      isActive: isClockedIn,
+      enableAnimation: enableAnimations,
+      borderRadius: 16,
+      fillColor: slateDark,
+      borderColor: isClockedIn
+          ? const Color(0xFF10B981).withValues(alpha: 0.35)
+          : const Color(0xFF334155),
+      borderWidth: 1.2,
+      duration: const Duration(milliseconds: 5600),
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Status Badge (orbit ring lives on the desktop container border)
+            Center(
+              child: CyberOrbitBadge(
+                isClockedIn: isClockedIn,
+                enableAnimation: enableAnimations,
+                showOrbitRing: false,
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
+            const SizedBox(height: 24),
 
           // Central Current Shift Timer Card (embedded cleanly)
           CurrentShiftTimerCard(
@@ -163,6 +166,7 @@ class CurrentTrackerQuadrant extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

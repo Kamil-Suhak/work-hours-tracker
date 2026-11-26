@@ -47,6 +47,7 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="com.workhours.tracker.ACTION_SHIFT_REMINDER" />
+                <action android:name="com.workhours.tracker.ACTION_SHIFT_TARGET_REACHED" />
             </intent-filter>
         </receiver>
 

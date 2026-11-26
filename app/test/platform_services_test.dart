@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:work_hours_mobile/api/models.dart';
 import 'package:work_hours_mobile/services/platform/platform_services.dart';
 
 class _FakeSecureStorageGateway implements SecureStorageGateway {
@@ -109,6 +110,67 @@ void main() {
       await store.write('device_auth_token', 'dev-token-123');
       expect(await store.read('device_auth_token'), equals('dev-token-123'));
       expect(fakeStorage.containsKey('device_auth_token'), isTrue);
+    });
+  });
+
+  group('Target Notification Guard Tests', () {
+    final targetUtc = DateTime.utc(2026, 11, 26, 16, 0);
+
+    test('fires when still clocked in', () {
+      final status = WorkStatus(
+        state: WorkState.clockedIn,
+        activeSince: DateTime.utc(2026, 11, 26, 8, 0),
+        targetClockOutUtc: targetUtc,
+        serverTime: targetUtc,
+        todaySeconds: 28800,
+        monthSeconds: 28800,
+      );
+      expect(
+        shouldFireTargetNotification(status, targetUtc, now: targetUtc),
+        isTrue,
+      );
+    });
+
+    test('fires when server just auto-stopped at target', () {
+      final status = WorkStatus(
+        state: WorkState.clockedOut,
+        serverTime: targetUtc,
+        todaySeconds: 28800,
+        monthSeconds: 28800,
+        latestEvent: LatestEventSummary(
+          id: 'evt-auto',
+          eventType: 'clock_out',
+          occurredAtUtc: targetUtc,
+          createdAtUtc: targetUtc.add(const Duration(seconds: 1)),
+        ),
+      );
+      expect(
+        shouldFireTargetNotification(
+          status,
+          targetUtc,
+          now: targetUtc.add(const Duration(seconds: 2)),
+        ),
+        isTrue,
+      );
+    });
+
+    test('does not fire when user already clocked out manually before target', () {
+      final status = WorkStatus(
+        state: WorkState.clockedOut,
+        serverTime: targetUtc,
+        todaySeconds: 25200,
+        monthSeconds: 25200,
+        latestEvent: LatestEventSummary(
+          id: 'evt-manual',
+          eventType: 'clock_out',
+          occurredAtUtc: targetUtc.subtract(const Duration(minutes: 45)),
+          createdAtUtc: targetUtc.subtract(const Duration(minutes: 45)),
+        ),
+      );
+      expect(
+        shouldFireTargetNotification(status, targetUtc, now: targetUtc),
+        isFalse,
+      );
     });
   });
 }
